@@ -7,7 +7,10 @@ import type { buildCommandContext } from "./commands.js";
 import type { InlineDirectives } from "./directive-handling.js";
 import type { createModelSelectionState } from "./model-selection.js";
 import type { TypingController } from "./typing.js";
+import { resolveAgentAuthProfileId } from "../../agents/agent-scope.js";
+import { ensureAuthProfileStore, isProfileInCooldown } from "../../agents/auth-profiles.js";
 import { resolveSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
+import { normalizeProviderId } from "../../agents/model-selection.js";
 import {
   abortEmbeddedPiRun,
   isEmbeddedPiRunActive,
@@ -342,17 +345,42 @@ export async function runPreparedReply(
     resolvedQueue.mode === "followup" ||
     resolvedQueue.mode === "collect" ||
     resolvedQueue.mode === "steer-backlog";
-  const authProfileId = await resolveSessionAuthProfileOverride({
-    cfg,
-    provider,
-    agentDir,
-    sessionEntry,
-    sessionStore,
-    sessionKey,
-    storePath,
-    isNewSession,
-  });
-  const authProfileIdSource = sessionEntry?.authProfileOverrideSource;
+
+  const lockedAgentProfileId = resolveAgentAuthProfileId(cfg, agentId);
+  const authProfileId = lockedAgentProfileId
+    ? (() => {
+        const store = ensureAuthProfileStore(agentDir, { allowKeychainPrompt: false });
+        const profile = store.profiles[lockedAgentProfileId];
+        if (!profile) {
+          throw new Error(
+            `Locked auth profile "${lockedAgentProfileId}" not found for agent "${agentId}".`,
+          );
+        }
+        if (normalizeProviderId(profile.provider) !== normalizeProviderId(provider)) {
+          throw new Error(
+            `Locked auth profile "${lockedAgentProfileId}" is for provider "${profile.provider}", but the agent is running "${provider}/${model}".`,
+          );
+        }
+        if (isProfileInCooldown(store, lockedAgentProfileId)) {
+          throw new Error(
+            `Auth profile "${lockedAgentProfileId}" is currently unavailable (cooldown/disabled). Unlock/change the profile or wait until the cooldown expires.`,
+          );
+        }
+        return lockedAgentProfileId;
+      })()
+    : await resolveSessionAuthProfileOverride({
+        cfg,
+        provider,
+        agentDir,
+        sessionEntry,
+        sessionStore,
+        sessionKey,
+        storePath,
+        isNewSession,
+      });
+  const authProfileIdSource = lockedAgentProfileId
+    ? "user"
+    : sessionEntry?.authProfileOverrideSource;
   const followupRun = {
     prompt: queuedBody,
     messageId: sessionCtx.MessageSidFull ?? sessionCtx.MessageSid,

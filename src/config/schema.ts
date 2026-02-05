@@ -288,6 +288,10 @@ const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.model.fallbacks": "Model Fallbacks",
   "agents.defaults.imageModel.primary": "Image Model",
   "agents.defaults.imageModel.fallbacks": "Image Model Fallbacks",
+  "agents.list[].authProfileId": "Locked Auth Profile",
+  "agents.list[].imageModel.primary": "Image Model",
+  "agents.list[].imageModel.fallbacks": "Image Model Fallbacks",
+  "agents.list[].imageAuthProfileId": "Locked Image Auth Profile",
   "agents.defaults.humanDelay.mode": "Human Delay Mode",
   "agents.defaults.humanDelay.minMs": "Human Delay Min (ms)",
   "agents.defaults.humanDelay.maxMs": "Human Delay Max (ms)",
@@ -646,6 +650,14 @@ const FIELD_HELP: Record<string, string> = {
   "agents.defaults.imageModel.primary":
     "Optional image model (provider/model) used when the primary model lacks image input.",
   "agents.defaults.imageModel.fallbacks": "Ordered fallback image models (provider/model).",
+  "agents.list[].authProfileId":
+    "Optional locked auth profile id for this agent's text model provider. When set, OpenClaw will not rotate/fail over to other profiles.",
+  "agents.list[].imageModel.primary":
+    "Optional per-agent image model (provider/model). When unset, OpenClaw will infer an image-capable model from the agent's primary model and available credentials.",
+  "agents.list[].imageModel.fallbacks":
+    "Optional per-agent fallback image models (provider/model).",
+  "agents.list[].imageAuthProfileId":
+    "Optional locked auth profile id for this agent's image model provider. When set, OpenClaw will not rotate/fail over to other profiles.",
   "agents.defaults.cliBackends": "Optional CLI backends for text-only fallback (claude-cli, etc.).",
   "agents.defaults.humanDelay.mode": 'Delay style for block replies ("off", "natural", "custom").',
   "agents.defaults.humanDelay.minMs": "Minimum delay in ms for custom humanDelay (default: 800).",

@@ -49,6 +49,12 @@ export type ProfileUsageStats = {
   errorCount?: number;
   failureCounts?: Partial<Record<AuthProfileFailureReason, number>>;
   lastFailureAt?: number;
+  /**
+   * When true, OpenClaw will not re-import/sync this profile from external CLI tools.
+   * This is a user intent marker (e.g., via Control UI delete), not a runtime failure state.
+   */
+  externalSyncDisabled?: boolean;
+  externalSyncDisabledAt?: number;
 };
 
 export type AuthProfileStore = {

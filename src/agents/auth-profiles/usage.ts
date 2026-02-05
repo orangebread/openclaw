@@ -1,7 +1,7 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AuthProfileFailureReason, AuthProfileStore, ProfileUsageStats } from "./types.js";
 import { normalizeProviderId } from "../model-selection.js";
-import { saveAuthProfileStore, updateAuthProfileStoreWithLock } from "./store.js";
+import { updateAuthProfileStoreWithLock } from "./store.js";
 
 function resolveProfileUnusableUntil(stats: ProfileUsageStats): number | null {
   const values = [stats.cooldownUntil, stats.disabledUntil]
@@ -54,25 +54,12 @@ export async function markAuthProfileUsed(params: {
       return true;
     },
   });
-  if (updated) {
-    store.usageStats = updated.usageStats;
+  if (updated.ok) {
+    store.usageStats = updated.store.usageStats;
     return;
   }
-  if (!store.profiles[profileId]) {
-    return;
-  }
-
-  store.usageStats = store.usageStats ?? {};
-  store.usageStats[profileId] = {
-    ...store.usageStats[profileId],
-    lastUsed: Date.now(),
-    errorCount: 0,
-    cooldownUntil: undefined,
-    disabledUntil: undefined,
-    disabledReason: undefined,
-    failureCounts: undefined,
-  };
-  saveAuthProfileStore(store, agentDir);
+  // Best-effort only: avoid unlocked writes that could clobber concurrent updates.
+  // If we can't acquire the lock, skip persisting usage stats.
 }
 
 export function calculateAuthProfileCooldownMs(errorCount: number): number {
@@ -236,30 +223,11 @@ export async function markAuthProfileFailure(params: {
       return true;
     },
   });
-  if (updated) {
-    store.usageStats = updated.usageStats;
+  if (updated.ok) {
+    store.usageStats = updated.store.usageStats;
     return;
   }
-  if (!store.profiles[profileId]) {
-    return;
-  }
-
-  store.usageStats = store.usageStats ?? {};
-  const existing = store.usageStats[profileId] ?? {};
-  const now = Date.now();
-  const providerKey = normalizeProviderId(store.profiles[profileId]?.provider ?? "");
-  const cfgResolved = resolveAuthCooldownConfig({
-    cfg,
-    providerId: providerKey,
-  });
-
-  store.usageStats[profileId] = computeNextProfileUsageStats({
-    existing,
-    now,
-    reason,
-    cfgResolved,
-  });
-  saveAuthProfileStore(store, agentDir);
+  // Best-effort only: avoid unlocked writes that could clobber concurrent updates.
 }
 
 /**
@@ -305,18 +273,9 @@ export async function clearAuthProfileCooldown(params: {
       return true;
     },
   });
-  if (updated) {
-    store.usageStats = updated.usageStats;
+  if (updated.ok) {
+    store.usageStats = updated.store.usageStats;
     return;
   }
-  if (!store.usageStats?.[profileId]) {
-    return;
-  }
-
-  store.usageStats[profileId] = {
-    ...store.usageStats[profileId],
-    errorCount: 0,
-    cooldownUntil: undefined,
-  };
-  saveAuthProfileStore(store, agentDir);
+  // Best-effort only: avoid unlocked writes that could clobber concurrent updates.
 }

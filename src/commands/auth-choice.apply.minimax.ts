@@ -72,6 +72,7 @@ export async function applyAuthChoiceMiniMax(
       const key = await params.prompter.text({
         message: "Enter MiniMax API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setMinimaxApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }

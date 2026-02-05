@@ -86,6 +86,7 @@ export async function applyAuthChoiceAnthropic(
       const key = await params.prompter.text({
         message: "Enter Anthropic API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setAnthropicApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }

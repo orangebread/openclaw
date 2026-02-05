@@ -541,4 +541,88 @@ describe("runWithModelFallback", () => {
     expect(result.provider).toBe("openai");
     expect(result.model).toBe("gpt-4.1-mini");
   });
+
+  it("restricts fallbacks to a single provider when configured", async () => {
+    const cfg = makeCfg({
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai/gpt-4.1-mini",
+            fallbacks: ["openai/gpt-4.1", "anthropic/claude-haiku-3-5"],
+          },
+        },
+      },
+    });
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("unauthorized"), { status: 401 }))
+      .mockResolvedValueOnce("ok");
+
+    const result = await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      restrictProvider: "openai",
+      run,
+    });
+
+    expect(result.result).toBe("ok");
+    expect(run.mock.calls).toEqual([
+      ["openai", "gpt-4.1-mini"],
+      ["openai", "gpt-4.1"],
+    ]);
+  });
+
+  it("can skip provider cooldown prechecks when configured", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-auth-"));
+    const provider = `cooldown-locked-${crypto.randomUUID()}`;
+    const profileId = `${provider}:default`;
+
+    const store: AuthProfileStore = {
+      version: AUTH_STORE_VERSION,
+      profiles: {
+        [profileId]: {
+          type: "api_key",
+          provider,
+          key: "test-key",
+        },
+      },
+      usageStats: {
+        [profileId]: {
+          cooldownUntil: Date.now() + 60_000,
+        },
+      },
+    };
+
+    saveAuthProfileStore(store, tempDir);
+
+    const cfg = makeCfg({
+      agents: {
+        defaults: {
+          model: {
+            primary: `${provider}/m1`,
+            fallbacks: [],
+          },
+        },
+      },
+    });
+    const run = vi.fn().mockResolvedValue("ok");
+
+    try {
+      const result = await runWithModelFallback({
+        cfg,
+        provider,
+        model: "m1",
+        agentDir: tempDir,
+        restrictProvider: provider,
+        skipProviderCooldownCheck: true,
+        run,
+      });
+
+      expect(result.result).toBe("ok");
+      expect(run.mock.calls).toEqual([[provider, "m1"]]);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
 });

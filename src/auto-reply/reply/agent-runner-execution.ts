@@ -9,7 +9,7 @@ import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js"
 import { runCliAgent } from "../../agents/cli-runner.js";
 import { getCliSessionId } from "../../agents/cli-session.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
-import { isCliProvider } from "../../agents/model-selection.js";
+import { isCliProvider, normalizeProviderId } from "../../agents/model-selection.js";
 import {
   isCompactionFailureError,
   isContextOverflowError,
@@ -143,16 +143,29 @@ export async function runAgentTurnWithFallback(params: {
       };
       const blockReplyPipeline = params.blockReplyPipeline;
       const onToolResult = params.opts?.onToolResult;
+      const isLockedAuthProfile =
+        params.followupRun.run.authProfileIdSource === "user" &&
+        Boolean(params.followupRun.run.authProfileId);
       const fallbackResult = await runWithModelFallback({
         cfg: params.followupRun.run.config,
         provider: params.followupRun.run.provider,
         model: params.followupRun.run.model,
         agentDir: params.followupRun.run.agentDir,
+        restrictProvider: isLockedAuthProfile ? params.followupRun.run.provider : undefined,
+        skipProviderCooldownCheck: isLockedAuthProfile,
         fallbacksOverride: resolveAgentModelFallbacksOverride(
           params.followupRun.run.config,
           resolveAgentIdFromSessionKey(params.followupRun.run.sessionKey),
         ),
         run: (provider, model) => {
+          if (
+            isLockedAuthProfile &&
+            normalizeProviderId(provider) !== normalizeProviderId(params.followupRun.run.provider)
+          ) {
+            throw new Error(
+              `Agent is locked to provider "${params.followupRun.run.provider}" via authProfileId; fallback to "${provider}" is not allowed (unlock/change the profile or wait for cooldown to expire).`,
+            );
+          }
           // Notify that model selection is complete (including after fallback).
           // This allows responsePrefix template interpolation with the actual model.
           params.opts?.onModelSelected?.({

@@ -158,11 +158,16 @@ export async function runEmbeddedPiAgent(
       let lockedProfileId = params.authProfileIdSource === "user" ? preferredProfileId : undefined;
       if (lockedProfileId) {
         const lockedProfile = authStore.profiles[lockedProfileId];
-        if (
-          !lockedProfile ||
-          normalizeProviderId(lockedProfile.provider) !== normalizeProviderId(provider)
-        ) {
-          lockedProfileId = undefined;
+        if (!lockedProfile) {
+          throw new Error(`Auth profile "${lockedProfileId}" not found.`);
+        }
+        if (normalizeProviderId(lockedProfile.provider) !== normalizeProviderId(provider)) {
+          throw new Error(`Auth profile "${lockedProfileId}" is not configured for ${provider}.`);
+        }
+        if (lockedProfileId && isProfileInCooldown(authStore, lockedProfileId)) {
+          throw new Error(
+            `Auth profile "${lockedProfileId}" is currently unavailable (cooldown/disabled). Unlock/change the profile or wait until the cooldown expires.`,
+          );
         }
       }
       const profileOrder = resolveAuthProfileOrder({

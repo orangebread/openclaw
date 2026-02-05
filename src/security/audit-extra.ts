@@ -268,6 +268,23 @@ function collectModels(cfg: OpenClawConfig): ModelRef[] {
         }
       }
     }
+
+    const imageModel = (agent as { imageModel?: unknown }).imageModel;
+    if (typeof imageModel === "string") {
+      addModel(out, imageModel, `agents.list.${id}.imageModel`);
+    } else if (imageModel && typeof imageModel === "object") {
+      addModel(
+        out,
+        (imageModel as { primary?: unknown }).primary,
+        `agents.list.${id}.imageModel.primary`,
+      );
+      const fallbacks = (imageModel as { fallbacks?: unknown }).fallbacks;
+      if (Array.isArray(fallbacks)) {
+        for (const f of fallbacks) {
+          addModel(out, f, `agents.list.${id}.imageModel.fallbacks`);
+        }
+      }
+    }
   }
   return out;
 }

@@ -6,7 +6,7 @@ import type { GetReplyOptions } from "../types.js";
 import type { FollowupRun } from "./queue.js";
 import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
-import { isCliProvider } from "../../agents/model-selection.js";
+import { isCliProvider, normalizeProviderId } from "../../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import { resolveSandboxConfigForAgent, resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
 import {
@@ -96,16 +96,29 @@ export async function runMemoryFlushIfNeeded(params: {
     .filter(Boolean)
     .join("\n\n");
   try {
+    const isLockedAuthProfile =
+      params.followupRun.run.authProfileIdSource === "user" &&
+      Boolean(params.followupRun.run.authProfileId);
     await runWithModelFallback({
       cfg: params.followupRun.run.config,
       provider: params.followupRun.run.provider,
       model: params.followupRun.run.model,
       agentDir: params.followupRun.run.agentDir,
+      restrictProvider: isLockedAuthProfile ? params.followupRun.run.provider : undefined,
+      skipProviderCooldownCheck: isLockedAuthProfile,
       fallbacksOverride: resolveAgentModelFallbacksOverride(
         params.followupRun.run.config,
         resolveAgentIdFromSessionKey(params.followupRun.run.sessionKey),
       ),
       run: (provider, model) => {
+        if (
+          isLockedAuthProfile &&
+          normalizeProviderId(provider) !== normalizeProviderId(params.followupRun.run.provider)
+        ) {
+          throw new Error(
+            `Agent is locked to provider "${params.followupRun.run.provider}" via authProfileId; fallback to "${provider}" is not allowed (unlock/change the profile or wait for cooldown to expire).`,
+          );
+        }
         const authProfileId =
           provider === params.followupRun.run.provider
             ? params.followupRun.run.authProfileId

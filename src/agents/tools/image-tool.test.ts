@@ -100,6 +100,175 @@ describe("image tool implicit imageModel config", () => {
     });
   });
 
+  it("prefers per-agent imageModel over agents.defaults.imageModel", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-5.2" },
+          imageModel: { primary: "openai/gpt-5-mini" },
+        },
+        list: [{ id: "work", imageModel: { primary: "minimax/MiniMax-VL-01" } }],
+      },
+    };
+    expect(resolveImageModelConfigForTool({ cfg, agentId: "work", agentDir })).toEqual({
+      primary: "minimax/MiniMax-VL-01",
+    });
+  });
+
+  it("uses per-agent primary model when inferring an image model", async () => {
+    vi.stubEnv("MINIMAX_API_KEY", "minimax-test");
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: { model: { primary: "openai/gpt-5.2" } },
+        list: [{ id: "work", model: { primary: "minimax/MiniMax-M2.1" } }],
+      },
+    };
+    expect(resolveImageModelConfigForTool({ cfg, agentId: "work", agentDir })).toEqual({
+      primary: "minimax/MiniMax-VL-01",
+    });
+  });
+
+  it("enforces locked image auth profile cooldown and provider matching", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
+    await writeAuthProfiles(agentDir, {
+      version: 1,
+      profiles: {
+        "anthropic:work": { type: "api_key", provider: "anthropic", key: "sk-test" },
+        "openrouter:work": { type: "api_key", provider: "openrouter", key: "sk-test" },
+      },
+      usageStats: {
+        "anthropic:work": { cooldownUntil: Date.now() + 60_000 },
+      },
+    });
+
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: { model: { primary: "anthropic/claude-opus-4-5" } },
+        list: [
+          {
+            id: "work",
+            authProfileId: "anthropic:work",
+            imageAuthProfileId: "openrouter:work",
+          },
+        ],
+      },
+    };
+
+    expect(() =>
+      __testing.resolveLockedImageAuthProfileId({
+        cfg,
+        agentId: "work",
+        agentDir,
+        provider: "anthropic",
+      }),
+    ).toThrow(/provider/);
+
+    expect(() =>
+      __testing.resolveLockedImageAuthProfileId({
+        cfg: {
+          ...cfg,
+          agents: {
+            ...cfg.agents,
+            list: [{ id: "work", authProfileId: "anthropic:work" }],
+          },
+        },
+        agentId: "work",
+        agentDir,
+        provider: "anthropic",
+      }),
+    ).toThrow(/cooldown/);
+
+    expect(
+      __testing.resolveLockedImageAuthProfileId({
+        cfg: {
+          ...cfg,
+          agents: {
+            ...cfg.agents,
+            list: [{ id: "work", authProfileId: "anthropic:work" }],
+          },
+        },
+        agentId: "work",
+        agentDir,
+        provider: "openrouter",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("blocks image.model overrides that change provider when locked image creds are in effect", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
+    await writeAuthProfiles(agentDir, {
+      version: 1,
+      profiles: {
+        "openai:txt": { type: "api_key", provider: "openai", key: "sk-test" },
+        "openai:img": { type: "api_key", provider: "openai", key: "sk-test" },
+      },
+    });
+
+    const cfgInherited: OpenClawConfig = {
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-5.2" },
+          imageModel: { primary: "openai/gpt-5-mini" },
+        },
+        list: [{ id: "work", authProfileId: "openai:txt" }],
+      },
+    };
+
+    expect(() =>
+      __testing.assertImageModelOverrideAllowed({
+        cfg: cfgInherited,
+        agentId: "work",
+        agentDir,
+        imageModelConfig: { primary: "openai/gpt-5-mini" },
+        modelOverride: "anthropic/claude-opus-4-5",
+      }),
+    ).toThrow(/overrides that change provider/i);
+
+    const cfgExplicit: OpenClawConfig = {
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-5.2" },
+          imageModel: { primary: "openai/gpt-5-mini" },
+        },
+        list: [{ id: "work", imageAuthProfileId: "openai:img" }],
+      },
+    };
+
+    expect(() =>
+      __testing.assertImageModelOverrideAllowed({
+        cfg: cfgExplicit,
+        agentId: "work",
+        agentDir,
+        imageModelConfig: { primary: "openai/gpt-5-mini" },
+        modelOverride: "openai/gpt-5.2",
+      }),
+    ).not.toThrow();
+
+    // Inheritance rule: if the image provider differs from the text lock provider,
+    // treat credentials as auto and allow provider-changing overrides.
+    const cfgNoInherit: OpenClawConfig = {
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-5.2" },
+          imageModel: { primary: "minimax/MiniMax-VL-01" },
+        },
+        list: [{ id: "work", authProfileId: "openai:txt" }],
+      },
+    };
+
+    expect(() =>
+      __testing.assertImageModelOverrideAllowed({
+        cfg: cfgNoInherit,
+        agentId: "work",
+        agentDir,
+        imageModelConfig: { primary: "minimax/MiniMax-VL-01" },
+        modelOverride: "anthropic/claude-opus-4-5",
+      }),
+    ).not.toThrow();
+  });
+
   it("keeps image tool available when primary model supports images (for explicit requests)", async () => {
     // When the primary model supports images, we still keep the tool available
     // because images are auto-injected into prompts. The tool description is

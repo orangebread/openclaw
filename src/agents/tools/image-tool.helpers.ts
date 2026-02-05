@@ -1,5 +1,6 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { OpenClawConfig } from "../../config/config.js";
+import { resolveAgentConfig } from "../agent-scope.js";
 import { extractAssistantText } from "../pi-embedded-utils.js";
 
 export type ImageModelConfig = { primary?: string; fallbacks?: string[] };
@@ -50,11 +51,19 @@ export function coerceImageAssistantText(params: {
   throw new Error(`Image model returned no text (${params.provider}/${params.model}).`);
 }
 
-export function coerceImageModelConfig(cfg?: OpenClawConfig): ImageModelConfig {
-  const imageModel = cfg?.agents?.defaults?.imageModel as
-    | { primary?: string; fallbacks?: string[] }
-    | string
-    | undefined;
+export function coerceImageModelConfig(cfg?: OpenClawConfig, agentId?: string): ImageModelConfig {
+  const agentImageModel =
+    cfg && agentId
+      ? (resolveAgentConfig(cfg, agentId)?.imageModel as
+          | { primary?: string; fallbacks?: string[] }
+          | string
+          | undefined)
+      : undefined;
+  const imageModel = (agentImageModel ??
+    (cfg?.agents?.defaults?.imageModel as
+      | { primary?: string; fallbacks?: string[] }
+      | string
+      | undefined)) as { primary?: string; fallbacks?: string[] } | string | undefined;
   const primary = typeof imageModel === "string" ? imageModel.trim() : imageModel?.primary;
   const fallbacks = typeof imageModel === "object" ? (imageModel?.fallbacks ?? []) : [];
   return {

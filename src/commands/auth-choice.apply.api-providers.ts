@@ -162,6 +162,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter OpenRouter API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setOpenrouterApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
       hasCredential = true;
@@ -218,6 +219,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Vercel AI Gateway API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setVercelAiGatewayApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }
@@ -365,6 +367,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Moonshot API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setMoonshotApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }
@@ -472,6 +475,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Kimi Coding API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setKimiCodingApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }
@@ -520,6 +524,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Gemini API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setGeminiApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }
@@ -567,6 +572,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Z.AI API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setZaiApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }
@@ -630,6 +636,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Xiaomi API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setXiaomiApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }
@@ -662,6 +669,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Synthetic API key",
         validate: (value) => (value?.trim() ? undefined : "Required"),
+        sensitive: true,
       });
       await setSyntheticApiKey(String(key).trim(), params.agentDir);
     }
@@ -721,6 +729,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Venice AI API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setVeniceApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }
@@ -778,6 +787,7 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter OpenCode Zen API key",
         validate: validateApiKeyInput,
+        sensitive: true,
       });
       await setOpencodeZenApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }

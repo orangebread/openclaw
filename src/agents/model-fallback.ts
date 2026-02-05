@@ -16,6 +16,8 @@ import {
   buildConfiguredAllowlistKeys,
   buildModelAliasIndex,
   modelKey,
+  normalizeProviderId,
+  parseModelRef,
   resolveConfiguredModelRef,
   resolveModelRefFromString,
 } from "./model-selection.js";
@@ -131,6 +133,8 @@ function resolveFallbackCandidates(params: {
   model: string;
   /** Optional explicit fallbacks list; when provided (even empty), replaces agents.defaults.model.fallbacks. */
   fallbacksOverride?: string[];
+  /** If set, only allow fallbacks that stay on this provider. */
+  restrictProvider?: string;
 }): ModelCandidate[] {
   const primary = params.cfg
     ? resolveConfiguredModelRef({
@@ -201,7 +205,13 @@ function resolveFallbackCandidates(params: {
     addCandidate({ provider: primary.provider, model: primary.model }, false);
   }
 
-  return candidates;
+  const restrictProvider = params.restrictProvider?.trim();
+  if (!restrictProvider) {
+    return candidates;
+  }
+  return candidates.filter(
+    (c) => normalizeProviderId(c.provider) === normalizeProviderId(restrictProvider),
+  );
 }
 
 export async function runWithModelFallback<T>(params: {
@@ -211,6 +221,13 @@ export async function runWithModelFallback<T>(params: {
   agentDir?: string;
   /** Optional explicit fallbacks list; when provided (even empty), replaces agents.defaults.model.fallbacks. */
   fallbacksOverride?: string[];
+  /** If set, only allow fallbacks that stay on this provider. */
+  restrictProvider?: string;
+  /**
+   * If true, don't pre-skip providers in cooldown. This is useful when a specific
+   * locked credential is expected to produce a user-facing error.
+   */
+  skipProviderCooldownCheck?: boolean;
   run: (provider: string, model: string) => Promise<T>;
   onError?: (attempt: {
     provider: string;
@@ -230,7 +247,15 @@ export async function runWithModelFallback<T>(params: {
     provider: params.provider,
     model: params.model,
     fallbacksOverride: params.fallbacksOverride,
+    restrictProvider: params.restrictProvider,
   });
+  if (candidates.length === 0) {
+    throw new Error(
+      params.restrictProvider?.trim()
+        ? `No eligible fallback models for provider "${params.restrictProvider}".`
+        : "No eligible fallback models.",
+    );
+  }
   const authStore = params.cfg
     ? ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false })
     : null;
@@ -240,22 +265,24 @@ export async function runWithModelFallback<T>(params: {
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
     if (authStore) {
-      const profileIds = resolveAuthProfileOrder({
-        cfg: params.cfg,
-        store: authStore,
-        provider: candidate.provider,
-      });
-      const isAnyProfileAvailable = profileIds.some((id) => !isProfileInCooldown(authStore, id));
-
-      if (profileIds.length > 0 && !isAnyProfileAvailable) {
-        // All profiles for this provider are in cooldown; skip without attempting
-        attempts.push({
+      if (!params.skipProviderCooldownCheck) {
+        const profileIds = resolveAuthProfileOrder({
+          cfg: params.cfg,
+          store: authStore,
           provider: candidate.provider,
-          model: candidate.model,
-          error: `Provider ${candidate.provider} is in cooldown (all profiles unavailable)`,
-          reason: "rate_limit",
         });
-        continue;
+        const isAnyProfileAvailable = profileIds.some((id) => !isProfileInCooldown(authStore, id));
+
+        if (profileIds.length > 0 && !isAnyProfileAvailable) {
+          // All profiles for this provider are in cooldown; skip without attempting
+          attempts.push({
+            provider: candidate.provider,
+            model: candidate.model,
+            error: `Provider ${candidate.provider} is in cooldown (all profiles unavailable)`,
+            reason: "rate_limit",
+          });
+          continue;
+        }
       }
     }
     try {

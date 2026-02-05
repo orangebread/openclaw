@@ -58,9 +58,14 @@ export function createOpenClawTools(options?: {
   /** If true, omit the message tool from the tool list. */
   disableMessageTool?: boolean;
 }): AnyAgentTool[] {
+  const resolvedAgentId = resolveSessionAgentId({
+    sessionKey: options?.agentSessionKey,
+    config: options?.config,
+  });
   const imageTool = options?.agentDir?.trim()
     ? createImageTool({
         config: options?.config,
+        agentId: resolvedAgentId,
         agentDir: options.agentDir,
         sandboxRoot: options?.sandboxRoot,
         modelHasVision: options?.modelHasVision,
@@ -153,10 +158,7 @@ export function createOpenClawTools(options?: {
       config: options?.config,
       workspaceDir: options?.workspaceDir,
       agentDir: options?.agentDir,
-      agentId: resolveSessionAgentId({
-        sessionKey: options?.agentSessionKey,
-        config: options?.config,
-      }),
+      agentId: resolvedAgentId,
       sessionKey: options?.agentSessionKey,
       messageChannel: options?.agentChannel,
       agentAccountId: options?.agentAccountId,

@@ -20,6 +20,9 @@ type ResolvedAgentConfig = {
   agentDir?: string;
   model?: AgentEntry["model"];
   skills?: AgentEntry["skills"];
+  authProfileId?: string;
+  imageModel?: AgentEntry["model"];
+  imageAuthProfileId?: string;
   memorySearch?: AgentEntry["memorySearch"];
   humanDelay?: AgentEntry["humanDelay"];
   heartbeat?: AgentEntry["heartbeat"];
@@ -114,6 +117,14 @@ export function resolveAgentConfig(
         ? entry.model
         : undefined,
     skills: Array.isArray(entry.skills) ? entry.skills : undefined,
+    authProfileId: typeof entry.authProfileId === "string" ? entry.authProfileId : undefined,
+    imageModel:
+      typeof entry.imageModel === "string" ||
+      (entry.imageModel && typeof entry.imageModel === "object")
+        ? entry.imageModel
+        : undefined,
+    imageAuthProfileId:
+      typeof entry.imageAuthProfileId === "string" ? entry.imageAuthProfileId : undefined,
     memorySearch: entry.memorySearch,
     humanDelay: entry.humanDelay,
     heartbeat: entry.heartbeat,
@@ -147,6 +158,39 @@ export function resolveAgentModelPrimary(cfg: OpenClawConfig, agentId: string): 
   }
   const primary = raw.primary?.trim();
   return primary || undefined;
+}
+
+export function resolveAgentAuthProfileId(
+  cfg: OpenClawConfig,
+  agentId: string,
+): string | undefined {
+  const raw = resolveAgentConfig(cfg, agentId)?.authProfileId;
+  const trimmed = typeof raw === "string" ? raw.trim() : "";
+  return trimmed || undefined;
+}
+
+export function resolveAgentImageModelPrimary(
+  cfg: OpenClawConfig,
+  agentId: string,
+): string | undefined {
+  const raw = resolveAgentConfig(cfg, agentId)?.imageModel;
+  if (!raw) {
+    return undefined;
+  }
+  if (typeof raw === "string") {
+    return raw.trim() || undefined;
+  }
+  const primary = raw.primary?.trim();
+  return primary || undefined;
+}
+
+export function resolveAgentImageAuthProfileId(
+  cfg: OpenClawConfig,
+  agentId: string,
+): string | undefined {
+  const raw = resolveAgentConfig(cfg, agentId)?.imageAuthProfileId;
+  const trimmed = typeof raw === "string" ? raw.trim() : "";
+  return trimmed || undefined;
 }
 
 export function resolveAgentModelFallbacksOverride(

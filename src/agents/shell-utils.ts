@@ -46,6 +46,11 @@ export function getShellConfig(): { shell: string; args: string[] } {
     }
   }
   const shell = envShell && envShell.length > 0 ? envShell : "sh";
+  // zsh reads ~/.zshenv even in non-interactive mode; user dotfiles can emit warnings
+  // or mutate output (breaking tooling/tests). Use -f for deterministic, env-driven exec.
+  if (shellName === "zsh") {
+    return { shell, args: ["-f", "-c"] };
+  }
   return { shell, args: ["-c"] };
 }
 

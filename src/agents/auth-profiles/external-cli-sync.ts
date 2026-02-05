@@ -11,6 +11,10 @@ import {
   log,
 } from "./constants.js";
 
+function isExternalCliSyncDisabled(store: AuthProfileStore, profileId: string): boolean {
+  return Boolean(store.usageStats?.[profileId]?.externalSyncDisabled);
+}
+
 function shallowEqualOAuthCredentials(a: OAuthCredential | undefined, b: OAuthCredential): boolean {
   if (!a) {
     return false;
@@ -54,6 +58,9 @@ function syncExternalCliCredentialsForProvider(
   readCredentials: () => OAuthCredential | null,
   now: number,
 ): boolean {
+  if (isExternalCliSyncDisabled(store, profileId)) {
+    return false;
+  }
   const existing = store.profiles[profileId];
   const shouldSync =
     !existing || existing.provider !== provider || !isExternalProfileFresh(existing, now);
@@ -91,30 +98,32 @@ export function syncExternalCliCredentials(store: AuthProfileStore): boolean {
   const now = Date.now();
 
   // Sync from Qwen Code CLI
-  const existingQwen = store.profiles[QWEN_CLI_PROFILE_ID];
-  const shouldSyncQwen =
-    !existingQwen ||
-    existingQwen.provider !== "qwen-portal" ||
-    !isExternalProfileFresh(existingQwen, now);
-  const qwenCreds = shouldSyncQwen
-    ? readQwenCliCredentialsCached({ ttlMs: EXTERNAL_CLI_SYNC_TTL_MS })
-    : null;
-  if (qwenCreds) {
-    const existing = store.profiles[QWEN_CLI_PROFILE_ID];
-    const existingOAuth = existing?.type === "oauth" ? existing : undefined;
-    const shouldUpdate =
-      !existingOAuth ||
-      existingOAuth.provider !== "qwen-portal" ||
-      existingOAuth.expires <= now ||
-      qwenCreds.expires > existingOAuth.expires;
+  if (!isExternalCliSyncDisabled(store, QWEN_CLI_PROFILE_ID)) {
+    const existingQwen = store.profiles[QWEN_CLI_PROFILE_ID];
+    const shouldSyncQwen =
+      !existingQwen ||
+      existingQwen.provider !== "qwen-portal" ||
+      !isExternalProfileFresh(existingQwen, now);
+    const qwenCreds = shouldSyncQwen
+      ? readQwenCliCredentialsCached({ ttlMs: EXTERNAL_CLI_SYNC_TTL_MS })
+      : null;
+    if (qwenCreds) {
+      const existing = store.profiles[QWEN_CLI_PROFILE_ID];
+      const existingOAuth = existing?.type === "oauth" ? existing : undefined;
+      const shouldUpdate =
+        !existingOAuth ||
+        existingOAuth.provider !== "qwen-portal" ||
+        existingOAuth.expires <= now ||
+        qwenCreds.expires > existingOAuth.expires;
 
-    if (shouldUpdate && !shallowEqualOAuthCredentials(existingOAuth, qwenCreds)) {
-      store.profiles[QWEN_CLI_PROFILE_ID] = qwenCreds;
-      mutated = true;
-      log.info("synced qwen credentials from qwen cli", {
-        profileId: QWEN_CLI_PROFILE_ID,
-        expires: new Date(qwenCreds.expires).toISOString(),
-      });
+      if (shouldUpdate && !shallowEqualOAuthCredentials(existingOAuth, qwenCreds)) {
+        store.profiles[QWEN_CLI_PROFILE_ID] = qwenCreds;
+        mutated = true;
+        log.info("synced qwen credentials from qwen cli", {
+          profileId: QWEN_CLI_PROFILE_ID,
+          expires: new Date(qwenCreds.expires).toISOString(),
+        });
+      }
     }
   }
 

@@ -1,6 +1,6 @@
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import fs from "node:fs";
-import lockfile from "proper-lockfile";
+import * as lockfile from "proper-lockfile";
 import type { AuthProfileCredential, AuthProfileStore, ProfileUsageStats } from "./types.js";
 import { resolveOAuthPath } from "../../config/paths.js";
 import { loadJsonFile, saveJsonFile } from "../../infra/json-file.js";
@@ -9,6 +9,10 @@ import { syncExternalCliCredentials } from "./external-cli-sync.js";
 import { ensureAuthStoreFile, resolveAuthStorePath, resolveLegacyAuthStorePath } from "./paths.js";
 
 type LegacyAuthStore = Record<string, AuthProfileCredential>;
+
+const AUTH_STORE_LOCK_OPTIONS_SYNC = {
+  stale: AUTH_STORE_LOCK_OPTIONS.stale,
+} as const;
 
 function _syncAuthProfileStore(target: AuthProfileStore, source: AuthProfileStore): void {
   target.version = source.version;
@@ -21,7 +25,7 @@ function _syncAuthProfileStore(target: AuthProfileStore, source: AuthProfileStor
 export async function updateAuthProfileStoreWithLock(params: {
   agentDir?: string;
   updater: (store: AuthProfileStore) => boolean;
-}): Promise<AuthProfileStore | null> {
+}): Promise<{ ok: true; store: AuthProfileStore } | { ok: false; error: Error }> {
   const authPath = resolveAuthStorePath(params.agentDir);
   ensureAuthStoreFile(authPath);
 
@@ -33,9 +37,9 @@ export async function updateAuthProfileStoreWithLock(params: {
     if (shouldSave) {
       saveAuthProfileStore(store, params.agentDir);
     }
-    return store;
-  } catch {
-    return null;
+    return { ok: true, store };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
   } finally {
     if (release) {
       try {
@@ -198,10 +202,7 @@ export function loadAuthProfileStore(): AuthProfileStore {
   const asStore = coerceAuthStore(raw);
   if (asStore) {
     // Sync from external CLI tools on every load
-    const synced = syncExternalCliCredentials(asStore);
-    if (synced) {
-      saveJsonFile(authPath, asStore);
-    }
+    syncExternalCliCredentials(asStore);
     return asStore;
   }
 
@@ -261,22 +262,19 @@ function loadAuthProfileStoreForAgent(
   const asStore = coerceAuthStore(raw);
   if (asStore) {
     // Sync from external CLI tools on every load
-    const synced = syncExternalCliCredentials(asStore);
-    if (synced) {
-      saveJsonFile(authPath, asStore);
-    }
+    syncExternalCliCredentials(asStore);
     return asStore;
   }
 
-  // Fallback: inherit auth-profiles from main agent if subagent has none
+  // Fallback: inherit auth-profiles from main agent if subagent has none.
+  // Intentionally do not write the inherited store to disk here; implicit writes
+  // during reads can clobber concurrent updates. The first explicit mutation
+  // (e.g., adding a key) will create/update the per-agent store under lock.
   if (agentDir) {
-    const mainAuthPath = resolveAuthStorePath(); // without agentDir = main
-    const mainRaw = loadJsonFile(mainAuthPath);
+    const mainRaw = loadJsonFile(resolveAuthStorePath()); // without agentDir = main
     const mainStore = coerceAuthStore(mainRaw);
     if (mainStore && Object.keys(mainStore.profiles).length > 0) {
-      // Clone main store to subagent directory for auth inheritance
-      saveJsonFile(authPath, mainStore);
-      log.info("inherited auth-profiles from main agent", { agentDir });
+      log.info("inherited auth-profiles from main agent (in-memory)", { agentDir });
       return mainStore;
     }
   }
@@ -325,7 +323,27 @@ function loadAuthProfileStoreForAgent(
   const syncedCli = syncExternalCliCredentials(store);
   const shouldWrite = legacy !== null || mergedOAuth || syncedCli;
   if (shouldWrite) {
-    saveJsonFile(authPath, store);
+    // Migration path: best-effort persist under lock to avoid clobbering a concurrent writer.
+    ensureAuthStoreFile(authPath);
+    let release: (() => void) | undefined;
+    try {
+      release = (
+        lockfile as unknown as {
+          lockSync: (path: string, options: typeof AUTH_STORE_LOCK_OPTIONS_SYNC) => () => void;
+        }
+      ).lockSync(authPath, AUTH_STORE_LOCK_OPTIONS_SYNC);
+      saveAuthProfileStore(store, agentDir);
+    } catch (err) {
+      log.warn("failed to persist auth-profiles migration", { err, agentDir });
+    } finally {
+      if (release) {
+        try {
+          release();
+        } catch {
+          // ignore unlock errors
+        }
+      }
+    }
   }
 
   // PR #368: legacy auth.json could get re-migrated from other agent dirs,

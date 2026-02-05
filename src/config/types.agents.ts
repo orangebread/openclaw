@@ -26,6 +26,12 @@ export type AgentConfig = {
   model?: AgentModelConfig;
   /** Optional allowlist of skills for this agent (omit = all skills; empty = none). */
   skills?: string[];
+  /** Optional locked auth profile id for the agent's primary (text) model provider. */
+  authProfileId?: string;
+  /** Optional per-agent image model override (provider/model). */
+  imageModel?: AgentModelConfig;
+  /** Optional locked auth profile id for the agent's image model provider. */
+  imageAuthProfileId?: string;
   memorySearch?: MemorySearchConfig;
   /** Human-like delay between block replies for this agent. */
   humanDelay?: HumanDelayConfig;

@@ -8,6 +8,7 @@ import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js"
 import { lookupContextTokens } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
+import { normalizeProviderId } from "../../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import { resolveAgentIdFromSessionKey, type SessionEntry } from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
@@ -125,16 +126,28 @@ export function createFollowupRunner(params: {
       let fallbackProvider = queued.run.provider;
       let fallbackModel = queued.run.model;
       try {
+        const isLockedAuthProfile =
+          queued.run.authProfileIdSource === "user" && Boolean(queued.run.authProfileId);
         const fallbackResult = await runWithModelFallback({
           cfg: queued.run.config,
           provider: queued.run.provider,
           model: queued.run.model,
           agentDir: queued.run.agentDir,
+          restrictProvider: isLockedAuthProfile ? queued.run.provider : undefined,
+          skipProviderCooldownCheck: isLockedAuthProfile,
           fallbacksOverride: resolveAgentModelFallbacksOverride(
             queued.run.config,
             resolveAgentIdFromSessionKey(queued.run.sessionKey),
           ),
           run: (provider, model) => {
+            if (
+              isLockedAuthProfile &&
+              normalizeProviderId(provider) !== normalizeProviderId(queued.run.provider)
+            ) {
+              throw new Error(
+                `Agent is locked to provider "${queued.run.provider}" via authProfileId; fallback to "${provider}" is not allowed (unlock/change the profile or wait for cooldown to expire).`,
+              );
+            }
             const authProfileId =
               provider === queued.run.provider ? queued.run.authProfileId : undefined;
             return runEmbeddedPiAgent({

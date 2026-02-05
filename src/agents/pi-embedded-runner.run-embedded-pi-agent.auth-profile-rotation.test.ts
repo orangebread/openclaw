@@ -218,7 +218,7 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
     }
   });
 
-  it("honors user-pinned profiles even when in cooldown", async () => {
+  it("fails fast for user-pinned profiles when in cooldown", async () => {
     vi.useFakeTimers();
     try {
       const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
@@ -251,31 +251,33 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
           }),
         );
 
-        await runEmbeddedPiAgent({
-          sessionId: "session:test",
-          sessionKey: "agent:test:user-cooldown",
-          sessionFile: path.join(workspaceDir, "session.jsonl"),
-          workspaceDir,
-          agentDir,
-          config: makeConfig(),
-          prompt: "hello",
-          provider: "openai",
-          model: "mock-1",
-          authProfileId: "openai:p1",
-          authProfileIdSource: "user",
-          timeoutMs: 5_000,
-          runId: "run:user-cooldown",
-        });
+        await expect(
+          runEmbeddedPiAgent({
+            sessionId: "session:test",
+            sessionKey: "agent:test:user-cooldown",
+            sessionFile: path.join(workspaceDir, "session.jsonl"),
+            workspaceDir,
+            agentDir,
+            config: makeConfig(),
+            prompt: "hello",
+            provider: "openai",
+            model: "mock-1",
+            authProfileId: "openai:p1",
+            authProfileIdSource: "user",
+            timeoutMs: 5_000,
+            runId: "run:user-cooldown",
+          }),
+        ).rejects.toThrow(/cooldown/i);
 
-        expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
+        expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(0);
 
         const stored = JSON.parse(
           await fs.readFile(path.join(agentDir, "auth-profiles.json"), "utf-8"),
         ) as {
           usageStats?: Record<string, { lastUsed?: number; cooldownUntil?: number }>;
         };
-        expect(stored.usageStats?.["openai:p1"]?.cooldownUntil).toBeUndefined();
-        expect(stored.usageStats?.["openai:p1"]?.lastUsed).not.toBe(1);
+        expect(stored.usageStats?.["openai:p1"]?.cooldownUntil).toBe(now + 60 * 60 * 1000);
+        expect(stored.usageStats?.["openai:p1"]?.lastUsed).toBe(1);
         expect(stored.usageStats?.["openai:p2"]?.lastUsed).toBe(2);
       } finally {
         await fs.rm(agentDir, { recursive: true, force: true });
@@ -286,7 +288,7 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
     }
   });
 
-  it("ignores user-locked profile when provider mismatches", async () => {
+  it("fails fast for user-locked profiles when provider mismatches", async () => {
     const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
     try {
@@ -302,23 +304,25 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
         }),
       );
 
-      await runEmbeddedPiAgent({
-        sessionId: "session:test",
-        sessionKey: "agent:test:mismatch",
-        sessionFile: path.join(workspaceDir, "session.jsonl"),
-        workspaceDir,
-        agentDir,
-        config: makeConfig(),
-        prompt: "hello",
-        provider: "openai",
-        model: "mock-1",
-        authProfileId: "anthropic:default",
-        authProfileIdSource: "user",
-        timeoutMs: 5_000,
-        runId: "run:mismatch",
-      });
+      await expect(
+        runEmbeddedPiAgent({
+          sessionId: "session:test",
+          sessionKey: "agent:test:mismatch",
+          sessionFile: path.join(workspaceDir, "session.jsonl"),
+          workspaceDir,
+          agentDir,
+          config: makeConfig(),
+          prompt: "hello",
+          provider: "openai",
+          model: "mock-1",
+          authProfileId: "anthropic:default",
+          authProfileIdSource: "user",
+          timeoutMs: 5_000,
+          runId: "run:mismatch",
+        }),
+      ).rejects.toThrow(/not configured for openai/i);
 
-      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
+      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(0);
     } finally {
       await fs.rm(agentDir, { recursive: true, force: true });
       await fs.rm(workspaceDir, { recursive: true, force: true });
