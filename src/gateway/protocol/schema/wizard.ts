@@ -39,6 +39,8 @@ export const WizardStatusParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const WizardCurrentParamsSchema = Type.Object({}, { additionalProperties: false });
+
 export const WizardStepOptionSchema = Type.Object(
   {
     value: Type.Unknown(),
@@ -115,6 +117,22 @@ export const WizardStatusResultSchema = Type.Object(
       Type.Literal("error"),
     ]),
     error: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const WizardCurrentResultSchema = Type.Object(
+  {
+    running: Type.Boolean(),
+    owned: Type.Optional(Type.Boolean()),
+    sessionId: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const WizardCancelCurrentResultSchema = Type.Object(
+  {
+    cancelled: Type.Boolean(),
   },
   { additionalProperties: false },
 );

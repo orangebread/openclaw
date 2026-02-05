@@ -1,11 +1,21 @@
 import type { WizardSession } from "../wizard/session.js";
 
+export type WizardSessionOwner = {
+  deviceId?: string;
+};
+
+export type WizardSessionEntry = {
+  session: WizardSession;
+  owner?: WizardSessionOwner;
+  startedAtMs: number;
+};
+
 export function createWizardSessionTracker() {
-  const wizardSessions = new Map<string, WizardSession>();
+  const wizardSessions = new Map<string, WizardSessionEntry>();
 
   const findRunningWizard = (): string | null => {
     for (const [id, session] of wizardSessions) {
-      if (session.getStatus() === "running") {
+      if (session.session.getStatus() === "running") {
         return id;
       }
     }
@@ -17,7 +27,7 @@ export function createWizardSessionTracker() {
     if (!session) {
       return;
     }
-    if (session.getStatus() === "running") {
+    if (session.session.getStatus() === "running") {
       return;
     }
     wizardSessions.delete(id);

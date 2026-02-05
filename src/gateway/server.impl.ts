@@ -45,6 +45,7 @@ import { runOnboardingWizard } from "../wizard/onboarding.js";
 import { startGatewayConfigReloader } from "./config-reload.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
 import { NodeRegistry } from "./node-registry.js";
+import { createAuthFlowSessionTracker } from "./server-auth-flow-sessions.js";
 import { createChannelManager } from "./server-channels.js";
 import { createAgentEventHandler } from "./server-chat.js";
 import { createGatewayCloseHandler } from "./server-close.js";
@@ -303,6 +304,8 @@ export async function startGatewayServer(
 
   const wizardRunner = opts.wizardRunner ?? runOnboardingWizard;
   const { wizardSessions, findRunningWizard, purgeWizardSession } = createWizardSessionTracker();
+  const { authFlowSessions, findRunningAuthFlow, purgeAuthFlowSession } =
+    createAuthFlowSessionTracker();
 
   const deps = createDefaultDeps();
   let canvasHostServer: CanvasHostServer | null = null;
@@ -519,6 +522,9 @@ export async function startGatewayServer(
       wizardSessions,
       findRunningWizard,
       purgeWizardSession,
+      authFlowSessions,
+      findRunningAuthFlow,
+      purgeAuthFlowSession,
       getRuntimeSnapshot,
       startChannel,
       stopChannel,

@@ -3,6 +3,38 @@ import type { SessionsPatchResult } from "../session-utils.types.js";
 import {
   type AgentEvent,
   AgentEventSchema,
+  type AuthProfilesDeleteParams,
+  AuthProfilesDeleteParamsSchema,
+  type AuthProfilesGetParams,
+  AuthProfilesGetParamsSchema,
+  type AuthProfilesUpsertApiKeyParams,
+  AuthProfilesUpsertApiKeyParamsSchema,
+  type AuthFlowListParams,
+  AuthFlowListParamsSchema,
+  type AuthFlowListResult,
+  AuthFlowListResultSchema,
+  type AuthFlowStartParams,
+  AuthFlowStartParamsSchema,
+  type AuthFlowStartResult,
+  AuthFlowStartResultSchema,
+  type AuthFlowNextParams,
+  AuthFlowNextParamsSchema,
+  type AuthFlowNextResult,
+  AuthFlowNextResultSchema,
+  type AuthFlowCurrentParams,
+  AuthFlowCurrentParamsSchema,
+  type AuthFlowCurrentResult,
+  AuthFlowCurrentResultSchema,
+  type AuthFlowCancelCurrentParams,
+  AuthFlowCancelCurrentParamsSchema,
+  type AuthFlowCancelCurrentResult,
+  AuthFlowCancelCurrentResultSchema,
+  type AuthFlowStep,
+  AuthFlowStepSchema,
+  type AgentsProfileGetParams,
+  AgentsProfileGetParamsSchema,
+  type AgentsProfileUpdateParams,
+  AgentsProfileUpdateParamsSchema,
   type AgentIdentityParams,
   AgentIdentityParamsSchema,
   type AgentIdentityResult,
@@ -190,8 +222,20 @@ import {
   WebLoginStartParamsSchema,
   type WebLoginWaitParams,
   WebLoginWaitParamsSchema,
+  type WorkspaceEntry,
+  WorkspaceEntrySchema,
+  type WorkspaceListParams,
+  WorkspaceListParamsSchema,
+  type WorkspaceListResult,
+  WorkspaceListResultSchema,
+  type WorkspaceReadParams,
+  WorkspaceReadParamsSchema,
+  type WorkspaceReadResult,
+  WorkspaceReadResultSchema,
   type WizardCancelParams,
   WizardCancelParamsSchema,
+  type WizardCurrentParams,
+  WizardCurrentParamsSchema,
   type WizardNextParams,
   WizardNextParamsSchema,
   type WizardNextResult,
@@ -218,6 +262,31 @@ export const validateConnectParams = ajv.compile<ConnectParams>(ConnectParamsSch
 export const validateRequestFrame = ajv.compile<RequestFrame>(RequestFrameSchema);
 export const validateResponseFrame = ajv.compile<ResponseFrame>(ResponseFrameSchema);
 export const validateEventFrame = ajv.compile<EventFrame>(EventFrameSchema);
+export const validateAuthProfilesGetParams = ajv.compile<AuthProfilesGetParams>(
+  AuthProfilesGetParamsSchema,
+);
+export const validateAuthProfilesUpsertApiKeyParams = ajv.compile<AuthProfilesUpsertApiKeyParams>(
+  AuthProfilesUpsertApiKeyParamsSchema,
+);
+export const validateAuthProfilesDeleteParams = ajv.compile<AuthProfilesDeleteParams>(
+  AuthProfilesDeleteParamsSchema,
+);
+export const validateAuthFlowListParams = ajv.compile<AuthFlowListParams>(AuthFlowListParamsSchema);
+export const validateAuthFlowStartParams =
+  ajv.compile<AuthFlowStartParams>(AuthFlowStartParamsSchema);
+export const validateAuthFlowNextParams = ajv.compile<AuthFlowNextParams>(AuthFlowNextParamsSchema);
+export const validateAuthFlowCurrentParams = ajv.compile<AuthFlowCurrentParams>(
+  AuthFlowCurrentParamsSchema,
+);
+export const validateAuthFlowCancelCurrentParams = ajv.compile<AuthFlowCancelCurrentParams>(
+  AuthFlowCancelCurrentParamsSchema,
+);
+export const validateAgentsProfileGetParams = ajv.compile<AgentsProfileGetParams>(
+  AgentsProfileGetParamsSchema,
+);
+export const validateAgentsProfileUpdateParams = ajv.compile<AgentsProfileUpdateParams>(
+  AgentsProfileUpdateParamsSchema,
+);
 export const validateSendParams = ajv.compile(SendParamsSchema);
 export const validatePollParams = ajv.compile<PollParams>(PollParamsSchema);
 export const validateAgentParams = ajv.compile(AgentParamsSchema);
@@ -284,6 +353,8 @@ export const validateWizardStartParams = ajv.compile<WizardStartParams>(WizardSt
 export const validateWizardNextParams = ajv.compile<WizardNextParams>(WizardNextParamsSchema);
 export const validateWizardCancelParams = ajv.compile<WizardCancelParams>(WizardCancelParamsSchema);
 export const validateWizardStatusParams = ajv.compile<WizardStatusParams>(WizardStatusParamsSchema);
+export const validateWizardCurrentParams =
+  ajv.compile<WizardCurrentParams>(WizardCurrentParamsSchema);
 export const validateTalkModeParams = ajv.compile<TalkModeParams>(TalkModeParamsSchema);
 export const validateChannelsStatusParams = ajv.compile<ChannelsStatusParams>(
   ChannelsStatusParamsSchema,
@@ -347,6 +418,10 @@ export const validateUpdateRunParams = ajv.compile<UpdateRunParams>(UpdateRunPar
 export const validateWebLoginStartParams =
   ajv.compile<WebLoginStartParams>(WebLoginStartParamsSchema);
 export const validateWebLoginWaitParams = ajv.compile<WebLoginWaitParams>(WebLoginWaitParamsSchema);
+export const validateWorkspaceListParams =
+  ajv.compile<WorkspaceListParams>(WorkspaceListParamsSchema);
+export const validateWorkspaceReadParams =
+  ajv.compile<WorkspaceReadParams>(WorkspaceReadParamsSchema);
 
 export function formatValidationErrors(errors: ErrorObject[] | null | undefined) {
   if (!errors?.length) {
@@ -423,6 +498,17 @@ export {
   ConfigPatchParamsSchema,
   ConfigSchemaParamsSchema,
   ConfigSchemaResponseSchema,
+  AuthFlowListParamsSchema,
+  AuthFlowListResultSchema,
+  AuthFlowStartParamsSchema,
+  AuthFlowStartResultSchema,
+  AuthFlowNextParamsSchema,
+  AuthFlowNextResultSchema,
+  AuthFlowCurrentParamsSchema,
+  AuthFlowCurrentResultSchema,
+  AuthFlowCancelCurrentParamsSchema,
+  AuthFlowCancelCurrentResultSchema,
+  AuthFlowStepSchema,
   WizardStartParamsSchema,
   WizardNextParamsSchema,
   WizardCancelParamsSchema,
@@ -436,6 +522,11 @@ export {
   ChannelsLogoutParamsSchema,
   WebLoginStartParamsSchema,
   WebLoginWaitParamsSchema,
+  WorkspaceEntrySchema,
+  WorkspaceListParamsSchema,
+  WorkspaceListResultSchema,
+  WorkspaceReadParamsSchema,
+  WorkspaceReadResultSchema,
   AgentSummarySchema,
   AgentsFileEntrySchema,
   AgentsFilesListParamsSchema,
@@ -503,6 +594,17 @@ export type {
   ConfigPatchParams,
   ConfigSchemaParams,
   ConfigSchemaResponse,
+  AuthFlowListParams,
+  AuthFlowListResult,
+  AuthFlowStartParams,
+  AuthFlowStartResult,
+  AuthFlowNextParams,
+  AuthFlowNextResult,
+  AuthFlowCurrentParams,
+  AuthFlowCurrentResult,
+  AuthFlowCancelCurrentParams,
+  AuthFlowCancelCurrentResult,
+  AuthFlowStep,
   WizardStartParams,
   WizardNextParams,
   WizardCancelParams,
@@ -527,6 +629,11 @@ export type {
   AgentsFilesSetResult,
   AgentsListParams,
   AgentsListResult,
+  WorkspaceListParams,
+  WorkspaceEntry,
+  WorkspaceListResult,
+  WorkspaceReadParams,
+  WorkspaceReadResult,
   SkillsStatusParams,
   SkillsBinsParams,
   SkillsBinsResult,

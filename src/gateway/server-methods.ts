@@ -1,7 +1,10 @@
 import type { GatewayRequestHandlers, GatewayRequestOptions } from "./server-methods/types.js";
 import { ErrorCodes, errorShape } from "./protocol/index.js";
+import { agentProfilesHandlers } from "./server-methods/agent-profiles.js";
 import { agentHandlers } from "./server-methods/agent.js";
 import { agentsHandlers } from "./server-methods/agents.js";
+import { authFlowHandlers } from "./server-methods/auth-flow.js";
+import { authProfilesHandlers } from "./server-methods/auth-profiles.js";
 import { browserHandlers } from "./server-methods/browser.js";
 import { channelsHandlers } from "./server-methods/channels.js";
 import { chatHandlers } from "./server-methods/chat.js";
@@ -25,6 +28,7 @@ import { usageHandlers } from "./server-methods/usage.js";
 import { voicewakeHandlers } from "./server-methods/voicewake.js";
 import { webHandlers } from "./server-methods/web.js";
 import { wizardHandlers } from "./server-methods/wizard.js";
+import { workspaceHandlers } from "./server-methods/workspace.js";
 
 const ADMIN_SCOPE = "operator.admin";
 const READ_SCOPE = "operator.read";
@@ -72,6 +76,8 @@ const READ_METHODS = new Set([
   "node.list",
   "node.describe",
   "chat.history",
+  "workspace.list",
+  "workspace.read",
 ]);
 const WRITE_METHODS = new Set([
   "send",
@@ -164,6 +170,9 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...logsHandlers,
   ...voicewakeHandlers,
   ...healthHandlers,
+  ...authProfilesHandlers,
+  ...authFlowHandlers,
+  ...agentProfilesHandlers,
   ...channelsHandlers,
   ...chatHandlers,
   ...cronHandlers,
@@ -185,6 +194,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...agentHandlers,
   ...agentsHandlers,
   ...browserHandlers,
+  ...workspaceHandlers,
 };
 
 export async function handleGatewayRequest(

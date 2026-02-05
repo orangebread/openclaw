@@ -1,5 +1,12 @@
 import type { TSchema } from "@sinclair/typebox";
 import {
+  AgentsProfileGetParamsSchema,
+  AgentsProfileGetResultSchema,
+  AgentsProfileUpdateParamsSchema,
+  AgentsProfileUpdateResultSchema,
+  AgentProfileEntrySchema,
+} from "./agent-profiles.js";
+import {
   AgentEventSchema,
   AgentIdentityParamsSchema,
   AgentIdentityResultSchema,
@@ -29,6 +36,26 @@ import {
   SkillsStatusParamsSchema,
   SkillsUpdateParamsSchema,
 } from "./agents-models-skills.js";
+import {
+  AuthFlowCancelCurrentParamsSchema,
+  AuthFlowCancelCurrentResultSchema,
+  AuthFlowCurrentParamsSchema,
+  AuthFlowCurrentResultSchema,
+  AuthFlowListParamsSchema,
+  AuthFlowListResultSchema,
+  AuthFlowNextParamsSchema,
+  AuthFlowNextResultSchema,
+  AuthFlowStartParamsSchema,
+  AuthFlowStartResultSchema,
+  AuthFlowStepSchema,
+} from "./auth-flow.js";
+import {
+  AuthProfilesDeleteParamsSchema,
+  AuthProfilesGetParamsSchema,
+  AuthProfilesGetResultSchema,
+  AuthProfilesMutationResultSchema,
+  AuthProfilesUpsertApiKeyParamsSchema,
+} from "./auth-profiles.js";
 import {
   ChannelsLogoutParamsSchema,
   ChannelsStatusParamsSchema,
@@ -122,6 +149,9 @@ import {
 import { PresenceEntrySchema, SnapshotSchema, StateVersionSchema } from "./snapshot.js";
 import {
   WizardCancelParamsSchema,
+  WizardCancelCurrentResultSchema,
+  WizardCurrentParamsSchema,
+  WizardCurrentResultSchema,
   WizardNextParamsSchema,
   WizardNextResultSchema,
   WizardStartParamsSchema,
@@ -130,6 +160,13 @@ import {
   WizardStatusResultSchema,
   WizardStepSchema,
 } from "./wizard.js";
+import {
+  WorkspaceEntrySchema,
+  WorkspaceListParamsSchema,
+  WorkspaceListResultSchema,
+  WorkspaceReadParamsSchema,
+  WorkspaceReadResultSchema,
+} from "./workspace.js";
 
 export const ProtocolSchemas: Record<string, TSchema> = {
   ConnectParams: ConnectParamsSchema,
@@ -143,6 +180,22 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   Snapshot: SnapshotSchema,
   ErrorShape: ErrorShapeSchema,
   AgentEvent: AgentEventSchema,
+  AuthProfilesGetParams: AuthProfilesGetParamsSchema,
+  AuthProfilesGetResult: AuthProfilesGetResultSchema,
+  AuthProfilesUpsertApiKeyParams: AuthProfilesUpsertApiKeyParamsSchema,
+  AuthProfilesDeleteParams: AuthProfilesDeleteParamsSchema,
+  AuthProfilesMutationResult: AuthProfilesMutationResultSchema,
+  AuthFlowListParams: AuthFlowListParamsSchema,
+  AuthFlowListResult: AuthFlowListResultSchema,
+  AuthFlowStartParams: AuthFlowStartParamsSchema,
+  AuthFlowStartResult: AuthFlowStartResultSchema,
+  AuthFlowNextParams: AuthFlowNextParamsSchema,
+  AuthFlowNextResult: AuthFlowNextResultSchema,
+  AuthFlowCurrentParams: AuthFlowCurrentParamsSchema,
+  AuthFlowCurrentResult: AuthFlowCurrentResultSchema,
+  AuthFlowCancelCurrentParams: AuthFlowCancelCurrentParamsSchema,
+  AuthFlowCancelCurrentResult: AuthFlowCancelCurrentResultSchema,
+  AuthFlowStep: AuthFlowStepSchema,
   SendParams: SendParamsSchema,
   PollParams: PollParamsSchema,
   AgentParams: AgentParamsSchema,
@@ -180,10 +233,13 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   WizardNextParams: WizardNextParamsSchema,
   WizardCancelParams: WizardCancelParamsSchema,
   WizardStatusParams: WizardStatusParamsSchema,
+  WizardCurrentParams: WizardCurrentParamsSchema,
   WizardStep: WizardStepSchema,
   WizardNextResult: WizardNextResultSchema,
   WizardStartResult: WizardStartResultSchema,
   WizardStatusResult: WizardStatusResultSchema,
+  WizardCurrentResult: WizardCurrentResultSchema,
+  WizardCancelCurrentResult: WizardCancelCurrentResultSchema,
   TalkModeParams: TalkModeParamsSchema,
   ChannelsStatusParams: ChannelsStatusParamsSchema,
   ChannelsStatusResult: ChannelsStatusResultSchema,
@@ -200,6 +256,11 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   AgentsFilesSetResult: AgentsFilesSetResultSchema,
   AgentsListParams: AgentsListParamsSchema,
   AgentsListResult: AgentsListResultSchema,
+  AgentsProfileGetParams: AgentsProfileGetParamsSchema,
+  AgentsProfileGetResult: AgentsProfileGetResultSchema,
+  AgentsProfileUpdateParams: AgentsProfileUpdateParamsSchema,
+  AgentsProfileUpdateResult: AgentsProfileUpdateResultSchema,
+  AgentProfileEntry: AgentProfileEntrySchema,
   ModelChoice: ModelChoiceSchema,
   ModelsListParams: ModelsListParamsSchema,
   ModelsListResult: ModelsListResultSchema,
@@ -241,6 +302,11 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   UpdateRunParams: UpdateRunParamsSchema,
   TickEvent: TickEventSchema,
   ShutdownEvent: ShutdownEventSchema,
+  WorkspaceListParams: WorkspaceListParamsSchema,
+  WorkspaceEntry: WorkspaceEntrySchema,
+  WorkspaceListResult: WorkspaceListResultSchema,
+  WorkspaceReadParams: WorkspaceReadParamsSchema,
+  WorkspaceReadResult: WorkspaceReadResultSchema,
 };
 
 export const PROTOCOL_VERSION = 3 as const;

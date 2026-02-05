@@ -3,12 +3,14 @@ import type { createDefaultDeps } from "../../cli/deps.js";
 import type { HealthSummary } from "../../commands/health.js";
 import type { CronService } from "../../cron/service.js";
 import type { createSubsystemLogger } from "../../logging/subsystem.js";
-import type { WizardSession } from "../../wizard/session.js";
+import type { AuthFlowCompletePayload, AuthFlowSessionApi } from "../auth-flow-session.js";
 import type { ChatAbortControllerEntry } from "../chat-abort.js";
 import type { NodeRegistry } from "../node-registry.js";
 import type { ConnectParams, ErrorShape, RequestFrame } from "../protocol/index.js";
+import type { AuthFlowSessionEntry } from "../server-auth-flow-sessions.js";
 import type { ChannelRuntimeSnapshot } from "../server-channels.js";
 import type { DedupeEntry } from "../server-shared.js";
+import type { WizardSessionEntry } from "../server-wizard-sessions.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
@@ -72,9 +74,17 @@ export type GatewayRequestContext = {
   ) => { sessionKey: string; clientRunId: string } | undefined;
   registerToolEventRecipient: (runId: string, connId: string) => void;
   dedupe: Map<string, DedupeEntry>;
-  wizardSessions: Map<string, WizardSession>;
+  wizardSessions: Map<string, WizardSessionEntry>;
   findRunningWizard: () => string | null;
   purgeWizardSession: (id: string) => void;
+  authFlowSessions: Map<string, AuthFlowSessionEntry>;
+  findRunningAuthFlow: () => string | null;
+  purgeAuthFlowSession: (id: string) => void;
+  authFlowResolver?: (params: {
+    providerId: string;
+    methodId: string;
+    mode: "local" | "remote";
+  }) => Promise<((api: AuthFlowSessionApi) => Promise<AuthFlowCompletePayload>) | null>;
   getRuntimeSnapshot: () => ChannelRuntimeSnapshot;
   startChannel: (
     channel: import("../../channels/plugins/types.js").ChannelId,

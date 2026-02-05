@@ -1,5 +1,12 @@
 import type { Static } from "@sinclair/typebox";
 import type {
+  AgentsProfileGetParamsSchema,
+  AgentsProfileGetResultSchema,
+  AgentsProfileUpdateParamsSchema,
+  AgentsProfileUpdateResultSchema,
+  AgentProfileEntrySchema,
+} from "./agent-profiles.js";
+import type {
   AgentEventSchema,
   AgentIdentityParamsSchema,
   AgentIdentityResultSchema,
@@ -27,6 +34,26 @@ import type {
   SkillsStatusParamsSchema,
   SkillsUpdateParamsSchema,
 } from "./agents-models-skills.js";
+import type {
+  AuthFlowCancelCurrentParamsSchema,
+  AuthFlowCancelCurrentResultSchema,
+  AuthFlowCurrentParamsSchema,
+  AuthFlowCurrentResultSchema,
+  AuthFlowListParamsSchema,
+  AuthFlowListResultSchema,
+  AuthFlowNextParamsSchema,
+  AuthFlowNextResultSchema,
+  AuthFlowStartParamsSchema,
+  AuthFlowStartResultSchema,
+  AuthFlowStepSchema,
+} from "./auth-flow.js";
+import type {
+  AuthProfilesDeleteParamsSchema,
+  AuthProfilesGetParamsSchema,
+  AuthProfilesGetResultSchema,
+  AuthProfilesMutationResultSchema,
+  AuthProfilesUpsertApiKeyParamsSchema,
+} from "./auth-profiles.js";
 import type {
   ChannelsLogoutParamsSchema,
   ChannelsStatusParamsSchema,
@@ -115,6 +142,9 @@ import type {
 import type { PresenceEntrySchema, SnapshotSchema, StateVersionSchema } from "./snapshot.js";
 import type {
   WizardCancelParamsSchema,
+  WizardCancelCurrentResultSchema,
+  WizardCurrentParamsSchema,
+  WizardCurrentResultSchema,
   WizardNextParamsSchema,
   WizardNextResultSchema,
   WizardStartParamsSchema,
@@ -123,6 +153,13 @@ import type {
   WizardStatusResultSchema,
   WizardStepSchema,
 } from "./wizard.js";
+import type {
+  WorkspaceEntrySchema,
+  WorkspaceListParamsSchema,
+  WorkspaceListResultSchema,
+  WorkspaceReadParamsSchema,
+  WorkspaceReadResultSchema,
+} from "./workspace.js";
 
 export type ConnectParams = Static<typeof ConnectParamsSchema>;
 export type HelloOk = Static<typeof HelloOkSchema>;
@@ -135,6 +172,22 @@ export type PresenceEntry = Static<typeof PresenceEntrySchema>;
 export type ErrorShape = Static<typeof ErrorShapeSchema>;
 export type StateVersion = Static<typeof StateVersionSchema>;
 export type AgentEvent = Static<typeof AgentEventSchema>;
+export type AuthProfilesGetParams = Static<typeof AuthProfilesGetParamsSchema>;
+export type AuthProfilesGetResult = Static<typeof AuthProfilesGetResultSchema>;
+export type AuthProfilesUpsertApiKeyParams = Static<typeof AuthProfilesUpsertApiKeyParamsSchema>;
+export type AuthProfilesDeleteParams = Static<typeof AuthProfilesDeleteParamsSchema>;
+export type AuthProfilesMutationResult = Static<typeof AuthProfilesMutationResultSchema>;
+export type AuthFlowListParams = Static<typeof AuthFlowListParamsSchema>;
+export type AuthFlowListResult = Static<typeof AuthFlowListResultSchema>;
+export type AuthFlowStartParams = Static<typeof AuthFlowStartParamsSchema>;
+export type AuthFlowStartResult = Static<typeof AuthFlowStartResultSchema>;
+export type AuthFlowNextParams = Static<typeof AuthFlowNextParamsSchema>;
+export type AuthFlowNextResult = Static<typeof AuthFlowNextResultSchema>;
+export type AuthFlowCurrentParams = Static<typeof AuthFlowCurrentParamsSchema>;
+export type AuthFlowCurrentResult = Static<typeof AuthFlowCurrentResultSchema>;
+export type AuthFlowCancelCurrentParams = Static<typeof AuthFlowCancelCurrentParamsSchema>;
+export type AuthFlowCancelCurrentResult = Static<typeof AuthFlowCancelCurrentResultSchema>;
+export type AuthFlowStep = Static<typeof AuthFlowStepSchema>;
 export type AgentIdentityParams = Static<typeof AgentIdentityParamsSchema>;
 export type AgentIdentityResult = Static<typeof AgentIdentityResultSchema>;
 export type PollParams = Static<typeof PollParamsSchema>;
@@ -169,10 +222,13 @@ export type WizardStartParams = Static<typeof WizardStartParamsSchema>;
 export type WizardNextParams = Static<typeof WizardNextParamsSchema>;
 export type WizardCancelParams = Static<typeof WizardCancelParamsSchema>;
 export type WizardStatusParams = Static<typeof WizardStatusParamsSchema>;
+export type WizardCurrentParams = Static<typeof WizardCurrentParamsSchema>;
 export type WizardStep = Static<typeof WizardStepSchema>;
 export type WizardNextResult = Static<typeof WizardNextResultSchema>;
 export type WizardStartResult = Static<typeof WizardStartResultSchema>;
 export type WizardStatusResult = Static<typeof WizardStatusResultSchema>;
+export type WizardCurrentResult = Static<typeof WizardCurrentResultSchema>;
+export type WizardCancelCurrentResult = Static<typeof WizardCancelCurrentResultSchema>;
 export type TalkModeParams = Static<typeof TalkModeParamsSchema>;
 export type ChannelsStatusParams = Static<typeof ChannelsStatusParamsSchema>;
 export type ChannelsStatusResult = Static<typeof ChannelsStatusResultSchema>;
@@ -189,6 +245,16 @@ export type AgentsFilesSetParams = Static<typeof AgentsFilesSetParamsSchema>;
 export type AgentsFilesSetResult = Static<typeof AgentsFilesSetResultSchema>;
 export type AgentsListParams = Static<typeof AgentsListParamsSchema>;
 export type AgentsListResult = Static<typeof AgentsListResultSchema>;
+export type WorkspaceListParams = Static<typeof WorkspaceListParamsSchema>;
+export type WorkspaceEntry = Static<typeof WorkspaceEntrySchema>;
+export type WorkspaceListResult = Static<typeof WorkspaceListResultSchema>;
+export type WorkspaceReadParams = Static<typeof WorkspaceReadParamsSchema>;
+export type WorkspaceReadResult = Static<typeof WorkspaceReadResultSchema>;
+export type AgentsProfileGetParams = Static<typeof AgentsProfileGetParamsSchema>;
+export type AgentsProfileGetResult = Static<typeof AgentsProfileGetResultSchema>;
+export type AgentsProfileUpdateParams = Static<typeof AgentsProfileUpdateParamsSchema>;
+export type AgentsProfileUpdateResult = Static<typeof AgentsProfileUpdateResultSchema>;
+export type AgentProfileEntry = Static<typeof AgentProfileEntrySchema>;
 export type ModelChoice = Static<typeof ModelChoiceSchema>;
 export type ModelsListParams = Static<typeof ModelsListParamsSchema>;
 export type ModelsListResult = Static<typeof ModelsListResultSchema>;

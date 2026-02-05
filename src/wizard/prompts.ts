@@ -21,6 +21,7 @@ export type WizardTextParams = {
   initialValue?: string;
   placeholder?: string;
   validate?: (value: string) => string | undefined;
+  sensitive?: boolean;
 };
 
 export type WizardConfirmParams = {
