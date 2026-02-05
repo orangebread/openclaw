@@ -80,7 +80,7 @@ What this does:
    - Seeds the workspace files if missing:
      `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`.
    - Default identity: **C3‑PO** (protocol droid).
-   - Skips channel providers in dev mode (`OPENCLAW_SKIP_CHANNELS=1`).
+   - Channels/providers run normally; to skip them for a faster gateway-only run, set `OPENCLAW_SKIP_CHANNELS=1` (or `OPENCLAW_SKIP_PROVIDERS=1`).
 
 Reset flow (fresh start):
 
