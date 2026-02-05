@@ -41,6 +41,186 @@
 }
 
 /* ===========================================
+   Knowledge Base
+   =========================================== */
+
+.kb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.kb-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kb-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 520px;
+}
+
+.kb-tree,
+.kb-preview {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: inset 0 1px 0 var(--card-highlight);
+  padding: 12px;
+  overflow: auto;
+  max-height: 70vh;
+}
+
+.kb-section + .kb-section {
+  margin-top: 14px;
+}
+
+.kb-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.kb-row {
+  margin: 1px 0;
+}
+
+.kb-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kb-item--dir {
+  cursor: default;
+  color: var(--muted);
+}
+
+.kb-item:hover {
+  background: var(--bg-hover);
+}
+
+.kb-item--dir:hover {
+  background: transparent;
+}
+
+.kb-row--active .kb-item {
+  background: var(--accent-subtle);
+  border: 1px solid rgba(255, 92, 92, 0.25);
+}
+
+.kb-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kb-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.kb-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-empty {
+  padding: 6px 8px;
+}
+
+.kb-preview-header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kb-preview-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+  word-break: break-word;
+}
+
+.kb-preview-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.kb-truncated {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.kb-preview-body {
+  margin-top: 12px;
+}
+
+.kb-markdown {
+  line-height: 1.6;
+}
+
+.kb-pre {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: auto;
+  white-space: pre;
+}
+
+.kb-queue-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.kb-queue-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kb-queue-item:hover {
+  border-color: var(--border-hover);
+  background: var(--panel-hover);
+}
+
+/* ===========================================
    Stats - Bold values, subtle labels
    =========================================== */
 

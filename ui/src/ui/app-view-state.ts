@@ -13,6 +13,11 @@ import type {
   AgentsListResult,
   AgentsFilesListResult,
   AgentIdentityResult,
+  AgentProfileEntry,
+  AuthFlowCompletePayload,
+  AuthFlowListResult,
+  AuthFlowStep,
+  AuthProfileSummary,
   ChannelsStatusSnapshot,
   ConfigSnapshot,
   ConfigUiHints,
@@ -22,6 +27,7 @@ import type {
   HealthSnapshot,
   LogEntry,
   LogLevel,
+  ModelChoice,
   NostrProfile,
   PresenceEntry,
   SessionsUsageResult,
@@ -34,6 +40,9 @@ import type {
 import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 import type { SessionLogEntry } from "./views/usage.ts";
+import type { WizardStep, WorkspaceEntry, WorkspaceReadResult } from "./types.ts";
+import type { AgentProfileFormState } from "./controllers/agent-profile.ts";
+import type { CredentialsApiKeyFormState } from "./controllers/credentials.ts";
 
 export type AppViewState = {
   settings: UiSettings;
@@ -141,6 +150,44 @@ export type AppViewState = {
   agentSkillsError: string | null;
   agentSkillsReport: SkillStatusReport | null;
   agentSkillsAgentId: string | null;
+  agentProfileLoading: boolean;
+  agentProfileSaving: boolean;
+  agentProfileDirty: boolean;
+  agentProfileError: string | null;
+  agentProfileBaseHash: string | null;
+  agentProfileAgents: AgentProfileEntry[];
+  agentProfileSelectedAgentId: string | null;
+  agentProfileForm: AgentProfileFormState | null;
+  agentProfileModels: ModelChoice[];
+  agentProfileAuthProfiles: AuthProfileSummary[];
+  credentialsLoading: boolean;
+  credentialsSaving: boolean;
+  credentialsError: string | null;
+  credentialsBaseHash: string | null;
+  credentialsProfiles: AuthProfileSummary[];
+  credentialsApiKeyForm: CredentialsApiKeyFormState;
+  credentialsWizardBusy: boolean;
+  credentialsWizardError: string | null;
+  credentialsWizardRunning: boolean;
+  credentialsWizardOwned: boolean;
+  credentialsWizardSessionId: string | null;
+  credentialsWizardStep: WizardStep | null;
+  credentialsWizardAnswer: unknown;
+  credentialsAuthFlowLoading: boolean;
+  credentialsAuthFlowError: string | null;
+  credentialsAuthFlowList: AuthFlowListResult | null;
+  credentialsAuthFlowBusy: boolean;
+  credentialsAuthFlowRunning: boolean;
+  credentialsAuthFlowOwned: boolean;
+  credentialsAuthFlowSessionId: string | null;
+  credentialsAuthFlowStep: AuthFlowStep | null;
+  credentialsAuthFlowAnswer: unknown;
+  credentialsAuthFlowResult: AuthFlowCompletePayload | null;
+  credentialsAuthFlowApplyError: string | null;
+  credentialsAuthFlowProviderId: string | null;
+  credentialsAuthFlowMethodId: string | null;
+  credentialsAuthFlowHadProviderProfilesBefore: boolean;
+  credentialsAuthFlowPendingDefaultModel: string | null;
   sessionsLoading: boolean;
   sessionsResult: SessionsListResult | null;
   sessionsError: string | null;
@@ -218,6 +265,15 @@ export type AppViewState = {
   logsLimit: number;
   logsMaxBytes: number;
   logsAtBottom: boolean;
+  kbLoading: boolean;
+  kbError: string | null;
+  kbEntries: { notes: WorkspaceEntry[]; links: WorkspaceEntry[]; review: WorkspaceEntry[] };
+  kbReadLoading: boolean;
+  kbReadError: string | null;
+  kbReadResult: WorkspaceReadResult | null;
+  kbSelectedPath: string | null;
+  kbActiveView: "browse" | "review-queue";
+  kbReviewQueueList: string[];
   client: GatewayBrowserClient | null;
   refreshSessionsAfterChat: Set<string>;
   connect: () => void;

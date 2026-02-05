@@ -40,6 +40,11 @@ import {
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
+import {
+  loadKnowledgeBase,
+  openReviewQueue,
+  selectKnowledgeBaseFile,
+} from "./controllers/knowledge-base.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { deleteSession, loadSessions, patchSession } from "./controllers/sessions.ts";
@@ -51,6 +56,29 @@ import {
   updateSkillEnabled,
 } from "./controllers/skills.ts";
 import { loadUsage, loadSessionTimeSeries, loadSessionLogs } from "./controllers/usage.ts";
+import {
+  loadAgentProfileEditor,
+  saveAgentProfile,
+  selectAgentProfileAgent,
+  updateAgentProfileForm,
+} from "./controllers/agent-profile.ts";
+import {
+  advanceCredentialsAuthFlow,
+  advanceCredentialsWizard,
+  applyPendingCredentialsAuthFlowDefaults,
+  cancelCurrentCredentialsAuthFlow,
+  cancelCurrentCredentialsWizard,
+  deleteCredentialsProfile,
+  loadCredentials,
+  resumeCredentialsAuthFlow,
+  resumeCredentialsWizard,
+  startCredentialsAuthFlow,
+  startCredentialsWizard,
+  updateCredentialsApiKeyForm,
+  updateCredentialsAuthFlowAnswer,
+  updateCredentialsWizardAnswer,
+  upsertCredentialsApiKeyProfile,
+} from "./controllers/credentials.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
 
@@ -63,14 +91,17 @@ const debouncedLoadUsage = (state: UsageState) => {
   usageDateDebounceTimeout = window.setTimeout(() => void loadUsage(state), 400);
 };
 import { renderAgents } from "./views/agents.ts";
+import { renderAgentProfile } from "./views/agent-profile.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
 import { renderConfig } from "./views/config.ts";
+import { renderCredentials } from "./views/credentials.ts";
 import { renderCron } from "./views/cron.ts";
 import { renderDebug } from "./views/debug.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
 import { renderInstances } from "./views/instances.ts";
+import { renderKnowledgeBase } from "./views/knowledge-base.ts";
 import { renderLogs } from "./views/logs.ts";
 import { renderNodes } from "./views/nodes.ts";
 import { renderOverview } from "./views/overview.ts";
@@ -275,6 +306,102 @@ export function renderApp(state: AppViewState) {
                 onNostrProfileSave: () => state.handleNostrProfileSave(),
                 onNostrProfileImport: () => state.handleNostrProfileImport(),
                 onNostrProfileToggleAdvanced: () => state.handleNostrProfileToggleAdvanced(),
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "credentials"
+            ? renderCredentials({
+                connected: state.connected,
+                gatewayUrl: state.settings.gatewayUrl,
+                loading: state.credentialsLoading,
+                saving: state.credentialsSaving,
+                error: state.credentialsError,
+                baseHash: state.credentialsBaseHash,
+                profiles: state.credentialsProfiles,
+                apiKeyForm: state.credentialsApiKeyForm,
+                authFlowLoading: state.credentialsAuthFlowLoading,
+                authFlowError: state.credentialsAuthFlowError,
+                authFlowList: state.credentialsAuthFlowList,
+                authFlowBusy: state.credentialsAuthFlowBusy,
+                authFlowRunning: state.credentialsAuthFlowRunning,
+                authFlowOwned: state.credentialsAuthFlowOwned,
+                authFlowStep: state.credentialsAuthFlowStep,
+                authFlowAnswer: state.credentialsAuthFlowAnswer,
+                authFlowResult: state.credentialsAuthFlowResult,
+                authFlowApplyError: state.credentialsAuthFlowApplyError,
+                authFlowPendingDefaultModel: state.credentialsAuthFlowPendingDefaultModel,
+                wizardBusy: state.credentialsWizardBusy,
+                wizardError: state.credentialsWizardError,
+                wizardRunning: state.credentialsWizardRunning,
+                wizardOwned: state.credentialsWizardOwned,
+                wizardStep: state.credentialsWizardStep,
+                wizardAnswer: state.credentialsWizardAnswer,
+                onRefresh: () => loadCredentials(state),
+                onOpenChat: () => state.setTab("chat"),
+                onOpenAgentProfile: () => state.setTab("agent-profile"),
+                onApiKeyFormChange: (patch) => updateCredentialsApiKeyForm(state, patch),
+                onUpsertApiKey: () => upsertCredentialsApiKeyProfile(state),
+                onDeleteProfile: (profileId) => deleteCredentialsProfile(state, profileId),
+                onStartAuthFlow: (providerId, methodId, mode) =>
+                  startCredentialsAuthFlow(state, { providerId, methodId, mode }),
+                onResumeAuthFlow: () => resumeCredentialsAuthFlow(state),
+                onCancelAuthFlow: () => cancelCurrentCredentialsAuthFlow(state),
+                onAuthFlowAnswerChange: (next) => updateCredentialsAuthFlowAnswer(state, next),
+                onAuthFlowContinue: () => advanceCredentialsAuthFlow(state),
+                onApplyAuthFlowDefaults: () => applyPendingCredentialsAuthFlowDefaults(state),
+                onStartWizard: () => startCredentialsWizard(state),
+                onResumeWizard: () => resumeCredentialsWizard(state),
+                onCancelWizard: () => cancelCurrentCredentialsWizard(state),
+                onWizardAnswerChange: (next) => updateCredentialsWizardAnswer(state, next),
+                onWizardContinue: () => advanceCredentialsWizard(state),
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "agent-profile"
+            ? renderAgentProfile({
+                connected: state.connected,
+                loading: state.agentProfileLoading,
+                saving: state.agentProfileSaving,
+                dirty: state.agentProfileDirty,
+                error: state.agentProfileError,
+                agents: state.agentProfileAgents,
+                selectedAgentId: state.agentProfileSelectedAgentId,
+                form: state.agentProfileForm,
+                authProfiles: state.agentProfileAuthProfiles,
+                models: state.agentProfileModels,
+                onRefresh: () => loadAgentProfileEditor(state),
+                onSelectAgent: (agentId) => selectAgentProfileAgent(state, agentId),
+                onFormChange: (patch) => updateAgentProfileForm(state, patch),
+                onSave: () => saveAgentProfile(state),
+                onOpenCredentials: () => state.setTab("credentials"),
+                onRunOnboardingWizard: () => {
+                  state.setTab("credentials");
+                  void startCredentialsWizard(state);
+                },
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "knowledge-base"
+            ? renderKnowledgeBase({
+                connected: state.connected,
+                loading: state.kbLoading,
+                error: state.kbError,
+                entries: state.kbEntries,
+                readLoading: state.kbReadLoading,
+                readError: state.kbReadError,
+                readResult: state.kbReadResult,
+                selectedPath: state.kbSelectedPath,
+                activeView: state.kbActiveView,
+                reviewQueueList: state.kbReviewQueueList,
+                onRefresh: () => loadKnowledgeBase(state),
+                onSelectFile: (path) => selectKnowledgeBaseFile(state, path),
+                onOpenReviewQueue: () => openReviewQueue(state),
               })
             : nothing
         }

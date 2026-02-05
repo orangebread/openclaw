@@ -377,6 +377,212 @@ export type AgentsFilesSetResult = {
   file: AgentFileEntry;
 };
 
+export type ModelChoice = {
+  id: string;
+  name: string;
+  provider: string;
+  contextWindow?: number;
+  reasoning?: boolean;
+};
+
+export type AgentModelConfig =
+  | string
+  | {
+      primary?: string;
+      fallbacks?: string[];
+    };
+
+export type AgentProfileEntry = {
+  id: string;
+  name?: string;
+  model?: AgentModelConfig;
+  authProfileId?: string;
+  imageModel?: AgentModelConfig;
+  imageAuthProfileId?: string;
+  effectiveTextProvider: string;
+  effectiveTextModel: string;
+  effectiveImageProvider?: string;
+  effectiveImageModel?: string;
+  effectiveImageAuthMode: "auto" | "locked" | "inherited";
+};
+
+export type AgentsProfileGetResult = {
+  baseHash?: string;
+  agents: AgentProfileEntry[];
+};
+
+export type AuthProfileSummary = {
+  id: string;
+  provider: string;
+  type: string;
+  preview?: string;
+  email?: string;
+  expires?: number;
+  cooldownUntil?: number;
+  disabledUntil?: number;
+  disabledReason?: string;
+};
+
+export type AuthProfilesGetResult = {
+  exists: boolean;
+  baseHash?: string;
+  profiles: AuthProfileSummary[];
+  order?: Record<string, string[]>;
+  lastGood?: Record<string, string>;
+};
+
+export type AuthFlowMode = "local" | "remote";
+
+export type AuthFlowMethodKind = "oauth" | "api_key_manual" | "token_paste" | "custom";
+
+export type AuthFlowMethod = {
+  providerId: string;
+  providerLabel?: string;
+  methodId: string;
+  label: string;
+  hint?: string;
+  kind: AuthFlowMethodKind;
+  supportsRemote: boolean;
+  supportsRevoke: boolean;
+};
+
+export type AuthFlowProvider = {
+  providerId: string;
+  label: string;
+  methods: AuthFlowMethod[];
+};
+
+export type AuthFlowListResult = {
+  quickConnect: AuthFlowMethod[];
+  providers: AuthFlowProvider[];
+};
+
+export type AuthFlowStepOption = {
+  value: unknown;
+  label: string;
+  hint?: string;
+};
+
+export type AuthFlowStep =
+  | { id: string; type: "note"; title?: string; message?: string }
+  | { id: string; type: "openUrl"; title?: string; url: string; message?: string }
+  | {
+      id: string;
+      type: "text";
+      title?: string;
+      message: string;
+      initialValue?: string;
+      placeholder?: string;
+      sensitive?: boolean;
+    }
+  | { id: string; type: "confirm"; title?: string; message: string; initialValue?: boolean }
+  | {
+      id: string;
+      type: "select";
+      title?: string;
+      message: string;
+      options: AuthFlowStepOption[];
+      initialValue?: unknown;
+    }
+  | {
+      id: string;
+      type: "multiselect";
+      title?: string;
+      message: string;
+      options: AuthFlowStepOption[];
+      initialValue?: unknown[];
+    };
+
+export type AuthFlowSessionStatus = "running" | "done" | "cancelled" | "error";
+
+export type AuthFlowCompleteProfile = {
+  id: string;
+  provider: string;
+  type: string;
+  preview?: string;
+  email?: string;
+  expires?: number;
+};
+
+export type AuthFlowCompletePayload = {
+  profiles: AuthFlowCompleteProfile[];
+  configPatch?: unknown;
+  defaultModel?: string;
+  notes?: string[];
+};
+
+export type AuthFlowStartResult = {
+  sessionId: string;
+  done: boolean;
+  step?: AuthFlowStep;
+  status: AuthFlowSessionStatus;
+  error?: string;
+  result?: AuthFlowCompletePayload;
+};
+
+export type AuthFlowNextResult = {
+  done: boolean;
+  step?: AuthFlowStep;
+  status: AuthFlowSessionStatus;
+  error?: string;
+  result?: AuthFlowCompletePayload;
+};
+
+export type AuthFlowCurrentResult = {
+  running: boolean;
+  owned?: boolean;
+  sessionId?: string;
+};
+
+export type AuthFlowCancelCurrentResult = {
+  cancelled: boolean;
+};
+
+export type WizardStepOption = {
+  value: unknown;
+  label: string;
+  hint?: string;
+};
+
+export type WizardStep = {
+  id: string;
+  type: "note" | "select" | "text" | "confirm" | "multiselect" | "progress" | "action";
+  title?: string;
+  message?: string;
+  options?: WizardStepOption[];
+  initialValue?: unknown;
+  placeholder?: string;
+  sensitive?: boolean;
+  executor?: "gateway" | "client";
+};
+
+export type WizardSessionStatus = "running" | "done" | "cancelled" | "error";
+
+export type WizardStartResult = {
+  sessionId: string;
+  done: boolean;
+  step?: WizardStep;
+  status?: WizardSessionStatus;
+  error?: string;
+};
+
+export type WizardNextResult = {
+  done: boolean;
+  step?: WizardStep;
+  status?: WizardSessionStatus;
+  error?: string;
+};
+
+export type WizardCurrentResult = {
+  running: boolean;
+  owned?: boolean;
+  sessionId?: string;
+};
+
+export type WizardCancelCurrentResult = {
+  cancelled: boolean;
+};
+
 export type GatewaySessionRow = {
   key: string;
   kind: "direct" | "group" | "global" | "unknown";
@@ -771,4 +977,24 @@ export type LogEntry = {
   subsystem?: string | null;
   message?: string | null;
   meta?: Record<string, unknown> | null;
+};
+
+export type WorkspaceEntry = {
+  path: string;
+  kind: "file" | "dir";
+  sizeBytes?: number;
+  modifiedAtMs: number;
+};
+
+export type WorkspaceListResult = {
+  dir: string;
+  cursor?: string | null;
+  entries: WorkspaceEntry[];
+};
+
+export type WorkspaceReadResult = {
+  path: string;
+  contentType: string;
+  truncated: boolean;
+  content: string;
 };

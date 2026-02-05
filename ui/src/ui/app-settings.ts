@@ -12,11 +12,14 @@ import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-iden
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import { loadChannels } from "./controllers/channels.ts";
+import { loadAgentProfileEditor } from "./controllers/agent-profile.ts";
 import { loadConfig, loadConfigSchema } from "./controllers/config.ts";
 import { loadCronJobs, loadCronStatus } from "./controllers/cron.ts";
+import { loadCredentials } from "./controllers/credentials.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import { loadExecApprovals } from "./controllers/exec-approvals.ts";
+import { loadKnowledgeBase } from "./controllers/knowledge-base.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
@@ -188,6 +191,12 @@ export async function refreshActiveTab(host: SettingsHost) {
   if (host.tab === "channels") {
     await loadChannelsTab(host);
   }
+  if (host.tab === "credentials") {
+    await loadCredentials(host as unknown as OpenClawApp);
+  }
+  if (host.tab === "agent-profile") {
+    await loadAgentProfileEditor(host as unknown as OpenClawApp);
+  }
   if (host.tab === "instances") {
     await loadPresence(host as unknown as OpenClawApp);
   }
@@ -196,6 +205,9 @@ export async function refreshActiveTab(host: SettingsHost) {
   }
   if (host.tab === "cron") {
     await loadCron(host);
+  }
+  if (host.tab === "knowledge-base") {
+    await loadKnowledgeBase(host as unknown as OpenClawApp);
   }
   if (host.tab === "skills") {
     await loadSkills(host as unknown as OpenClawApp);

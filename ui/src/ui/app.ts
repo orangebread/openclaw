@@ -13,6 +13,11 @@ import type {
   AgentsListResult,
   AgentsFilesListResult,
   AgentIdentityResult,
+  AgentProfileEntry,
+  AuthFlowCompletePayload,
+  AuthProfileSummary,
+  AuthFlowListResult,
+  AuthFlowStep,
   ConfigSnapshot,
   ConfigUiHints,
   CronJob,
@@ -21,12 +26,16 @@ import type {
   HealthSnapshot,
   LogEntry,
   LogLevel,
+  ModelChoice,
   PresenceEntry,
   ChannelsStatusSnapshot,
   SessionsListResult,
   SkillStatusReport,
   StatusSummary,
   NostrProfile,
+  WizardStep,
+  WorkspaceEntry,
+  WorkspaceReadResult,
 } from "./types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 import {
@@ -80,6 +89,8 @@ import { resolveInjectedAssistantIdentity } from "./assistant-identity.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
+import type { AgentProfileFormState } from "./controllers/agent-profile.ts";
+import type { CredentialsApiKeyFormState } from "./controllers/credentials.ts";
 
 declare global {
   interface Window {
@@ -219,6 +230,52 @@ export class OpenClawApp extends LitElement {
   @state() agentSkillsReport: SkillStatusReport | null = null;
   @state() agentSkillsAgentId: string | null = null;
 
+  @state() agentProfileLoading = false;
+  @state() agentProfileSaving = false;
+  @state() agentProfileDirty = false;
+  @state() agentProfileError: string | null = null;
+  @state() agentProfileBaseHash: string | null = null;
+  @state() agentProfileAgents: AgentProfileEntry[] = [];
+  @state() agentProfileSelectedAgentId: string | null = null;
+  @state() agentProfileForm: AgentProfileFormState | null = null;
+  @state() agentProfileModels: ModelChoice[] = [];
+  @state() agentProfileAuthProfiles: AuthProfileSummary[] = [];
+
+  @state() credentialsLoading = false;
+  @state() credentialsSaving = false;
+  @state() credentialsError: string | null = null;
+  @state() credentialsBaseHash: string | null = null;
+  @state() credentialsProfiles: AuthProfileSummary[] = [];
+  @state() credentialsApiKeyForm: CredentialsApiKeyFormState = {
+    profileId: "",
+    provider: "",
+    email: "",
+    apiKey: "",
+  };
+  @state() credentialsWizardBusy = false;
+  @state() credentialsWizardError: string | null = null;
+  @state() credentialsWizardRunning = false;
+  @state() credentialsWizardOwned = false;
+  @state() credentialsWizardSessionId: string | null = null;
+  @state() credentialsWizardStep: WizardStep | null = null;
+  @state() credentialsWizardAnswer: unknown = null;
+
+  @state() credentialsAuthFlowLoading = false;
+  @state() credentialsAuthFlowError: string | null = null;
+  @state() credentialsAuthFlowList: AuthFlowListResult | null = null;
+  @state() credentialsAuthFlowBusy = false;
+  @state() credentialsAuthFlowRunning = false;
+  @state() credentialsAuthFlowOwned = false;
+  @state() credentialsAuthFlowSessionId: string | null = null;
+  @state() credentialsAuthFlowStep: AuthFlowStep | null = null;
+  @state() credentialsAuthFlowAnswer: unknown = null;
+  @state() credentialsAuthFlowResult: AuthFlowCompletePayload | null = null;
+  @state() credentialsAuthFlowApplyError: string | null = null;
+  @state() credentialsAuthFlowProviderId: string | null = null;
+  @state() credentialsAuthFlowMethodId: string | null = null;
+  @state() credentialsAuthFlowHadProviderProfilesBefore = false;
+  @state() credentialsAuthFlowPendingDefaultModel: string | null = null;
+
   @state() sessionsLoading = false;
   @state() sessionsResult: SessionsListResult | null = null;
   @state() sessionsError: string | null = null;
@@ -288,6 +345,20 @@ export class OpenClawApp extends LitElement {
   @state() cronRunsJobId: string | null = null;
   @state() cronRuns: CronRunLogEntry[] = [];
   @state() cronBusy = false;
+
+  @state() kbLoading = false;
+  @state() kbError: string | null = null;
+  @state() kbEntries: { notes: WorkspaceEntry[]; links: WorkspaceEntry[]; review: WorkspaceEntry[] } = {
+    notes: [],
+    links: [],
+    review: [],
+  };
+  @state() kbReadLoading = false;
+  @state() kbReadError: string | null = null;
+  @state() kbReadResult: WorkspaceReadResult | null = null;
+  @state() kbSelectedPath: string | null = null;
+  @state() kbActiveView: "browse" | "review-queue" = "browse";
+  @state() kbReviewQueueList: string[] = [];
 
   @state() skillsLoading = false;
   @state() skillsReport: SkillStatusReport | null = null;

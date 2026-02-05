@@ -4,7 +4,17 @@ export const TAB_GROUPS = [
   { label: "Chat", tabs: ["chat"] },
   {
     label: "Control",
-    tabs: ["overview", "channels", "instances", "sessions", "usage", "cron"],
+    tabs: [
+      "overview",
+      "channels",
+      "credentials",
+      "agent-profile",
+      "instances",
+      "sessions",
+      "usage",
+      "cron",
+      "knowledge-base",
+    ],
   },
   { label: "Agent", tabs: ["agents", "skills", "nodes"] },
   { label: "Settings", tabs: ["config", "debug", "logs"] },
@@ -14,10 +24,13 @@ export type Tab =
   | "agents"
   | "overview"
   | "channels"
+  | "credentials"
+  | "agent-profile"
   | "instances"
   | "sessions"
   | "usage"
   | "cron"
+  | "knowledge-base"
   | "skills"
   | "nodes"
   | "chat"
@@ -29,10 +42,13 @@ const TAB_PATHS: Record<Tab, string> = {
   agents: "/agents",
   overview: "/overview",
   channels: "/channels",
+  credentials: "/credentials",
+  "agent-profile": "/agent-profile",
   instances: "/instances",
   sessions: "/sessions",
   usage: "/usage",
   cron: "/cron",
+  "knowledge-base": "/knowledge-base",
   skills: "/skills",
   nodes: "/nodes",
   chat: "/chat",
@@ -132,6 +148,10 @@ export function iconForTab(tab: Tab): IconName {
       return "barChart";
     case "channels":
       return "link";
+    case "credentials":
+      return "key";
+    case "agent-profile":
+      return "fileText";
     case "instances":
       return "radio";
     case "sessions":
@@ -140,6 +160,8 @@ export function iconForTab(tab: Tab): IconName {
       return "barChart";
     case "cron":
       return "loader";
+    case "knowledge-base":
+      return "book";
     case "skills":
       return "zap";
     case "nodes":
@@ -163,6 +185,10 @@ export function titleForTab(tab: Tab) {
       return "Overview";
     case "channels":
       return "Channels";
+    case "credentials":
+      return "Credentials";
+    case "agent-profile":
+      return "Agent Profile";
     case "instances":
       return "Instances";
     case "sessions":
@@ -171,6 +197,8 @@ export function titleForTab(tab: Tab) {
       return "Usage";
     case "cron":
       return "Cron Jobs";
+    case "knowledge-base":
+      return "Knowledge Base";
     case "skills":
       return "Skills";
     case "nodes":
@@ -196,6 +224,10 @@ export function subtitleForTab(tab: Tab) {
       return "Gateway status, entry points, and a fast health read.";
     case "channels":
       return "Manage channels and settings.";
+    case "credentials":
+      return "Manage provider auth profiles (API keys and OAuth).";
+    case "agent-profile":
+      return "Set per-agent model overrides and credential locks.";
     case "instances":
       return "Presence beacons from connected clients and nodes.";
     case "sessions":
@@ -204,6 +236,8 @@ export function subtitleForTab(tab: Tab) {
       return "";
     case "cron":
       return "Schedule wakeups and recurring agent runs.";
+    case "knowledge-base":
+      return "Browse notes and review queue (read-only).";
     case "skills":
       return "Manage skill availability and API key injection.";
     case "nodes":
