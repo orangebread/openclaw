@@ -1,5 +1,5 @@
 import { html, nothing } from "lit";
-import { formatMs } from "../format";
+import { formatMs } from "../format.ts";
 import type {
   AuthProfileSummary,
   AuthFlowCompletePayload,
@@ -9,8 +9,8 @@ import type {
   AuthFlowStepOption,
   WizardStep,
   WizardStepOption,
-} from "../types";
-import type { CredentialsApiKeyFormState } from "../controllers/credentials";
+} from "../types.ts";
+import type { CredentialsApiKeyFormState } from "../controllers/credentials.ts";
 
 function normalizeProviderId(provider?: string | null): string {
   if (!provider) return "";
