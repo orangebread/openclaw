@@ -1,5 +1,11 @@
 import type { EventLogEntry } from "./app-events.ts";
 import type { CompactionStatus } from "./app-tool-stream.ts";
+import type { AgentProfileFormState } from "./controllers/agent-profile.ts";
+import type {
+  CredentialsApiKeyFormState,
+  CredentialsDisconnectDialogState,
+  CredentialsSuccessState,
+} from "./controllers/credentials.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
@@ -37,12 +43,10 @@ import type {
   SkillStatusReport,
   StatusSummary,
 } from "./types.ts";
+import type { WizardStep, WorkspaceEntry, WorkspaceReadResult } from "./types.ts";
 import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 import type { SessionLogEntry } from "./views/usage.ts";
-import type { WizardStep, WorkspaceEntry, WorkspaceReadResult } from "./types.ts";
-import type { AgentProfileFormState } from "./controllers/agent-profile.ts";
-import type { CredentialsApiKeyFormState } from "./controllers/credentials.ts";
 
 export type AppViewState = {
   settings: UiSettings;
@@ -163,6 +167,8 @@ export type AppViewState = {
   credentialsLoading: boolean;
   credentialsSaving: boolean;
   credentialsError: string | null;
+  credentialsSuccess: CredentialsSuccessState | null;
+  credentialsDisconnectDialog: CredentialsDisconnectDialogState | null;
   credentialsBaseHash: string | null;
   credentialsProfiles: AuthProfileSummary[];
   credentialsApiKeyForm: CredentialsApiKeyFormState;

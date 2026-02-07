@@ -3,7 +3,8 @@ import {
   advanceCredentialsAuthFlow,
   advanceCredentialsWizard,
   cancelCurrentCredentialsAuthFlow,
-  deleteCredentialsProfile,
+  confirmDeleteCredentialsProfile,
+  requestDeleteCredentialsProfile,
   loadCredentials,
   startCredentialsAuthFlow,
   resumeCredentialsWizard,
@@ -21,6 +22,8 @@ function createState(overrides?: Partial<CredentialsState>): CredentialsState {
     credentialsBaseHash: null,
     credentialsProfiles: [],
     credentialsSaving: false,
+    credentialsSuccess: null,
+    credentialsDisconnectDialog: null,
     credentialsApiKeyForm: { profileId: "", provider: "", email: "", apiKey: "" },
     credentialsAuthFlowLoading: false,
     credentialsAuthFlowError: null,
@@ -33,6 +36,10 @@ function createState(overrides?: Partial<CredentialsState>): CredentialsState {
     credentialsAuthFlowAnswer: null,
     credentialsAuthFlowResult: null,
     credentialsAuthFlowApplyError: null,
+    credentialsAuthFlowProviderId: null,
+    credentialsAuthFlowMethodId: null,
+    credentialsAuthFlowHadProviderProfilesBefore: false,
+    credentialsAuthFlowPendingDefaultModel: null,
     credentialsWizardBusy: false,
     credentialsWizardError: null,
     credentialsWizardRunning: false,
@@ -51,7 +58,9 @@ describe("credentials controller", () => {
         return {
           baseHash: "hash-1",
           exists: true,
-          profiles: [{ id: "openai:default", provider: "openai", type: "api_key", preview: "sk-••••" }],
+          profiles: [
+            { id: "openai:default", provider: "openai", type: "api_key", preview: "sk-••••" },
+          ],
         };
       }
       if (method === "auth.flow.list") {
@@ -85,7 +94,12 @@ describe("credentials controller", () => {
     const state = createState({
       client: { request } as any,
       credentialsBaseHash: "hash-1",
-      credentialsApiKeyForm: { profileId: "openai:default", provider: "openai", email: "", apiKey: "sk-test" },
+      credentialsApiKeyForm: {
+        profileId: "openai:default",
+        provider: "openai",
+        email: "",
+        apiKey: "sk-test",
+      },
     });
     await upsertCredentialsApiKeyProfile(state);
     expect(state.credentialsApiKeyForm.apiKey).toBe("");
@@ -151,9 +165,6 @@ describe("credentials controller", () => {
   });
 
   it("retries delete once on baseHash mismatch", async () => {
-    const prevWindow = (globalThis as any).window;
-    (globalThis as any).window = { ...(prevWindow ?? {}), confirm: vi.fn(() => true) };
-
     let deleteCalls = 0;
     const request = vi.fn(async (method: string, params?: any) => {
       if (method === "auth.profiles.delete") {
@@ -168,6 +179,9 @@ describe("credentials controller", () => {
       if (method === "auth.profiles.get") {
         return { exists: true, profiles: [], baseHash: "hash-2" };
       }
+      if (method === "config.get") {
+        return { valid: false };
+      }
       if (method === "wizard.current") return { running: false };
       if (method === "auth.flow.list") return { quickConnect: [], providers: [] };
       if (method === "auth.flow.current") return { running: false };
@@ -177,20 +191,18 @@ describe("credentials controller", () => {
     const state = createState({
       client: { request } as any,
       credentialsBaseHash: "hash-1",
-      credentialsProfiles: [{ id: "openai:default", provider: "openai", type: "api_key", preview: "sk-••••" }],
+      credentialsProfiles: [
+        { id: "openai:default", provider: "openai", type: "api_key", preview: "sk-••••" },
+      ],
     });
 
-    await deleteCredentialsProfile(state, "openai:default");
+    await requestDeleteCredentialsProfile(state, "openai:default");
+    await confirmDeleteCredentialsProfile(state, "openai:default");
     expect(deleteCalls).toBe(2);
     expect(state.credentialsProfiles).toEqual([]);
-
-    (globalThis as any).window = prevWindow;
   });
 
   it("refreshes credentials after delete even if a load is in-flight", async () => {
-    const prevWindow = (globalThis as any).window;
-    (globalThis as any).window = { ...(prevWindow ?? {}), confirm: vi.fn(() => true) };
-
     let resolveFirstGet!: (value: any) => void;
     const firstGet = new Promise((resolve) => {
       resolveFirstGet = resolve as any;
@@ -209,17 +221,23 @@ describe("credentials controller", () => {
       if (method === "auth.flow.list") return { quickConnect: [], providers: [] };
       if (method === "auth.flow.current") return { running: false };
       if (method === "auth.profiles.delete") return { baseHash: "hash-1" };
+      if (method === "config.get") return { valid: false };
       throw new Error(`unexpected method: ${method}`);
     });
 
     const state = createState({
       client: { request } as any,
       credentialsBaseHash: "hash-1",
-      credentialsProfiles: [{ id: "openai:default", provider: "openai", type: "api_key", preview: "sk-••••" }],
+      credentialsProfiles: [
+        { id: "openai:default", provider: "openai", type: "api_key", preview: "sk-••••" },
+      ],
     });
 
     const loadPromise = loadCredentials(state);
-    const deletePromise = deleteCredentialsProfile(state, "openai:default");
+    const deletePromise = (async () => {
+      await requestDeleteCredentialsProfile(state, "openai:default");
+      await confirmDeleteCredentialsProfile(state, "openai:default");
+    })();
 
     resolveFirstGet({
       exists: true,
@@ -231,8 +249,6 @@ describe("credentials controller", () => {
     await deletePromise;
     expect(getCalls).toBe(2);
     expect(state.credentialsProfiles).toEqual([]);
-
-    (globalThis as any).window = prevWindow;
   });
 
   it("starts and completes auth flow and applies config patch", async () => {
@@ -275,7 +291,11 @@ describe("credentials controller", () => {
     });
 
     const state = createState({ client: { request } as any });
-    await startCredentialsAuthFlow(state, { providerId: "openai-codex", methodId: "oauth", mode: "remote" });
+    await startCredentialsAuthFlow(state, {
+      providerId: "openai-codex",
+      methodId: "oauth",
+      mode: "remote",
+    });
     expect(state.credentialsAuthFlowRunning).toBe(true);
     state.credentialsAuthFlowAnswer = "super-secret";
     await advanceCredentialsAuthFlow(state);

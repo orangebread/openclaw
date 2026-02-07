@@ -2,6 +2,12 @@ import { LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import type { EventLogEntry } from "./app-events.ts";
 import type { AppViewState } from "./app-view-state.ts";
+import type { AgentProfileFormState } from "./controllers/agent-profile.ts";
+import type {
+  CredentialsApiKeyFormState,
+  CredentialsDisconnectDialogState,
+  CredentialsSuccessState,
+} from "./controllers/credentials.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
@@ -89,8 +95,6 @@ import { resolveInjectedAssistantIdentity } from "./assistant-identity.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
-import type { AgentProfileFormState } from "./controllers/agent-profile.ts";
-import type { CredentialsApiKeyFormState } from "./controllers/credentials.ts";
 
 declare global {
   interface Window {
@@ -244,6 +248,8 @@ export class OpenClawApp extends LitElement {
   @state() credentialsLoading = false;
   @state() credentialsSaving = false;
   @state() credentialsError: string | null = null;
+  @state() credentialsSuccess: CredentialsSuccessState | null = null;
+  @state() credentialsDisconnectDialog: CredentialsDisconnectDialogState | null = null;
   @state() credentialsBaseHash: string | null = null;
   @state() credentialsProfiles: AuthProfileSummary[] = [];
   @state() credentialsApiKeyForm: CredentialsApiKeyFormState = {
@@ -348,7 +354,11 @@ export class OpenClawApp extends LitElement {
 
   @state() kbLoading = false;
   @state() kbError: string | null = null;
-  @state() kbEntries: { notes: WorkspaceEntry[]; links: WorkspaceEntry[]; review: WorkspaceEntry[] } = {
+  @state() kbEntries: {
+    notes: WorkspaceEntry[];
+    links: WorkspaceEntry[];
+    review: WorkspaceEntry[];
+  } = {
     notes: [],
     links: [],
     review: [],

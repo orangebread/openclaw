@@ -6,6 +6,12 @@ import { refreshChatAvatar } from "./app-chat.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
+import {
+  loadAgentProfileEditor,
+  saveAgentProfile,
+  selectAgentProfileAgent,
+  updateAgentProfileForm,
+} from "./controllers/agent-profile.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import { loadChannels } from "./controllers/channels.ts";
@@ -18,6 +24,25 @@ import {
   updateConfigFormValue,
   removeConfigFormValue,
 } from "./controllers/config.ts";
+import {
+  advanceCredentialsAuthFlow,
+  advanceCredentialsWizard,
+  applyPendingCredentialsAuthFlowDefaults,
+  cancelDeleteCredentialsProfile,
+  cancelCurrentCredentialsAuthFlow,
+  cancelCurrentCredentialsWizard,
+  confirmDeleteCredentialsProfile,
+  loadCredentials,
+  requestDeleteCredentialsProfile,
+  resumeCredentialsAuthFlow,
+  resumeCredentialsWizard,
+  startCredentialsAuthFlow,
+  startCredentialsWizard,
+  updateCredentialsApiKeyForm,
+  updateCredentialsAuthFlowAnswer,
+  updateCredentialsWizardAnswer,
+  upsertCredentialsApiKeyProfile,
+} from "./controllers/credentials.ts";
 import {
   loadCronRuns,
   toggleCronJob,
@@ -39,12 +64,12 @@ import {
   saveExecApprovals,
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
-import { loadLogs } from "./controllers/logs.ts";
 import {
   loadKnowledgeBase,
   openReviewQueue,
   selectKnowledgeBaseFile,
 } from "./controllers/knowledge-base.ts";
+import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { deleteSession, loadSessions, patchSession } from "./controllers/sessions.ts";
@@ -56,29 +81,6 @@ import {
   updateSkillEnabled,
 } from "./controllers/skills.ts";
 import { loadUsage, loadSessionTimeSeries, loadSessionLogs } from "./controllers/usage.ts";
-import {
-  loadAgentProfileEditor,
-  saveAgentProfile,
-  selectAgentProfileAgent,
-  updateAgentProfileForm,
-} from "./controllers/agent-profile.ts";
-import {
-  advanceCredentialsAuthFlow,
-  advanceCredentialsWizard,
-  applyPendingCredentialsAuthFlowDefaults,
-  cancelCurrentCredentialsAuthFlow,
-  cancelCurrentCredentialsWizard,
-  deleteCredentialsProfile,
-  loadCredentials,
-  resumeCredentialsAuthFlow,
-  resumeCredentialsWizard,
-  startCredentialsAuthFlow,
-  startCredentialsWizard,
-  updateCredentialsApiKeyForm,
-  updateCredentialsAuthFlowAnswer,
-  updateCredentialsWizardAnswer,
-  upsertCredentialsApiKeyProfile,
-} from "./controllers/credentials.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
 
@@ -90,8 +92,8 @@ const debouncedLoadUsage = (state: UsageState) => {
   }
   usageDateDebounceTimeout = window.setTimeout(() => void loadUsage(state), 400);
 };
-import { renderAgents } from "./views/agents.ts";
 import { renderAgentProfile } from "./views/agent-profile.ts";
+import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
 import { renderConfig } from "./views/config.ts";
@@ -318,6 +320,8 @@ export function renderApp(state: AppViewState) {
                 loading: state.credentialsLoading,
                 saving: state.credentialsSaving,
                 error: state.credentialsError,
+                success: state.credentialsSuccess,
+                disconnectDialog: state.credentialsDisconnectDialog,
                 baseHash: state.credentialsBaseHash,
                 profiles: state.credentialsProfiles,
                 apiKeyForm: state.credentialsApiKeyForm,
@@ -331,6 +335,8 @@ export function renderApp(state: AppViewState) {
                 authFlowAnswer: state.credentialsAuthFlowAnswer,
                 authFlowResult: state.credentialsAuthFlowResult,
                 authFlowApplyError: state.credentialsAuthFlowApplyError,
+                authFlowProviderId: state.credentialsAuthFlowProviderId,
+                authFlowMethodId: state.credentialsAuthFlowMethodId,
                 authFlowPendingDefaultModel: state.credentialsAuthFlowPendingDefaultModel,
                 wizardBusy: state.credentialsWizardBusy,
                 wizardError: state.credentialsWizardError,
@@ -343,7 +349,11 @@ export function renderApp(state: AppViewState) {
                 onOpenAgentProfile: () => state.setTab("agent-profile"),
                 onApiKeyFormChange: (patch) => updateCredentialsApiKeyForm(state, patch),
                 onUpsertApiKey: () => upsertCredentialsApiKeyProfile(state),
-                onDeleteProfile: (profileId) => deleteCredentialsProfile(state, profileId),
+                onRequestDeleteProfile: (profileId) =>
+                  requestDeleteCredentialsProfile(state, profileId),
+                onCancelDeleteProfile: () => cancelDeleteCredentialsProfile(state),
+                onConfirmDeleteProfile: (profileId) =>
+                  confirmDeleteCredentialsProfile(state, profileId),
                 onStartAuthFlow: (providerId, methodId, mode) =>
                   startCredentialsAuthFlow(state, { providerId, methodId, mode }),
                 onResumeAuthFlow: () => resumeCredentialsAuthFlow(state),
