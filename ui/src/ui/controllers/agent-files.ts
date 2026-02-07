@@ -47,6 +47,14 @@ export async function loadAgentFiles(state: AgentFilesState, agentId: string) {
       if (state.agentFileActive && !res.files.some((file) => file.name === state.agentFileActive)) {
         state.agentFileActive = null;
       }
+      // Auto-select AGENTS.md (or first file) when no file is active
+      if (!state.agentFileActive && res.files.length > 0) {
+        const preferred = res.files.find((f) => f.name === "AGENTS.md");
+        const autoName = preferred?.name ?? res.files[0].name;
+        state.agentFileActive = autoName;
+        // Pre-load the content for the auto-selected file
+        void loadAgentFileContent(state, agentId, autoName);
+      }
     }
   } catch (err) {
     state.agentFilesError = String(err);

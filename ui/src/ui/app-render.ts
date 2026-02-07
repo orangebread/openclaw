@@ -1085,6 +1085,244 @@ export function renderApp(state: AppViewState) {
                     : { fallbacks: normalized };
                   updateConfigFormValue(state, basePath, next);
                 },
+                onAuthProfileChange: (agentId, profileId) => {
+                  if (!configValue) {
+                    return;
+                  }
+                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  if (!Array.isArray(list)) {
+                    return;
+                  }
+                  const index = list.findIndex(
+                    (entry) =>
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      (entry as { id?: string }).id === agentId,
+                  );
+                  if (index < 0) {
+                    return;
+                  }
+                  if (profileId) {
+                    updateConfigFormValue(
+                      state,
+                      ["agents", "list", index, "authProfileId"],
+                      profileId,
+                    );
+                  } else {
+                    removeConfigFormValue(state, ["agents", "list", index, "authProfileId"]);
+                  }
+                },
+                onImageModelChange: (agentId, modelId) => {
+                  if (!configValue) {
+                    return;
+                  }
+                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  if (!Array.isArray(list)) {
+                    return;
+                  }
+                  const index = list.findIndex(
+                    (entry) =>
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      (entry as { id?: string }).id === agentId,
+                  );
+                  if (index < 0) {
+                    return;
+                  }
+                  const basePath = ["agents", "list", index, "imageModel"];
+                  if (!modelId) {
+                    removeConfigFormValue(state, basePath);
+                    return;
+                  }
+                  const entry = list[index] as { imageModel?: unknown };
+                  const existing = entry?.imageModel;
+                  if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+                    const fallbacks = (existing as { fallbacks?: unknown }).fallbacks;
+                    const next = {
+                      primary: modelId,
+                      ...(Array.isArray(fallbacks) ? { fallbacks } : {}),
+                    };
+                    updateConfigFormValue(state, basePath, next);
+                  } else {
+                    updateConfigFormValue(state, basePath, modelId);
+                  }
+                },
+                onImageModelFallbacksChange: (agentId, fallbacks) => {
+                  if (!configValue) {
+                    return;
+                  }
+                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  if (!Array.isArray(list)) {
+                    return;
+                  }
+                  const index = list.findIndex(
+                    (entry) =>
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      (entry as { id?: string }).id === agentId,
+                  );
+                  if (index < 0) {
+                    return;
+                  }
+                  const basePath = ["agents", "list", index, "imageModel"];
+                  const entry = list[index] as { imageModel?: unknown };
+                  const normalized = fallbacks.map((name) => name.trim()).filter(Boolean);
+                  const existing = entry.imageModel;
+                  const resolvePrimary = () => {
+                    if (typeof existing === "string") {
+                      return existing.trim() || null;
+                    }
+                    if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+                      const primary = (existing as { primary?: unknown }).primary;
+                      if (typeof primary === "string") {
+                        return primary.trim() || null;
+                      }
+                    }
+                    return null;
+                  };
+                  const primary = resolvePrimary();
+                  if (normalized.length === 0) {
+                    if (primary) {
+                      updateConfigFormValue(state, basePath, primary);
+                    } else {
+                      removeConfigFormValue(state, basePath);
+                    }
+                    return;
+                  }
+                  const next = primary
+                    ? { primary, fallbacks: normalized }
+                    : { fallbacks: normalized };
+                  updateConfigFormValue(state, basePath, next);
+                },
+                onImageAuthProfileChange: (agentId, profileId) => {
+                  if (!configValue) {
+                    return;
+                  }
+                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  if (!Array.isArray(list)) {
+                    return;
+                  }
+                  const index = list.findIndex(
+                    (entry) =>
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      (entry as { id?: string }).id === agentId,
+                  );
+                  if (index < 0) {
+                    return;
+                  }
+                  if (profileId) {
+                    updateConfigFormValue(
+                      state,
+                      ["agents", "list", index, "imageAuthProfileId"],
+                      profileId,
+                    );
+                  } else {
+                    removeConfigFormValue(state, ["agents", "list", index, "imageAuthProfileId"]);
+                  }
+                },
+                onSubagentsAllowChange: (agentId, allowAgents) => {
+                  if (!configValue) {
+                    return;
+                  }
+                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  if (!Array.isArray(list)) {
+                    return;
+                  }
+                  const index = list.findIndex(
+                    (entry) =>
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      (entry as { id?: string }).id === agentId,
+                  );
+                  if (index < 0) {
+                    return;
+                  }
+                  const normalized = allowAgents.map((s) => s.trim()).filter(Boolean);
+                  if (normalized.length > 0) {
+                    updateConfigFormValue(
+                      state,
+                      ["agents", "list", index, "subagents", "allowAgents"],
+                      normalized,
+                    );
+                  } else {
+                    removeConfigFormValue(state, [
+                      "agents",
+                      "list",
+                      index,
+                      "subagents",
+                      "allowAgents",
+                    ]);
+                  }
+                },
+                onSubagentsModelChange: (agentId, modelId) => {
+                  if (!configValue) {
+                    return;
+                  }
+                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  if (!Array.isArray(list)) {
+                    return;
+                  }
+                  const index = list.findIndex(
+                    (entry) =>
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      (entry as { id?: string }).id === agentId,
+                  );
+                  if (index < 0) {
+                    return;
+                  }
+                  if (modelId) {
+                    updateConfigFormValue(
+                      state,
+                      ["agents", "list", index, "subagents", "model"],
+                      modelId,
+                    );
+                  } else {
+                    removeConfigFormValue(state, ["agents", "list", index, "subagents", "model"]);
+                  }
+                },
+                onSubagentsThinkingChange: (agentId, thinking) => {
+                  if (!configValue) {
+                    return;
+                  }
+                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  if (!Array.isArray(list)) {
+                    return;
+                  }
+                  const index = list.findIndex(
+                    (entry) =>
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      (entry as { id?: string }).id === agentId,
+                  );
+                  if (index < 0) {
+                    return;
+                  }
+                  if (thinking) {
+                    updateConfigFormValue(
+                      state,
+                      ["agents", "list", index, "subagents", "thinking"],
+                      thinking,
+                    );
+                  } else {
+                    removeConfigFormValue(state, [
+                      "agents",
+                      "list",
+                      index,
+                      "subagents",
+                      "thinking",
+                    ]);
+                  }
+                },
+                authProfiles: state.credentialsProfiles ?? [],
               })
             : nothing
         }

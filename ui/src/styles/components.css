@@ -2073,6 +2073,22 @@
   font-weight: 600;
 }
 
+.agent-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-family: var(--font-mono);
+}
+
+.agent-link:hover {
+  text-decoration: underline;
+}
+
+.agent-file-desc {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
 .agent-file-meta {
   color: var(--muted);
   font-size: 12px;

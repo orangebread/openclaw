@@ -4,6 +4,7 @@ import type {
   AgentsFilesListResult,
   AgentsListResult,
   AgentIdentityResult,
+  AuthProfileSummary,
   ChannelAccountSnapshot,
   ChannelsStatusSnapshot,
   CronJob,
@@ -73,6 +74,14 @@ export type AgentsProps = {
   onConfigSave: () => void;
   onModelChange: (agentId: string, modelId: string | null) => void;
   onModelFallbacksChange: (agentId: string, fallbacks: string[]) => void;
+  onAuthProfileChange: (agentId: string, profileId: string | null) => void;
+  onImageModelChange: (agentId: string, modelId: string | null) => void;
+  onImageModelFallbacksChange: (agentId: string, fallbacks: string[]) => void;
+  onImageAuthProfileChange: (agentId: string, profileId: string | null) => void;
+  onSubagentsAllowChange: (agentId: string, allowAgents: string[]) => void;
+  onSubagentsModelChange: (agentId: string, modelId: string | null) => void;
+  onSubagentsThinkingChange: (agentId: string, thinking: string | null) => void;
+  authProfiles: AuthProfileSummary[];
   onChannelsRefresh: () => void;
   onCronRefresh: () => void;
   onSkillsFilterChange: (next: string) => void;
@@ -184,12 +193,20 @@ type AgentConfigEntry = {
   workspace?: string;
   agentDir?: string;
   model?: unknown;
+  authProfileId?: string;
+  imageModel?: unknown;
+  imageAuthProfileId?: string;
   skills?: string[];
   tools?: {
     profile?: string;
     allow?: string[];
     alsoAllow?: string[];
     deny?: string[];
+  };
+  subagents?: {
+    allowAgents?: string[];
+    model?: unknown;
+    thinking?: string;
   };
 };
 
@@ -406,6 +423,28 @@ function parseFallbackList(value: string): string[] {
     .filter(Boolean);
 }
 
+function extractProviderFromModel(modelRef: string | null): string | null {
+  if (!modelRef) {
+    return null;
+  }
+  const idx = modelRef.indexOf("/");
+  if (idx > 0) {
+    return modelRef.slice(0, idx).trim().toLowerCase() || null;
+  }
+  return null;
+}
+
+function profileStatusLabel(profile: AuthProfileSummary): string {
+  const now = Date.now();
+  if (typeof profile.disabledUntil === "number" && profile.disabledUntil > now) {
+    return " [disabled]";
+  }
+  if (typeof profile.cooldownUntil === "number" && profile.cooldownUntil > now) {
+    return " [cooldown]";
+  }
+  return "";
+}
+
 type ConfiguredModelOption = {
   value: string;
   label: string;
@@ -617,10 +656,19 @@ export function renderAgents(props: AgentsProps) {
                       configLoading: props.configLoading,
                       configSaving: props.configSaving,
                       configDirty: props.configDirty,
+                      authProfiles: props.authProfiles,
                       onConfigReload: props.onConfigReload,
                       onConfigSave: props.onConfigSave,
                       onModelChange: props.onModelChange,
                       onModelFallbacksChange: props.onModelFallbacksChange,
+                      onAuthProfileChange: props.onAuthProfileChange,
+                      onImageModelChange: props.onImageModelChange,
+                      onImageModelFallbacksChange: props.onImageModelFallbacksChange,
+                      onImageAuthProfileChange: props.onImageAuthProfileChange,
+                      onSubagentsAllowChange: props.onSubagentsAllowChange,
+                      onSubagentsModelChange: props.onSubagentsModelChange,
+                      onSubagentsThinkingChange: props.onSubagentsThinkingChange,
+                      onSelectAgent: props.onSelectAgent,
                     })
                   : nothing
               }
@@ -785,10 +833,19 @@ function renderAgentOverview(params: {
   configLoading: boolean;
   configSaving: boolean;
   configDirty: boolean;
+  authProfiles: AuthProfileSummary[];
   onConfigReload: () => void;
   onConfigSave: () => void;
   onModelChange: (agentId: string, modelId: string | null) => void;
   onModelFallbacksChange: (agentId: string, fallbacks: string[]) => void;
+  onAuthProfileChange: (agentId: string, profileId: string | null) => void;
+  onImageModelChange: (agentId: string, modelId: string | null) => void;
+  onImageModelFallbacksChange: (agentId: string, fallbacks: string[]) => void;
+  onImageAuthProfileChange: (agentId: string, profileId: string | null) => void;
+  onSubagentsAllowChange: (agentId: string, allowAgents: string[]) => void;
+  onSubagentsModelChange: (agentId: string, modelId: string | null) => void;
+  onSubagentsThinkingChange: (agentId: string, thinking: string | null) => void;
+  onSelectAgent: (agentId: string) => void;
 }) {
   const {
     agent,
@@ -800,10 +857,19 @@ function renderAgentOverview(params: {
     configLoading,
     configSaving,
     configDirty,
+    authProfiles,
     onConfigReload,
     onConfigSave,
     onModelChange,
     onModelFallbacksChange,
+    onAuthProfileChange,
+    onImageModelChange,
+    onImageModelFallbacksChange,
+    onImageAuthProfileChange,
+    onSubagentsAllowChange,
+    onSubagentsModelChange,
+    onSubagentsThinkingChange,
+    onSelectAgent,
   } = params;
   const config = resolveAgentConfig(configForm, agent.id);
   const workspaceFromFiles =
@@ -839,6 +905,49 @@ function renderAgentOverview(params: {
       : "";
   const isDefault = Boolean(params.defaultId && agent.id === params.defaultId);
 
+  // Text credential locking
+  const textAuthProfileId = config.entry?.authProfileId?.trim() || null;
+  const textProvider = extractProviderFromModel(effectivePrimary);
+  const textProviderProfiles = textProvider
+    ? authProfiles.filter((p) => p.provider.toLowerCase() === textProvider.toLowerCase())
+    : [];
+
+  // Image model
+  const imageModelPrimary = resolveModelPrimary(config.entry?.imageModel);
+  const effectiveImagePrimary = imageModelPrimary ?? null;
+  const imageModelFallbacks = resolveModelFallbacks(config.entry?.imageModel);
+  const imageFallbackText = imageModelFallbacks ? imageModelFallbacks.join(", ") : "";
+
+  // Image credential locking
+  const imageAuthProfileId = config.entry?.imageAuthProfileId?.trim() || null;
+  const imageProvider = extractProviderFromModel(effectiveImagePrimary) || textProvider;
+  const imageProviderProfiles = imageProvider
+    ? authProfiles.filter((p) => p.provider.toLowerCase() === imageProvider.toLowerCase())
+    : [];
+  const imageCredMode: "auto" | "locked" | "inherited" = imageAuthProfileId
+    ? "locked"
+    : textAuthProfileId &&
+        imageProvider &&
+        textProvider &&
+        imageProvider.toLowerCase() === textProvider.toLowerCase()
+      ? "inherited"
+      : "auto";
+
+  // Sub-agent configuration
+  const subagents = config.entry?.subagents;
+  const allowAgents = Array.isArray(subagents?.allowAgents) ? subagents.allowAgents : [];
+  const allowAgentsText = allowAgents.join(", ");
+  const subagentModel = resolveModelPrimary(subagents?.model) ?? "";
+  const subagentThinking = subagents?.thinking?.trim() ?? "";
+
+  // Resolve known agent IDs for datalist
+  const cfg = configForm as ConfigSnapshot | null;
+  const knownAgentIds = (cfg?.agents?.list ?? [])
+    .map((a) => a?.id?.trim())
+    .filter((id): id is string => Boolean(id));
+
+  const inputDisabled = !configForm || configLoading || configSaving;
+
   return html`
     <section class="card">
       <div class="card-title">Overview</div>
@@ -869,16 +978,49 @@ function renderAgentOverview(params: {
           <div class="label">Skills Filter</div>
           <div>${skillFilter ? `${skillCount} selected` : "all skills"}</div>
         </div>
+        ${
+          allowAgents.length > 0
+            ? html`
+                <div class="agent-kv">
+                  <div class="label">Can Spawn</div>
+                  <div>
+                    ${allowAgents.map((id, i) => {
+                      const isWild = id === "*";
+                      const isKnown = !isWild && knownAgentIds.includes(id);
+                      return html`${i > 0 ? ", " : ""}${
+                        isKnown
+                          ? html`<a
+                              href="#"
+                              class="agent-link"
+                              @click=${(e: Event) => {
+                                e.preventDefault();
+                                onSelectAgent(id);
+                              }}
+                              >${id}</a
+                            >`
+                          : isWild
+                            ? html`
+                                <span class="mono">* (any)</span>
+                              `
+                            : html`<span class="mono">${id}</span>`
+                      }`;
+                    })}
+                  </div>
+                </div>
+              `
+            : nothing
+        }
       </div>
 
+      <!-- Text Model Selection -->
       <div class="agent-model-select" style="margin-top: 20px;">
-        <div class="label">Model Selection</div>
+        <div class="label">Text Model</div>
         <div class="row" style="gap: 12px; flex-wrap: wrap;">
           <label class="field" style="min-width: 260px; flex: 1;">
             <span>Primary model${isDefault ? " (default)" : ""}</span>
             <select
               .value=${effectivePrimary ?? ""}
-              ?disabled=${!configForm || configLoading || configSaving}
+              ?disabled=${inputDisabled}
               @change=${(e: Event) =>
                 onModelChange(agent.id, (e.target as HTMLSelectElement).value || null)}
             >
@@ -900,7 +1042,7 @@ function renderAgentOverview(params: {
             <span>Fallbacks (comma-separated)</span>
             <input
               .value=${fallbackText}
-              ?disabled=${!configForm || configLoading || configSaving}
+              ?disabled=${inputDisabled}
               placeholder="provider/model, provider/model"
               @input=${(e: Event) =>
                 onModelFallbacksChange(
@@ -910,22 +1052,248 @@ function renderAgentOverview(params: {
             />
           </label>
         </div>
-        <div class="row" style="justify-content: flex-end; gap: 8px;">
-          <button
-            class="btn btn--sm"
-            ?disabled=${configLoading}
-            @click=${onConfigReload}
-          >
-            Reload Config
-          </button>
-          <button
-            class="btn btn--sm primary"
-            ?disabled=${configSaving || !configDirty}
-            @click=${onConfigSave}
-          >
-            ${configSaving ? "Saving…" : "Save"}
-          </button>
+
+        <!-- Text Credentials -->
+        <div style="margin-top: 12px;">
+          <div class="label">Text Credentials</div>
+          <div class="row" style="gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+            <label class="field" style="min-width: 160px;">
+              <span>Mode</span>
+              <select
+                .value=${textAuthProfileId ? "locked" : "auto"}
+                ?disabled=${inputDisabled}
+                @change=${(e: Event) => {
+                  const mode = (e.target as HTMLSelectElement).value;
+                  if (mode === "auto") {
+                    onAuthProfileChange(agent.id, null);
+                  }
+                }}
+              >
+                <option value="auto">Auto</option>
+                <option value="locked">Locked to profile</option>
+              </select>
+            </label>
+            ${
+              textAuthProfileId !== null || textProviderProfiles.length > 0
+                ? html`
+                    <label class="field" style="min-width: 260px; flex: 1;">
+                      <span>Auth profile${textProvider ? ` (${textProvider})` : ""}</span>
+                      <select
+                        .value=${textAuthProfileId ?? ""}
+                        ?disabled=${inputDisabled}
+                        @change=${(e: Event) => {
+                          const profileId = (e.target as HTMLSelectElement).value || null;
+                          onAuthProfileChange(agent.id, profileId);
+                        }}
+                      >
+                        <option value="">None (auto)</option>
+                        ${textProviderProfiles.map(
+                          (p) => html`
+                            <option value=${p.id}>
+                              ${p.id}${p.email ? ` (${p.email})` : ""}${profileStatusLabel(p)}
+                            </option>
+                          `,
+                        )}
+                        ${
+                          textAuthProfileId &&
+                          !textProviderProfiles.some((p) => p.id === textAuthProfileId)
+                            ? html`<option value=${textAuthProfileId}>
+                                ${textAuthProfileId} (not found)
+                              </option>`
+                            : nothing
+                        }
+                      </select>
+                    </label>
+                  `
+                : nothing
+            }
+          </div>
         </div>
+      </div>
+
+      <!-- Image Model Selection -->
+      <div class="agent-model-select" style="margin-top: 20px;">
+        <div class="label">Image Model</div>
+        <div class="row" style="gap: 12px; flex-wrap: wrap;">
+          <label class="field" style="min-width: 260px; flex: 1;">
+            <span>Primary image model</span>
+            <select
+              .value=${effectiveImagePrimary ?? ""}
+              ?disabled=${inputDisabled}
+              @change=${(e: Event) =>
+                onImageModelChange(agent.id, (e.target as HTMLSelectElement).value || null)}
+            >
+              <option value="">None (use text model provider)</option>
+              ${buildModelOptions(configForm, effectiveImagePrimary ?? undefined)}
+            </select>
+          </label>
+          <label class="field" style="min-width: 260px; flex: 1;">
+            <span>Image fallbacks (comma-separated)</span>
+            <input
+              .value=${imageFallbackText}
+              ?disabled=${inputDisabled}
+              placeholder="provider/model, provider/model"
+              @input=${(e: Event) =>
+                onImageModelFallbacksChange(
+                  agent.id,
+                  parseFallbackList((e.target as HTMLInputElement).value),
+                )}
+            />
+          </label>
+        </div>
+
+        <!-- Image Credentials -->
+        <div style="margin-top: 12px;">
+          <div class="label">Image Credentials</div>
+          <div class="row" style="gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+            <label class="field" style="min-width: 160px;">
+              <span>Mode</span>
+              <select
+                .value=${imageCredMode}
+                ?disabled=${inputDisabled}
+                @change=${(e: Event) => {
+                  const mode = (e.target as HTMLSelectElement).value;
+                  if (mode === "auto" || mode === "inherited") {
+                    onImageAuthProfileChange(agent.id, null);
+                  }
+                }}
+              >
+                <option value="auto">Auto</option>
+                ${
+                  textAuthProfileId
+                    ? html`
+                        <option value="inherited">Inherited from text</option>
+                      `
+                    : nothing
+                }
+                <option value="locked">Locked to profile</option>
+              </select>
+            </label>
+            ${
+              imageCredMode === "locked" || imageProviderProfiles.length > 0
+                ? html`
+                    <label class="field" style="min-width: 260px; flex: 1;">
+                      <span>Auth profile${imageProvider ? ` (${imageProvider})` : ""}</span>
+                      <select
+                        .value=${imageAuthProfileId ?? ""}
+                        ?disabled=${inputDisabled}
+                        @change=${(e: Event) => {
+                          const profileId = (e.target as HTMLSelectElement).value || null;
+                          onImageAuthProfileChange(agent.id, profileId);
+                        }}
+                      >
+                        <option value="">None (auto)</option>
+                        ${imageProviderProfiles.map(
+                          (p) => html`
+                            <option value=${p.id}>
+                              ${p.id}${p.email ? ` (${p.email})` : ""}${profileStatusLabel(p)}
+                            </option>
+                          `,
+                        )}
+                        ${
+                          imageAuthProfileId &&
+                          !imageProviderProfiles.some((p) => p.id === imageAuthProfileId)
+                            ? html`<option value=${imageAuthProfileId}>
+                                ${imageAuthProfileId} (not found)
+                              </option>`
+                            : nothing
+                        }
+                      </select>
+                    </label>
+                  `
+                : nothing
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-Agent Configuration -->
+      <div class="agent-model-select" style="margin-top: 20px;">
+        <div class="label">Sub-Agent Defaults</div>
+        ${
+          isDefault
+            ? html`
+                <div class="callout info" style="margin-bottom: 8px">
+                  This is the default agent. Configure sub-agents below to enable delegation via
+                  <code>sessions_spawn</code>.
+                </div>
+              `
+            : nothing
+        }
+        <div class="row" style="gap: 12px; flex-wrap: wrap;">
+          <label class="field" style="min-width: 260px; flex: 1;">
+            <span>Allowed sub-agents (comma-separated, * = any)</span>
+            <input
+              .value=${allowAgentsText}
+              ?disabled=${inputDisabled}
+              placeholder="agent-id, another-id, *"
+              list="known-agents-${agent.id}"
+              @input=${(e: Event) =>
+                onSubagentsAllowChange(
+                  agent.id,
+                  parseFallbackList((e.target as HTMLInputElement).value),
+                )}
+            />
+            ${
+              knownAgentIds.length > 0
+                ? html`
+                    <datalist id="known-agents-${agent.id}">
+                      <option value="*">Any agent</option>
+                      ${knownAgentIds
+                        .filter((id) => id !== agent.id)
+                        .map((id) => html`<option value=${id}></option>`)}
+                    </datalist>
+                  `
+                : nothing
+            }
+          </label>
+        </div>
+        <div class="row" style="gap: 12px; flex-wrap: wrap; margin-top: 8px;">
+          <label class="field" style="min-width: 260px; flex: 1;">
+            <span>Default model for sub-agents</span>
+            <select
+              .value=${subagentModel}
+              ?disabled=${inputDisabled}
+              @change=${(e: Event) =>
+                onSubagentsModelChange(agent.id, (e.target as HTMLSelectElement).value || null)}
+            >
+              <option value="">Inherit (no override)</option>
+              ${buildModelOptions(configForm, subagentModel || undefined)}
+            </select>
+          </label>
+          <label class="field" style="min-width: 160px;">
+            <span>Default thinking level</span>
+            <select
+              .value=${subagentThinking}
+              ?disabled=${inputDisabled}
+              @change=${(e: Event) =>
+                onSubagentsThinkingChange(agent.id, (e.target as HTMLSelectElement).value || null)}
+            >
+              <option value="">Inherit (no override)</option>
+              <option value="off">Off</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content: flex-end; gap: 8px; margin-top: 16px;">
+        <button
+          class="btn btn--sm"
+          ?disabled=${configLoading}
+          @click=${onConfigReload}
+        >
+          Reload Config
+        </button>
+        <button
+          class="btn btn--sm primary"
+          ?disabled=${configSaving || !configDirty}
+          @click=${onConfigSave}
+        >
+          ${configSaving ? "Saving…" : "Save"}
+        </button>
       </div>
     </section>
   `;
@@ -1404,10 +1772,21 @@ function renderAgentFiles(params: {
   `;
 }
 
+const FILE_DESCRIPTIONS: Record<string, string> = {
+  "AGENTS.md": "Primary behavioral instructions",
+  "SOUL.md": "Personality and communication style",
+  "TOOLS.md": "Tool usage guidelines and environment notes",
+  "IDENTITY.md": "Name, avatar, and public-facing identity",
+  "USER.md": "Information about the operator",
+  "HEARTBEAT.md": "Prompt for periodic heartbeat check-ins",
+  "BOOTSTRAP.md": "Additional bootstrap context",
+};
+
 function renderAgentFileRow(file: AgentFileEntry, active: string | null, onSelect: () => void) {
   const status = file.missing
     ? "Missing"
     : `${formatBytes(file.size)} · ${formatAgo(file.updatedAtMs ?? null)}`;
+  const description = FILE_DESCRIPTIONS[file.name] ?? null;
   return html`
     <button
       type="button"
@@ -1416,6 +1795,7 @@ function renderAgentFileRow(file: AgentFileEntry, active: string | null, onSelec
     >
       <div>
         <div class="agent-file-name mono">${file.name}</div>
+        ${description ? html`<div class="agent-file-desc">${description}</div>` : nothing}
         <div class="agent-file-meta">${status}</div>
       </div>
       ${
