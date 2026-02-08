@@ -31,10 +31,6 @@ import {
   AuthFlowCancelCurrentResultSchema,
   type AuthFlowStep,
   AuthFlowStepSchema,
-  type AgentsProfileGetParams,
-  AgentsProfileGetParamsSchema,
-  type AgentsProfileUpdateParams,
-  AgentsProfileUpdateParamsSchema,
   type AgentIdentityParams,
   AgentIdentityParamsSchema,
   type AgentIdentityResult,
@@ -280,12 +276,6 @@ export const validateAuthFlowCurrentParams = ajv.compile<AuthFlowCurrentParams>(
 );
 export const validateAuthFlowCancelCurrentParams = ajv.compile<AuthFlowCancelCurrentParams>(
   AuthFlowCancelCurrentParamsSchema,
-);
-export const validateAgentsProfileGetParams = ajv.compile<AgentsProfileGetParams>(
-  AgentsProfileGetParamsSchema,
-);
-export const validateAgentsProfileUpdateParams = ajv.compile<AgentsProfileUpdateParams>(
-  AgentsProfileUpdateParamsSchema,
 );
 export const validateSendParams = ajv.compile(SendParamsSchema);
 export const validatePollParams = ajv.compile<PollParams>(PollParamsSchema);

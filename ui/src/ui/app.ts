@@ -2,7 +2,6 @@ import { LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import type { EventLogEntry } from "./app-events.ts";
 import type { AppViewState } from "./app-view-state.ts";
-import type { AgentProfileFormState } from "./controllers/agent-profile.ts";
 import type {
   CredentialsApiKeyFormState,
   CredentialsDisconnectDialogState,
@@ -19,7 +18,6 @@ import type {
   AgentsListResult,
   AgentsFilesListResult,
   AgentIdentityResult,
-  AgentProfileEntry,
   AuthFlowCompletePayload,
   AuthProfileSummary,
   AuthFlowListResult,
@@ -32,7 +30,6 @@ import type {
   HealthSnapshot,
   LogEntry,
   LogLevel,
-  ModelChoice,
   PresenceEntry,
   ChannelsStatusSnapshot,
   SessionsListResult,
@@ -233,17 +230,6 @@ export class OpenClawApp extends LitElement {
   @state() agentSkillsError: string | null = null;
   @state() agentSkillsReport: SkillStatusReport | null = null;
   @state() agentSkillsAgentId: string | null = null;
-
-  @state() agentProfileLoading = false;
-  @state() agentProfileSaving = false;
-  @state() agentProfileDirty = false;
-  @state() agentProfileError: string | null = null;
-  @state() agentProfileBaseHash: string | null = null;
-  @state() agentProfileAgents: AgentProfileEntry[] = [];
-  @state() agentProfileSelectedAgentId: string | null = null;
-  @state() agentProfileForm: AgentProfileFormState | null = null;
-  @state() agentProfileModels: ModelChoice[] = [];
-  @state() agentProfileAuthProfiles: AuthProfileSummary[] = [];
 
   @state() credentialsLoading = false;
   @state() credentialsSaving = false;

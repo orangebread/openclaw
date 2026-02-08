@@ -6,12 +6,6 @@ import { refreshChatAvatar } from "./app-chat.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
-import {
-  loadAgentProfileEditor,
-  saveAgentProfile,
-  selectAgentProfileAgent,
-  updateAgentProfileForm,
-} from "./controllers/agent-profile.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import { loadChannels } from "./controllers/channels.ts";
@@ -92,7 +86,6 @@ const debouncedLoadUsage = (state: UsageState) => {
   }
   usageDateDebounceTimeout = window.setTimeout(() => void loadUsage(state), 400);
 };
-import { renderAgentProfile } from "./views/agent-profile.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
@@ -346,7 +339,7 @@ export function renderApp(state: AppViewState) {
                 wizardAnswer: state.credentialsWizardAnswer,
                 onRefresh: () => loadCredentials(state),
                 onOpenChat: () => state.setTab("chat"),
-                onOpenAgentProfile: () => state.setTab("agent-profile"),
+                onOpenAgentProfile: () => state.setTab("agents"),
                 onApiKeyFormChange: (patch) => updateCredentialsApiKeyForm(state, patch),
                 onUpsertApiKey: () => upsertCredentialsApiKeyProfile(state),
                 onRequestDeleteProfile: (profileId) =>
@@ -366,32 +359,6 @@ export function renderApp(state: AppViewState) {
                 onCancelWizard: () => cancelCurrentCredentialsWizard(state),
                 onWizardAnswerChange: (next) => updateCredentialsWizardAnswer(state, next),
                 onWizardContinue: () => advanceCredentialsWizard(state),
-              })
-            : nothing
-        }
-
-        ${
-          state.tab === "agent-profile"
-            ? renderAgentProfile({
-                connected: state.connected,
-                loading: state.agentProfileLoading,
-                saving: state.agentProfileSaving,
-                dirty: state.agentProfileDirty,
-                error: state.agentProfileError,
-                agents: state.agentProfileAgents,
-                selectedAgentId: state.agentProfileSelectedAgentId,
-                form: state.agentProfileForm,
-                authProfiles: state.agentProfileAuthProfiles,
-                models: state.agentProfileModels,
-                onRefresh: () => loadAgentProfileEditor(state),
-                onSelectAgent: (agentId) => selectAgentProfileAgent(state, agentId),
-                onFormChange: (patch) => updateAgentProfileForm(state, patch),
-                onSave: () => saveAgentProfile(state),
-                onOpenCredentials: () => state.setTab("credentials"),
-                onRunOnboardingWizard: () => {
-                  state.setTab("credentials");
-                  void startCredentialsWizard(state);
-                },
               })
             : nothing
         }

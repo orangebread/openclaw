@@ -1,6 +1,5 @@
 import type { EventLogEntry } from "./app-events.ts";
 import type { CompactionStatus } from "./app-tool-stream.ts";
-import type { AgentProfileFormState } from "./controllers/agent-profile.ts";
 import type {
   CredentialsApiKeyFormState,
   CredentialsDisconnectDialogState,
@@ -19,7 +18,6 @@ import type {
   AgentsListResult,
   AgentsFilesListResult,
   AgentIdentityResult,
-  AgentProfileEntry,
   AuthFlowCompletePayload,
   AuthFlowListResult,
   AuthFlowStep,
@@ -33,7 +31,6 @@ import type {
   HealthSnapshot,
   LogEntry,
   LogLevel,
-  ModelChoice,
   NostrProfile,
   PresenceEntry,
   SessionsUsageResult,
@@ -154,16 +151,6 @@ export type AppViewState = {
   agentSkillsError: string | null;
   agentSkillsReport: SkillStatusReport | null;
   agentSkillsAgentId: string | null;
-  agentProfileLoading: boolean;
-  agentProfileSaving: boolean;
-  agentProfileDirty: boolean;
-  agentProfileError: string | null;
-  agentProfileBaseHash: string | null;
-  agentProfileAgents: AgentProfileEntry[];
-  agentProfileSelectedAgentId: string | null;
-  agentProfileForm: AgentProfileFormState | null;
-  agentProfileModels: ModelChoice[];
-  agentProfileAuthProfiles: AuthProfileSummary[];
   credentialsLoading: boolean;
   credentialsSaving: boolean;
   credentialsError: string | null;

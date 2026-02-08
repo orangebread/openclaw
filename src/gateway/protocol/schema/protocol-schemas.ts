@@ -1,12 +1,5 @@
 import type { TSchema } from "@sinclair/typebox";
 import {
-  AgentsProfileGetParamsSchema,
-  AgentsProfileGetResultSchema,
-  AgentsProfileUpdateParamsSchema,
-  AgentsProfileUpdateResultSchema,
-  AgentProfileEntrySchema,
-} from "./agent-profiles.js";
-import {
   AgentEventSchema,
   AgentIdentityParamsSchema,
   AgentIdentityResultSchema,
@@ -256,11 +249,6 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   AgentsFilesSetResult: AgentsFilesSetResultSchema,
   AgentsListParams: AgentsListParamsSchema,
   AgentsListResult: AgentsListResultSchema,
-  AgentsProfileGetParams: AgentsProfileGetParamsSchema,
-  AgentsProfileGetResult: AgentsProfileGetResultSchema,
-  AgentsProfileUpdateParams: AgentsProfileUpdateParamsSchema,
-  AgentsProfileUpdateResult: AgentsProfileUpdateResultSchema,
-  AgentProfileEntry: AgentProfileEntrySchema,
   ModelChoice: ModelChoiceSchema,
   ModelsListParams: ModelsListParamsSchema,
   ModelsListResult: ModelsListResultSchema,

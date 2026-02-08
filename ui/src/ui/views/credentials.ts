@@ -1327,7 +1327,7 @@ export function renderCredentials(props: CredentialsProps) {
                   Send a test message
                 </button>
                 <button class="btn" @click=${props.onOpenAgentProfile} title="Configure models and locked credentials per agent">
-                  Configure agent profile
+                  Configure agents
                 </button>
                 <button class="btn" @click=${scrollToProfiles} title="View saved credentials">
                   View saved credentials

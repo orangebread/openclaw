@@ -1,6 +1,5 @@
 export * from "./schema/agent.js";
 export * from "./schema/agents-models-skills.js";
-export * from "./schema/agent-profiles.js";
 export * from "./schema/auth-profiles.js";
 export * from "./schema/auth-flow.js";
 export * from "./schema/channels.js";

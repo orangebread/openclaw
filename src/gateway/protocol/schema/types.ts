@@ -1,12 +1,5 @@
 import type { Static } from "@sinclair/typebox";
 import type {
-  AgentsProfileGetParamsSchema,
-  AgentsProfileGetResultSchema,
-  AgentsProfileUpdateParamsSchema,
-  AgentsProfileUpdateResultSchema,
-  AgentProfileEntrySchema,
-} from "./agent-profiles.js";
-import type {
   AgentEventSchema,
   AgentIdentityParamsSchema,
   AgentIdentityResultSchema,
@@ -250,11 +243,6 @@ export type WorkspaceEntry = Static<typeof WorkspaceEntrySchema>;
 export type WorkspaceListResult = Static<typeof WorkspaceListResultSchema>;
 export type WorkspaceReadParams = Static<typeof WorkspaceReadParamsSchema>;
 export type WorkspaceReadResult = Static<typeof WorkspaceReadResultSchema>;
-export type AgentsProfileGetParams = Static<typeof AgentsProfileGetParamsSchema>;
-export type AgentsProfileGetResult = Static<typeof AgentsProfileGetResultSchema>;
-export type AgentsProfileUpdateParams = Static<typeof AgentsProfileUpdateParamsSchema>;
-export type AgentsProfileUpdateResult = Static<typeof AgentsProfileUpdateResultSchema>;
-export type AgentProfileEntry = Static<typeof AgentProfileEntrySchema>;
 export type ModelChoice = Static<typeof ModelChoiceSchema>;
 export type ModelsListParams = Static<typeof ModelsListParamsSchema>;
 export type ModelsListResult = Static<typeof ModelsListResultSchema>;

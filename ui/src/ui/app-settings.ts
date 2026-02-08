@@ -9,7 +9,6 @@ import {
 } from "./app-polling.ts";
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
-import { loadAgentProfileEditor } from "./controllers/agent-profile.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import { loadChannels } from "./controllers/channels.ts";
@@ -193,9 +192,6 @@ export async function refreshActiveTab(host: SettingsHost) {
   }
   if (host.tab === "credentials") {
     await loadCredentials(host as unknown as OpenClawApp);
-  }
-  if (host.tab === "agent-profile") {
-    await loadAgentProfileEditor(host as unknown as OpenClawApp);
   }
   if (host.tab === "instances") {
     await loadPresence(host as unknown as OpenClawApp);

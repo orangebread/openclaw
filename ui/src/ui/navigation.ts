@@ -8,7 +8,6 @@ export const TAB_GROUPS = [
       "overview",
       "channels",
       "credentials",
-      "agent-profile",
       "instances",
       "sessions",
       "usage",
@@ -25,7 +24,6 @@ export type Tab =
   | "overview"
   | "channels"
   | "credentials"
-  | "agent-profile"
   | "instances"
   | "sessions"
   | "usage"
@@ -43,7 +41,6 @@ const TAB_PATHS: Record<Tab, string> = {
   overview: "/overview",
   channels: "/channels",
   credentials: "/credentials",
-  "agent-profile": "/agent-profile",
   instances: "/instances",
   sessions: "/sessions",
   usage: "/usage",
@@ -150,8 +147,6 @@ export function iconForTab(tab: Tab): IconName {
       return "link";
     case "credentials":
       return "key";
-    case "agent-profile":
-      return "fileText";
     case "instances":
       return "radio";
     case "sessions":
@@ -187,8 +182,6 @@ export function titleForTab(tab: Tab) {
       return "Channels";
     case "credentials":
       return "Credentials";
-    case "agent-profile":
-      return "Agent Profile";
     case "instances":
       return "Instances";
     case "sessions":
@@ -226,8 +219,6 @@ export function subtitleForTab(tab: Tab) {
       return "Manage channels and settings.";
     case "credentials":
       return "Manage provider auth profiles (API keys and OAuth).";
-    case "agent-profile":
-      return "Set per-agent model overrides and credential locks.";
     case "instances":
       return "Presence beacons from connected clients and nodes.";
     case "sessions":
