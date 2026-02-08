@@ -30,6 +30,7 @@ import type {
   HealthSnapshot,
   LogEntry,
   LogLevel,
+  ModelChoice,
   PresenceEntry,
   ChannelsStatusSnapshot,
   SessionsListResult,
@@ -214,6 +215,7 @@ export class OpenClawApp extends LitElement {
   @state() agentsList: AgentsListResult | null = null;
   @state() agentsError: string | null = null;
   @state() agentsSelectedId: string | null = null;
+  @state() agentsModelCatalog: ModelChoice[] = [];
   @state() agentsPanel: "overview" | "files" | "tools" | "skills" | "channels" | "cron" =
     "overview";
   @state() agentFilesLoading = false;

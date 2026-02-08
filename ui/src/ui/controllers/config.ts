@@ -119,7 +119,15 @@ export async function saveConfig(state: ConfigState) {
     state.configFormDirty = false;
     await loadConfig(state);
   } catch (err) {
-    state.lastError = String(err);
+    const msg = err instanceof Error ? err.message : String(err);
+    // The gateway typically restarts after config.set, dropping the WebSocket
+    // (close code 1012). The save succeeded server-side; mark clean so the
+    // automatic reconnect + loadConfig picks up the persisted state.
+    if (!state.connected && /gateway closed/.test(msg)) {
+      state.configFormDirty = false;
+      return;
+    }
+    state.lastError = msg;
   } finally {
     state.configSaving = false;
   }

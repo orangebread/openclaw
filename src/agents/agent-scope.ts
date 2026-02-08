@@ -160,6 +160,22 @@ export function resolveAgentModelPrimary(cfg: OpenClawConfig, agentId: string): 
   return primary || undefined;
 }
 
+/**
+ * Extract the provider portion from the agent's primary model string.
+ * E.g. "anthropic/claude-opus-4-6" → "anthropic".
+ */
+export function resolveAgentPrimaryProvider(
+  cfg: OpenClawConfig,
+  agentId: string,
+): string | undefined {
+  const model = resolveAgentModelPrimary(cfg, agentId);
+  if (!model) {
+    return undefined;
+  }
+  const slash = model.indexOf("/");
+  return slash > 0 ? model.slice(0, slash).trim().toLowerCase() : undefined;
+}
+
 export function resolveAgentAuthProfileId(
   cfg: OpenClawConfig,
   agentId: string,

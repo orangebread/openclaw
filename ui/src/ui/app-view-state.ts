@@ -31,6 +31,7 @@ import type {
   HealthSnapshot,
   LogEntry,
   LogLevel,
+  ModelChoice,
   NostrProfile,
   PresenceEntry,
   SessionsUsageResult,
@@ -136,6 +137,7 @@ export type AppViewState = {
   agentsList: AgentsListResult | null;
   agentsError: string | null;
   agentsSelectedId: string | null;
+  agentsModelCatalog: ModelChoice[];
   agentsPanel: "overview" | "files" | "tools" | "skills" | "channels" | "cron";
   agentFilesLoading: boolean;
   agentFilesError: string | null;

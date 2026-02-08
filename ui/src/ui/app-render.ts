@@ -7,7 +7,7 @@ import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.h
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
-import { loadAgents } from "./controllers/agents.ts";
+import { loadAgents, loadModelCatalog } from "./controllers/agents.ts";
 import { loadChannels } from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import {
@@ -719,6 +719,7 @@ export function renderApp(state: AppViewState) {
                 selectedAgentId: resolvedAgentId,
                 activePanel: state.agentsPanel,
                 configForm: configValue,
+                catalogModels: state.agentsModelCatalog,
                 configLoading: state.configLoading,
                 configSaving: state.configSaving,
                 configDirty: state.configFormDirty,
@@ -746,7 +747,7 @@ export function renderApp(state: AppViewState) {
                 agentSkillsAgentId: state.agentSkillsAgentId,
                 skillsFilter: state.skillsFilter,
                 onRefresh: async () => {
-                  await loadAgents(state);
+                  await Promise.all([loadAgents(state), loadModelCatalog(state)]);
                   const agentIds = state.agentsList?.agents?.map((entry) => entry.id) ?? [];
                   if (agentIds.length > 0) {
                     void loadAgentIdentities(state, agentIds);

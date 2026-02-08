@@ -1,5 +1,5 @@
 import type { GatewayBrowserClient } from "../gateway.ts";
-import type { AgentsListResult } from "../types.ts";
+import type { AgentsListResult, ModelChoice } from "../types.ts";
 
 export type AgentsState = {
   client: GatewayBrowserClient | null;
@@ -8,6 +8,7 @@ export type AgentsState = {
   agentsError: string | null;
   agentsList: AgentsListResult | null;
   agentsSelectedId: string | null;
+  agentsModelCatalog: ModelChoice[];
 };
 
 export async function loadAgents(state: AgentsState) {
@@ -33,5 +34,18 @@ export async function loadAgents(state: AgentsState) {
     state.agentsError = String(err);
   } finally {
     state.agentsLoading = false;
+  }
+}
+
+export async function loadModelCatalog(state: AgentsState) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  try {
+    const res = await state.client.request<{ models?: ModelChoice[] }>("models.list", {});
+    const models = res?.models;
+    state.agentsModelCatalog = Array.isArray(models) ? models : [];
+  } catch {
+    // Non-fatal — dropdown falls back to config-only models.
   }
 }

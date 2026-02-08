@@ -11,7 +11,7 @@ import {
   parseAgentSessionKey,
 } from "../../routing/session-key.js";
 import { normalizeDeliveryContext } from "../../utils/delivery-context.js";
-import { resolveAgentConfig } from "../agent-scope.js";
+import { resolveAgentConfig, resolveAgentModelPrimary } from "../agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "../lanes.js";
 import { optionalStringEnum } from "../schema/typebox.js";
 import { buildSubagentSystemPrompt } from "../subagent-announce.js";
@@ -171,7 +171,9 @@ export function createSessionsSpawnTool(opts?: {
       const resolvedModel =
         normalizeModelSelection(modelOverride) ??
         normalizeModelSelection(targetAgentConfig?.subagents?.model) ??
-        normalizeModelSelection(cfg.agents?.defaults?.subagents?.model);
+        normalizeModelSelection(cfg.agents?.defaults?.subagents?.model) ??
+        // Cascade: inherit the requester agent's primary model when no sub-agent model is configured.
+        resolveAgentModelPrimary(cfg, requesterAgentId);
 
       const resolvedThinkingDefaultRaw =
         readStringParam(targetAgentConfig?.subagents ?? {}, "thinking") ??

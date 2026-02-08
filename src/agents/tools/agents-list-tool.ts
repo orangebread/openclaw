@@ -6,7 +6,7 @@ import {
   normalizeAgentId,
   parseAgentSessionKey,
 } from "../../routing/session-key.js";
-import { resolveAgentConfig } from "../agent-scope.js";
+import { resolveAgentConfig, resolveAgentModelPrimary } from "../agent-scope.js";
 import { jsonResult } from "./common.js";
 import { resolveInternalSessionKey, resolveMainSessionAlias } from "./sessions-helpers.js";
 
@@ -16,6 +16,8 @@ type AgentListEntry = {
   id: string;
   name?: string;
   configured: boolean;
+  model?: string;
+  skills?: string[];
 };
 
 export function createAgentsListTool(opts?: {
@@ -26,7 +28,8 @@ export function createAgentsListTool(opts?: {
   return {
     label: "Agents",
     name: "agents_list",
-    description: "List agent ids you can target with sessions_spawn (based on allowlists).",
+    description:
+      "List agents you can target with sessions_spawn (based on allowlists). Returns each agent's id, name, model, and skills when configured.",
     parameters: AgentsListToolSchema,
     execute: async () => {
       const cfg = loadConfig();
@@ -81,11 +84,18 @@ export function createAgentsListTool(opts?: {
         .filter((id) => id !== requesterAgentId)
         .toSorted((a, b) => a.localeCompare(b));
       const ordered = [requesterAgentId, ...rest];
-      const agents: AgentListEntry[] = ordered.map((id) => ({
-        id,
-        name: configuredNameMap.get(id),
-        configured: configuredIds.includes(id),
-      }));
+      const agents: AgentListEntry[] = ordered.map((id) => {
+        const agentCfg = resolveAgentConfig(cfg, id);
+        const model = resolveAgentModelPrimary(cfg, id);
+        const skills = agentCfg?.skills;
+        return {
+          id,
+          name: configuredNameMap.get(id),
+          configured: configuredIds.includes(id),
+          ...(model ? { model } : {}),
+          ...(skills && skills.length > 0 ? { skills } : {}),
+        };
+      });
 
       return jsonResult({
         requester: requesterAgentId,

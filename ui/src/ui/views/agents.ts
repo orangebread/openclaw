@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { live } from "lit/directives/live.js";
 import type {
   AgentFileEntry,
   AgentsFilesListResult,
@@ -9,6 +10,7 @@ import type {
   ChannelsStatusSnapshot,
   CronJob,
   CronStatus,
+  ModelChoice,
   SkillStatusEntry,
   SkillStatusReport,
 } from "../types.ts";
@@ -34,6 +36,7 @@ export type AgentsProps = {
   selectedAgentId: string | null;
   activePanel: AgentsPanel;
   configForm: Record<string, unknown> | null;
+  catalogModels: ModelChoice[];
   configLoading: boolean;
   configSaving: boolean;
   configDirty: boolean;
@@ -448,6 +451,7 @@ function profileStatusLabel(profile: AuthProfileSummary): string {
 type ConfiguredModelOption = {
   value: string;
   label: string;
+  group?: "configured" | "available";
 };
 
 function resolveConfiguredModels(
@@ -471,23 +475,83 @@ function resolveConfiguredModels(
           : undefined
         : undefined;
     const label = alias && alias !== trimmed ? `${alias} (${trimmed})` : trimmed;
-    options.push({ value: trimmed, label });
+    options.push({ value: trimmed, label, group: "configured" });
   }
   return options;
 }
 
-function buildModelOptions(configForm: Record<string, unknown> | null, current?: string | null) {
-  const options = resolveConfiguredModels(configForm);
-  const hasCurrent = current ? options.some((option) => option.value === current) : false;
-  if (current && !hasCurrent) {
-    options.unshift({ value: current, label: `Current (${current})` });
+function capitalizeProvider(provider: string): string {
+  if (!provider) return provider;
+  return provider.charAt(0).toUpperCase() + provider.slice(1);
+}
+
+function buildAvailableProviders(
+  catalogModels: ModelChoice[],
+  authProfiles: AuthProfileSummary[],
+  configForm: Record<string, unknown> | null,
+): string[] {
+  const now = Date.now();
+  const authenticatedProviders = new Set<string>();
+  if (Array.isArray(authProfiles) && authProfiles.length > 0) {
+    for (const p of authProfiles) {
+      const cooldown = p.cooldownUntil ?? 0;
+      const disabled = p.disabledUntil ?? 0;
+      if (Math.max(cooldown, disabled) <= now) {
+        authenticatedProviders.add(p.provider.toLowerCase());
+      }
+    }
   }
-  if (options.length === 0) {
-    return html`
-      <option value="" disabled>No configured models</option>
-    `;
+
+  const providerSet = new Set<string>();
+  for (const entry of catalogModels) {
+    const provider = entry.provider.toLowerCase();
+    if (authenticatedProviders.size > 0 && !authenticatedProviders.has(provider)) {
+      continue;
+    }
+    providerSet.add(provider);
   }
-  return options.map((option) => html`<option value=${option.value}>${option.label}</option>`);
+
+  // Include providers from configured models.
+  const configured = resolveConfiguredModels(configForm);
+  for (const option of configured) {
+    const provider = extractProviderFromModel(option.value);
+    if (provider) {
+      providerSet.add(provider.toLowerCase());
+    }
+  }
+
+  return Array.from(providerSet).sort();
+}
+
+function buildModelsForProvider(
+  provider: string,
+  catalogModels: ModelChoice[],
+  configForm: Record<string, unknown> | null,
+): Array<{ value: string; label: string }> {
+  const normalizedProvider = provider.toLowerCase();
+  const options: Array<{ value: string; label: string }> = [];
+  const seen = new Set<string>();
+
+  // Configured models for this provider.
+  const configured = resolveConfiguredModels(configForm);
+  for (const option of configured) {
+    const optProvider = extractProviderFromModel(option.value);
+    if (optProvider?.toLowerCase() === normalizedProvider && !seen.has(option.value)) {
+      seen.add(option.value);
+      options.push(option);
+    }
+  }
+
+  // Catalog models for this provider.
+  for (const entry of catalogModels) {
+    if (entry.provider.toLowerCase() !== normalizedProvider) continue;
+    const value = `${entry.provider}/${entry.id}`;
+    if (seen.has(value)) continue;
+    seen.add(value);
+    options.push({ value, label: entry.name || entry.id });
+  }
+
+  return options;
 }
 
 type CompiledPattern =
@@ -649,6 +713,7 @@ export function renderAgents(props: AgentsProps) {
                       agent: selectedAgent,
                       defaultId,
                       configForm: props.configForm,
+                      catalogModels: props.catalogModels,
                       agentFilesList: props.agentFilesList,
                       agentIdentity: props.agentIdentityById[selectedAgent.id] ?? null,
                       agentIdentityError: props.agentIdentityError,
@@ -826,6 +891,7 @@ function renderAgentOverview(params: {
   agent: AgentsListResult["agents"][number];
   defaultId: string | null;
   configForm: Record<string, unknown> | null;
+  catalogModels: ModelChoice[];
   agentFilesList: AgentsFilesListResult | null;
   agentIdentity: AgentIdentityResult | null;
   agentIdentityLoading: boolean;
@@ -850,6 +916,7 @@ function renderAgentOverview(params: {
   const {
     agent,
     configForm,
+    catalogModels,
     agentFilesList,
     agentIdentity,
     agentIdentityLoading,
@@ -908,9 +975,22 @@ function renderAgentOverview(params: {
   // Text credential locking
   const textAuthProfileId = config.entry?.authProfileId?.trim() || null;
   const textProvider = extractProviderFromModel(effectivePrimary);
+  // For the provider selector: use the per-agent configured model (not inherited).
+  // Non-default agents should show "Inherit default" when no per-agent model is set.
+  const configuredModelPrimary = resolveModelPrimary(config.entry?.model);
+  const selectorProvider = isDefault
+    ? textProvider
+    : extractProviderFromModel(configuredModelPrimary);
   const textProviderProfiles = textProvider
     ? authProfiles.filter((p) => p.provider.toLowerCase() === textProvider.toLowerCase())
     : [];
+
+  // Available providers for provider-first selection.
+  const availableProviders = buildAvailableProviders(catalogModels, authProfiles, configForm);
+  // Ensure current provider is in the list (edge case: model from non-catalog provider).
+  if (textProvider && !availableProviders.includes(textProvider.toLowerCase())) {
+    availableProviders.unshift(textProvider.toLowerCase());
+  }
 
   // Image model
   const imageModelPrimary = resolveModelPrimary(config.entry?.imageModel);
@@ -1016,13 +1096,24 @@ function renderAgentOverview(params: {
       <div class="agent-model-select" style="margin-top: 20px;">
         <div class="label">Text Model</div>
         <div class="row" style="gap: 12px; flex-wrap: wrap;">
-          <label class="field" style="min-width: 260px; flex: 1;">
-            <span>Primary model${isDefault ? " (default)" : ""}</span>
+          <label class="field" style="min-width: 140px;">
+            <span>Provider${isDefault ? " (default)" : ""}</span>
             <select
-              .value=${effectivePrimary ?? ""}
+              .value=${live(selectorProvider?.toLowerCase() ?? "")}
               ?disabled=${inputDisabled}
-              @change=${(e: Event) =>
-                onModelChange(agent.id, (e.target as HTMLSelectElement).value || null)}
+              @change=${(e: Event) => {
+                const newProvider = (e.target as HTMLSelectElement).value;
+                if (!newProvider) {
+                  onModelChange(agent.id, null);
+                  return;
+                }
+                const providerModels = buildModelsForProvider(
+                  newProvider,
+                  catalogModels,
+                  configForm,
+                );
+                onModelChange(agent.id, providerModels[0]?.value || null);
+              }}
             >
               ${
                 isDefault
@@ -1035,9 +1126,44 @@ function renderAgentOverview(params: {
                       </option>
                     `
               }
-              ${buildModelOptions(configForm, effectivePrimary ?? undefined)}
+              ${availableProviders.map(
+                (p) => html`<option value=${p}>${capitalizeProvider(p)}</option>`,
+              )}
             </select>
           </label>
+          ${
+            selectorProvider
+              ? html`
+                  <label class="field" style="min-width: 260px; flex: 1;">
+                    <span>Model</span>
+                    <select
+                      .value=${live(effectivePrimary ?? "")}
+                      ?disabled=${inputDisabled}
+                      @change=${(e: Event) =>
+                        onModelChange(agent.id, (e.target as HTMLSelectElement).value || null)}
+                    >
+                      ${buildModelsForProvider(
+                        selectorProvider.toLowerCase(),
+                        catalogModels,
+                        configForm,
+                      ).map((m) => html`<option value=${m.value}>${m.label}</option>`)}
+                      ${
+                        effectivePrimary &&
+                        !buildModelsForProvider(
+                          selectorProvider.toLowerCase(),
+                          catalogModels,
+                          configForm,
+                        ).some((m) => m.value === effectivePrimary)
+                          ? html`<option value=${effectivePrimary}>
+                              ${effectivePrimary} (current)
+                            </option>`
+                          : nothing
+                      }
+                    </select>
+                  </label>
+                `
+              : nothing
+          }
           <label class="field" style="min-width: 260px; flex: 1;">
             <span>Fallbacks (comma-separated)</span>
             <input
@@ -1114,97 +1240,174 @@ function renderAgentOverview(params: {
       <!-- Image Model Selection -->
       <div class="agent-model-select" style="margin-top: 20px;">
         <div class="label">Image Model</div>
-        <div class="row" style="gap: 12px; flex-wrap: wrap;">
-          <label class="field" style="min-width: 260px; flex: 1;">
-            <span>Primary image model</span>
-            <select
-              .value=${effectiveImagePrimary ?? ""}
-              ?disabled=${inputDisabled}
-              @change=${(e: Event) =>
-                onImageModelChange(agent.id, (e.target as HTMLSelectElement).value || null)}
-            >
-              <option value="">None (use text model provider)</option>
-              ${buildModelOptions(configForm, effectiveImagePrimary ?? undefined)}
-            </select>
-          </label>
-          <label class="field" style="min-width: 260px; flex: 1;">
-            <span>Image fallbacks (comma-separated)</span>
+        <div class="row" style="gap: 8px; align-items: center; margin-bottom: 8px;">
+          <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
             <input
-              .value=${imageFallbackText}
+              type="radio"
+              name="image-mode-${agent.id}"
+              value="primary"
+              .checked=${!effectiveImagePrimary}
               ?disabled=${inputDisabled}
-              placeholder="provider/model, provider/model"
-              @input=${(e: Event) =>
-                onImageModelFallbacksChange(
-                  agent.id,
-                  parseFallbackList((e.target as HTMLInputElement).value),
-                )}
+              @change=${() => {
+                onImageModelChange(agent.id, null);
+                onImageModelFallbacksChange(agent.id, []);
+              }}
             />
+            <span>Use primary${textProvider ? ` (${textProvider})` : ""}</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+            <input
+              type="radio"
+              name="image-mode-${agent.id}"
+              value="override"
+              .checked=${!!effectiveImagePrimary}
+              ?disabled=${inputDisabled}
+              @change=${() => {
+                const prov = textProvider?.toLowerCase() || availableProviders[0] || "";
+                const models = buildModelsForProvider(prov, catalogModels, configForm);
+                onImageModelChange(agent.id, models[0]?.value || null);
+              }}
+            />
+            <span>Override</span>
           </label>
         </div>
+        ${
+          effectiveImagePrimary
+            ? html`
+                <div class="row" style="gap: 12px; flex-wrap: wrap;">
+                  <label class="field" style="min-width: 140px;">
+                    <span>Provider</span>
+                    <select
+                      .value=${live(imageProvider?.toLowerCase() || "")}
+                      ?disabled=${inputDisabled}
+                      @change=${(e: Event) => {
+                        const newProv = (e.target as HTMLSelectElement).value;
+                        const models = buildModelsForProvider(newProv, catalogModels, configForm);
+                        onImageModelChange(agent.id, models[0]?.value || null);
+                      }}
+                    >
+                      ${availableProviders.map(
+                        (p) => html`<option value=${p}>${capitalizeProvider(p)}</option>`,
+                      )}
+                    </select>
+                  </label>
+                  <label class="field" style="min-width: 260px; flex: 1;">
+                    <span>Model</span>
+                    <select
+                      .value=${live(effectiveImagePrimary)}
+                      ?disabled=${inputDisabled}
+                      @change=${(e: Event) =>
+                        onImageModelChange(agent.id, (e.target as HTMLSelectElement).value || null)}
+                    >
+                      ${buildModelsForProvider(
+                        imageProvider?.toLowerCase() || "",
+                        catalogModels,
+                        configForm,
+                      ).map((m) => html`<option value=${m.value}>${m.label}</option>`)}
+                      ${
+                        effectiveImagePrimary &&
+                        !buildModelsForProvider(
+                          imageProvider?.toLowerCase() || "",
+                          catalogModels,
+                          configForm,
+                        ).some((m) => m.value === effectiveImagePrimary)
+                          ? html`<option value=${effectiveImagePrimary}>
+                              ${effectiveImagePrimary} (current)
+                            </option>`
+                          : nothing
+                      }
+                    </select>
+                  </label>
+                  <label class="field" style="min-width: 260px; flex: 1;">
+                    <span>Image fallbacks (comma-separated)</span>
+                    <input
+                      .value=${imageFallbackText}
+                      ?disabled=${inputDisabled}
+                      placeholder="provider/model, provider/model"
+                      @input=${(e: Event) =>
+                        onImageModelFallbacksChange(
+                          agent.id,
+                          parseFallbackList((e.target as HTMLInputElement).value),
+                        )}
+                    />
+                  </label>
+                </div>
 
-        <!-- Image Credentials -->
-        <div style="margin-top: 12px;">
-          <div class="label">Image Credentials</div>
-          <div class="row" style="gap: 12px; flex-wrap: wrap; align-items: flex-end;">
-            <label class="field" style="min-width: 160px;">
-              <span>Mode</span>
-              <select
-                .value=${imageCredMode}
-                ?disabled=${inputDisabled}
-                @change=${(e: Event) => {
-                  const mode = (e.target as HTMLSelectElement).value;
-                  if (mode === "auto" || mode === "inherited") {
-                    onImageAuthProfileChange(agent.id, null);
-                  }
-                }}
-              >
-                <option value="auto">Auto</option>
-                ${
-                  textAuthProfileId
-                    ? html`
-                        <option value="inherited">Inherited from text</option>
-                      `
-                    : nothing
-                }
-                <option value="locked">Locked to profile</option>
-              </select>
-            </label>
-            ${
-              imageCredMode === "locked" || imageProviderProfiles.length > 0
-                ? html`
-                    <label class="field" style="min-width: 260px; flex: 1;">
-                      <span>Auth profile${imageProvider ? ` (${imageProvider})` : ""}</span>
+                <!-- Image Credentials -->
+                <div style="margin-top: 12px;">
+                  <div class="label">Image Credentials</div>
+                  <div class="row" style="gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+                    <label class="field" style="min-width: 160px;">
+                      <span>Mode</span>
                       <select
-                        .value=${imageAuthProfileId ?? ""}
+                        .value=${imageCredMode}
                         ?disabled=${inputDisabled}
                         @change=${(e: Event) => {
-                          const profileId = (e.target as HTMLSelectElement).value || null;
-                          onImageAuthProfileChange(agent.id, profileId);
+                          const mode = (e.target as HTMLSelectElement).value;
+                          if (mode === "auto" || mode === "inherited") {
+                            onImageAuthProfileChange(agent.id, null);
+                          }
                         }}
                       >
-                        <option value="">None (auto)</option>
-                        ${imageProviderProfiles.map(
-                          (p) => html`
-                            <option value=${p.id}>
-                              ${p.id}${p.email ? ` (${p.email})` : ""}${profileStatusLabel(p)}
-                            </option>
-                          `,
-                        )}
+                        <option value="auto">Auto</option>
                         ${
-                          imageAuthProfileId &&
-                          !imageProviderProfiles.some((p) => p.id === imageAuthProfileId)
-                            ? html`<option value=${imageAuthProfileId}>
-                                ${imageAuthProfileId} (not found)
-                              </option>`
+                          textAuthProfileId
+                            ? html`
+                                <option value="inherited">Inherited from text</option>
+                              `
                             : nothing
                         }
+                        <option value="locked">Locked to profile</option>
                       </select>
                     </label>
-                  `
-                : nothing
-            }
-          </div>
-        </div>
+                    ${
+                      imageCredMode === "locked" || imageProviderProfiles.length > 0
+                        ? html`
+                            <label class="field" style="min-width: 260px; flex: 1;">
+                              <span
+                                >Auth profile${imageProvider ? ` (${imageProvider})` : ""}</span
+                              >
+                              <select
+                                .value=${imageAuthProfileId ?? ""}
+                                ?disabled=${inputDisabled}
+                                @change=${(e: Event) => {
+                                  const profileId = (e.target as HTMLSelectElement).value || null;
+                                  onImageAuthProfileChange(agent.id, profileId);
+                                }}
+                              >
+                                <option value="">None (auto)</option>
+                                ${imageProviderProfiles.map(
+                                  (p) => html`
+                                    <option value=${p.id}>
+                                      ${p.id}${
+                                        p.email ? ` (${p.email})` : ""
+                                      }${profileStatusLabel(p)}
+                                    </option>
+                                  `,
+                                )}
+                                ${
+                                  imageAuthProfileId &&
+                                  !imageProviderProfiles.some((p) => p.id === imageAuthProfileId)
+                                    ? html`<option value=${imageAuthProfileId}>
+                                        ${imageAuthProfileId} (not found)
+                                      </option>`
+                                    : nothing
+                                }
+                              </select>
+                            </label>
+                          `
+                        : nothing
+                    }
+                  </div>
+                </div>
+              `
+            : html`
+                <div class="muted" style="font-size: 13px;">
+                  Images will use an image-capable model from your primary
+                  provider${textProvider ? ` (${textProvider})` : ""}, with automatic fallback.
+                </div>
+              `
+        }
       </div>
 
       <!-- Sub-Agent Configuration -->
@@ -1248,19 +1451,107 @@ function renderAgentOverview(params: {
             }
           </label>
         </div>
+        <div style="margin-top: 8px;">
+          <div class="label">Default model for sub-agents</div>
+          <div class="row" style="gap: 8px; align-items: center; margin-bottom: 8px;">
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <input
+                type="radio"
+                name="subagent-mode-${agent.id}"
+                value="inherit"
+                .checked=${!subagentModel}
+                ?disabled=${inputDisabled}
+                @change=${() => onSubagentsModelChange(agent.id, null)}
+              />
+              <span>Inherit from primary${effectivePrimary ? ` (${effectivePrimary})` : ""}</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <input
+                type="radio"
+                name="subagent-mode-${agent.id}"
+                value="override"
+                .checked=${!!subagentModel}
+                ?disabled=${inputDisabled}
+                @change=${() => {
+                  const prov = textProvider?.toLowerCase() || availableProviders[0] || "";
+                  const models = buildModelsForProvider(prov, catalogModels, configForm);
+                  onSubagentsModelChange(agent.id, models[0]?.value || null);
+                }}
+              />
+              <span>Override</span>
+            </label>
+          </div>
+          ${
+            subagentModel
+              ? (() => {
+                  const subagentProvider = extractProviderFromModel(subagentModel);
+                  return html`
+                    <div class="row" style="gap: 12px; flex-wrap: wrap;">
+                      <label class="field" style="min-width: 140px;">
+                        <span>Provider</span>
+                        <select
+                          .value=${live(subagentProvider?.toLowerCase() || "")}
+                          ?disabled=${inputDisabled}
+                          @change=${(e: Event) => {
+                            const newProv = (e.target as HTMLSelectElement).value;
+                            const models = buildModelsForProvider(
+                              newProv,
+                              catalogModels,
+                              configForm,
+                            );
+                            onSubagentsModelChange(agent.id, models[0]?.value || null);
+                          }}
+                        >
+                          ${availableProviders.map(
+                            (p) => html`<option value=${p}>${capitalizeProvider(p)}</option>`,
+                          )}
+                          ${
+                            subagentProvider &&
+                            !availableProviders.includes(subagentProvider.toLowerCase())
+                              ? html`<option value=${subagentProvider.toLowerCase()}>
+                                  ${capitalizeProvider(subagentProvider)}
+                                </option>`
+                              : nothing
+                          }
+                        </select>
+                      </label>
+                      <label class="field" style="min-width: 260px; flex: 1;">
+                        <span>Model</span>
+                        <select
+                          .value=${live(subagentModel)}
+                          ?disabled=${inputDisabled}
+                          @change=${(e: Event) =>
+                            onSubagentsModelChange(
+                              agent.id,
+                              (e.target as HTMLSelectElement).value || null,
+                            )}
+                        >
+                          ${buildModelsForProvider(
+                            subagentProvider?.toLowerCase() || "",
+                            catalogModels,
+                            configForm,
+                          ).map((m) => html`<option value=${m.value}>${m.label}</option>`)}
+                          ${
+                            subagentModel &&
+                            !buildModelsForProvider(
+                              subagentProvider?.toLowerCase() || "",
+                              catalogModels,
+                              configForm,
+                            ).some((m) => m.value === subagentModel)
+                              ? html`<option value=${subagentModel}>
+                                  ${subagentModel} (current)
+                                </option>`
+                              : nothing
+                          }
+                        </select>
+                      </label>
+                    </div>
+                  `;
+                })()
+              : nothing
+          }
+        </div>
         <div class="row" style="gap: 12px; flex-wrap: wrap; margin-top: 8px;">
-          <label class="field" style="min-width: 260px; flex: 1;">
-            <span>Default model for sub-agents</span>
-            <select
-              .value=${subagentModel}
-              ?disabled=${inputDisabled}
-              @change=${(e: Event) =>
-                onSubagentsModelChange(agent.id, (e.target as HTMLSelectElement).value || null)}
-            >
-              <option value="">Inherit (no override)</option>
-              ${buildModelOptions(configForm, subagentModel || undefined)}
-            </select>
-          </label>
           <label class="field" style="min-width: 160px;">
             <span>Default thinking level</span>
             <select

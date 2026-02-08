@@ -130,6 +130,53 @@ describe("agents_list", () => {
     expect(agents?.map((agent) => agent.id)).toEqual(["main", "coder", "research"]);
   });
 
+  it("includes model and skills when configured", async () => {
+    configOverride = {
+      session: {
+        mainKey: "main",
+        scope: "per-sender",
+      },
+      agents: {
+        list: [
+          {
+            id: "main",
+            name: "Main",
+            model: "anthropic/claude-opus-4-6",
+            subagents: {
+              allowAgents: ["research"],
+            },
+          },
+          {
+            id: "research",
+            name: "Research",
+            model: { primary: "anthropic/claude-sonnet-4-5" },
+            skills: ["web_search", "summarize"],
+          },
+        ],
+      },
+    };
+
+    const tool = createOpenClawTools({
+      agentSessionKey: "main",
+    }).find((candidate) => candidate.name === "agents_list");
+    if (!tool) {
+      throw new Error("missing agents_list tool");
+    }
+
+    const result = await tool.execute("call-model-skills", {});
+    const agents = (
+      result.details as {
+        agents?: Array<{ id: string; model?: string; skills?: string[] }>;
+      }
+    ).agents;
+    const main = agents?.find((agent) => agent.id === "main");
+    expect(main?.model).toBe("anthropic/claude-opus-4-6");
+    expect(main?.skills).toBeUndefined();
+    const research = agents?.find((agent) => agent.id === "research");
+    expect(research?.model).toBe("anthropic/claude-sonnet-4-5");
+    expect(research?.skills).toEqual(["web_search", "summarize"]);
+  });
+
   it("marks allowlisted-but-unconfigured agents", async () => {
     configOverride = {
       session: {
