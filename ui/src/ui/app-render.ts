@@ -881,7 +881,12 @@ export function renderApp(state: AppViewState) {
                   }
                 },
                 onConfigReload: () => loadConfig(state),
-                onConfigSave: () => saveConfig(state),
+                onConfigSave: async () => {
+                  await saveConfig(state);
+                  if (resolvedAgentId) {
+                    void loadAgentIdentity(state, resolvedAgentId);
+                  }
+                },
                 onChannelsRefresh: () => loadChannels(state, false),
                 onCronRefresh: () => state.loadCron(),
                 onSkillsFilterChange: (next) => (state.skillsFilter = next),
@@ -1288,6 +1293,62 @@ export function renderApp(state: AppViewState) {
                       "subagents",
                       "thinking",
                     ]);
+                  }
+                },
+                onIdentityNameChange: (agentId, name) => {
+                  if (!configValue) {
+                    return;
+                  }
+                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  if (!Array.isArray(list)) {
+                    return;
+                  }
+                  const index = list.findIndex(
+                    (entry) =>
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      (entry as { id?: string }).id === agentId,
+                  );
+                  if (index < 0) {
+                    return;
+                  }
+                  if (name) {
+                    updateConfigFormValue(
+                      state,
+                      ["agents", "list", index, "identity", "name"],
+                      name,
+                    );
+                  } else {
+                    removeConfigFormValue(state, ["agents", "list", index, "identity", "name"]);
+                  }
+                },
+                onIdentityEmojiChange: (agentId, emoji) => {
+                  if (!configValue) {
+                    return;
+                  }
+                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  if (!Array.isArray(list)) {
+                    return;
+                  }
+                  const index = list.findIndex(
+                    (entry) =>
+                      entry &&
+                      typeof entry === "object" &&
+                      "id" in entry &&
+                      (entry as { id?: string }).id === agentId,
+                  );
+                  if (index < 0) {
+                    return;
+                  }
+                  if (emoji) {
+                    updateConfigFormValue(
+                      state,
+                      ["agents", "list", index, "identity", "emoji"],
+                      emoji,
+                    );
+                  } else {
+                    removeConfigFormValue(state, ["agents", "list", index, "identity", "emoji"]);
                   }
                 },
                 authProfiles: state.credentialsProfiles ?? [],

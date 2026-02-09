@@ -92,6 +92,8 @@ export type AgentsProps = {
   onAgentSkillToggle: (agentId: string, skillName: string, enabled: boolean) => void;
   onAgentSkillsClear: (agentId: string) => void;
   onAgentSkillsDisableAll: (agentId: string) => void;
+  onIdentityNameChange: (agentId: string, name: string) => void;
+  onIdentityEmojiChange: (agentId: string, emoji: string) => void;
   showAddForm: boolean;
   creating: boolean;
   createError: string | null;
@@ -194,6 +196,49 @@ const PROFILE_OPTIONS = [
   { id: "full", label: "Full" },
 ] as const;
 
+const EMOJI_PRESETS = [
+  "🤖",
+  "🧠",
+  "🔬",
+  "🛡️",
+  "📊",
+  "🎯",
+  "🦊",
+  "🐙",
+  "🦉",
+  "🐺",
+  "🦅",
+  "🐍",
+  "🦎",
+  "🐝",
+  "🕷️",
+  "🦇",
+  "👻",
+  "🧙",
+  "🧛",
+  "🥷",
+  "🧑‍🚀",
+  "🧑‍💻",
+  "🕵️",
+  "🤠",
+  "💎",
+  "⚡",
+  "🔥",
+  "🌊",
+  "🌀",
+  "☄️",
+  "🌙",
+  "🪐",
+  "⚔️",
+  "🗡️",
+  "🏹",
+  "🛸",
+  "🧬",
+  "🔮",
+  "📡",
+  "🎭",
+];
+
 type ToolPolicy = {
   allow?: string[];
   deny?: string[];
@@ -209,6 +254,12 @@ type AgentConfigEntry = {
   imageModel?: unknown;
   imageAuthProfileId?: string;
   skills?: string[];
+  identity?: {
+    name?: string;
+    emoji?: string;
+    avatar?: string;
+    theme?: string;
+  };
   tools?: {
     profile?: string;
     allow?: string[];
@@ -760,6 +811,8 @@ export function renderAgents(props: AgentsProps) {
                       onSubagentsAllowChange: props.onSubagentsAllowChange,
                       onSubagentsModelChange: props.onSubagentsModelChange,
                       onSubagentsThinkingChange: props.onSubagentsThinkingChange,
+                      onIdentityNameChange: props.onIdentityNameChange,
+                      onIdentityEmojiChange: props.onIdentityEmojiChange,
                       onSelectAgent: props.onSelectAgent,
                     })
                   : nothing
@@ -902,16 +955,39 @@ function renderAddAgentForm(props: AgentsProps) {
             autofocus
           />
         </label>
-        <label class="field">
+        <div class="field">
           <span>Emoji (optional)</span>
           <input
             type="text"
             name="emoji"
+            id="add-agent-emoji"
             placeholder="e.g. \u{1F916}"
             ?disabled=${props.creating}
             style="max-width: 80px;"
           />
-        </label>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+            ${EMOJI_PRESETS.map(
+              (em) => html`
+                <button
+                  type="button"
+                  class="btn btn--sm"
+                  style="min-width: 32px; padding: 2px 4px; font-size: 1.1em;"
+                  ?disabled=${props.creating}
+                  title=${em}
+                  @click=${() => {
+                    const input = document.getElementById(
+                      "add-agent-emoji",
+                    ) as HTMLInputElement | null;
+                    if (input) {
+                      input.value = em;
+                      input.dispatchEvent(new Event("input", { bubbles: true }));
+                    }
+                  }}
+                >${em}</button>
+              `,
+            )}
+          </div>
+        </div>
         <div class="row" style="gap: 8px; margin-top: 4px;">
           <button class="btn btn--sm primary" type="submit" ?disabled=${props.creating}>
             ${props.creating ? "Creating…" : "Create"}
@@ -1033,6 +1109,8 @@ function renderAgentOverview(params: {
   onSubagentsAllowChange: (agentId: string, allowAgents: string[]) => void;
   onSubagentsModelChange: (agentId: string, modelId: string | null) => void;
   onSubagentsThinkingChange: (agentId: string, thinking: string | null) => void;
+  onIdentityNameChange: (agentId: string, name: string) => void;
+  onIdentityEmojiChange: (agentId: string, emoji: string) => void;
   onSelectAgent: (agentId: string) => void;
 }) {
   const {
@@ -1058,6 +1136,8 @@ function renderAgentOverview(params: {
     onSubagentsAllowChange,
     onSubagentsModelChange,
     onSubagentsThinkingChange,
+    onIdentityNameChange,
+    onIdentityEmojiChange,
     onSelectAgent,
   } = params;
   const config = resolveAgentConfig(configForm, agent.id);
@@ -1083,8 +1163,10 @@ function renderAgentOverview(params: {
     agent.name?.trim() ||
     config.entry?.name ||
     "-";
+  const configIdentityName = config.entry?.identity?.name ?? config.entry?.name ?? "";
   const resolvedEmoji = resolveAgentEmoji(agent, agentIdentity);
   const identityEmoji = resolvedEmoji || "-";
+  const configIdentityEmoji = config.entry?.identity?.emoji ?? "";
   const skillFilter = Array.isArray(config.entry?.skills) ? config.entry?.skills : null;
   const skillCount = skillFilter?.length ?? null;
   const identityStatus = agentIdentityLoading
@@ -1165,16 +1247,53 @@ function renderAgentOverview(params: {
         </div>
         <div class="agent-kv">
           <div class="label">Identity Name</div>
-          <div>${identityName}</div>
+          <input
+            type="text"
+            .value=${live(configIdentityName)}
+            placeholder=${identityName === "-" ? "e.g. Research Assistant" : identityName}
+            ?disabled=${inputDisabled}
+            style="max-width: 220px;"
+            @input=${(e: Event) => {
+              const val = (e.target as HTMLInputElement).value;
+              onIdentityNameChange(agent.id, val);
+            }}
+          />
           ${identityStatus ? html`<div class="agent-kv-sub muted">${identityStatus}</div>` : nothing}
         </div>
         <div class="agent-kv">
           <div class="label">Default</div>
           <div>${isDefault ? "yes" : "no"}</div>
         </div>
-        <div class="agent-kv">
+        <div class="agent-kv" style="grid-column: 1 / -1;">
           <div class="label">Identity Emoji</div>
-          <div>${identityEmoji}</div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+            <span style="font-size: 1.5em;">${identityEmoji}</span>
+            <input
+              type="text"
+              .value=${live(configIdentityEmoji)}
+              placeholder="emoji"
+              ?disabled=${inputDisabled}
+              style="max-width: 60px; text-align: center;"
+              @input=${(e: Event) => {
+                const val = (e.target as HTMLInputElement).value;
+                onIdentityEmojiChange(agent.id, val);
+              }}
+            />
+          </div>
+          <div class="emoji-preset-grid" style="display: flex; flex-wrap: wrap; gap: 4px;">
+            ${EMOJI_PRESETS.map(
+              (em) => html`
+                <button
+                  type="button"
+                  class="btn btn--sm ${configIdentityEmoji === em ? "primary" : ""}"
+                  style="min-width: 32px; padding: 2px 4px; font-size: 1.1em;"
+                  ?disabled=${inputDisabled}
+                  title=${em}
+                  @click=${() => onIdentityEmojiChange(agent.id, em)}
+                >${em}</button>
+              `,
+            )}
+          </div>
         </div>
         <div class="agent-kv">
           <div class="label">Skills Filter</div>
