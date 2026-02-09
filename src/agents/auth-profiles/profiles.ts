@@ -1,5 +1,6 @@
 import * as lockfile from "proper-lockfile";
 import type { AuthProfileCredential, AuthProfileStore } from "./types.js";
+import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
 import { normalizeProviderId } from "../model-selection.js";
 import { AUTH_STORE_LOCK_OPTIONS } from "./constants.js";
 import { ensureAuthStoreFile, resolveAuthStorePath } from "./paths.js";
@@ -56,6 +57,17 @@ export function upsertAuthProfile(params: {
   credential: AuthProfileCredential;
   agentDir?: string;
 }): void {
+  const credential =
+    params.credential.type === "api_key"
+      ? {
+          ...params.credential,
+          ...(typeof params.credential.key === "string"
+            ? { key: normalizeSecretInput(params.credential.key) }
+            : {}),
+        }
+      : params.credential.type === "token"
+        ? { ...params.credential, token: normalizeSecretInput(params.credential.token) }
+        : params.credential;
   const authPath = resolveAuthStorePath(params.agentDir);
   ensureAuthStoreFile(authPath);
 
@@ -67,7 +79,7 @@ export function upsertAuthProfile(params: {
       }
     ).lockSync(authPath, AUTH_STORE_LOCK_OPTIONS_SYNC);
     const store = ensureAuthProfileStore(params.agentDir);
-    store.profiles[params.profileId] = params.credential;
+    store.profiles[params.profileId] = credential;
     saveAuthProfileStore(store, params.agentDir);
   } finally {
     if (release) {
