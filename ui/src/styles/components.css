@@ -1904,6 +1904,13 @@
   gap: 16px;
 }
 
+.agent-add-form {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
 .agent-list {
   display: grid;
   gap: 8px;

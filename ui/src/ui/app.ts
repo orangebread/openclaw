@@ -219,6 +219,11 @@ export class OpenClawApp extends LitElement {
   @state() agentsModelCatalog: ModelChoice[] = [];
   @state() agentsPanel: "overview" | "files" | "tools" | "skills" | "channels" | "cron" =
     "overview";
+  @state() agentsCreating = false;
+  @state() agentsCreateError: string | null = null;
+  @state() agentsShowAddForm = false;
+  @state() agentsDeleting = false;
+  @state() agentsDeleteError: string | null = null;
   @state() agentFilesLoading = false;
   @state() agentFilesError: string | null = null;
   @state() agentFilesList: AgentsFilesListResult | null = null;

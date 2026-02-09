@@ -92,6 +92,15 @@ export type AgentsProps = {
   onAgentSkillToggle: (agentId: string, skillName: string, enabled: boolean) => void;
   onAgentSkillsClear: (agentId: string) => void;
   onAgentSkillsDisableAll: (agentId: string) => void;
+  showAddForm: boolean;
+  creating: boolean;
+  createError: string | null;
+  deleting: boolean;
+  deleteError: string | null;
+  onShowAddForm: () => void;
+  onHideAddForm: () => void;
+  onCreateAgent: (params: { name: string; workspace: string; emoji?: string }) => void;
+  onDeleteAgent: (agentId: string) => void;
 };
 
 const TOOL_SECTIONS = [
@@ -659,15 +668,24 @@ export function renderAgents(props: AgentsProps) {
             <div class="card-title">Agents</div>
             <div class="card-sub">${agents.length} configured.</div>
           </div>
-          <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
-            ${props.loading ? "Loading…" : "Refresh"}
-          </button>
+          <div class="row" style="gap: 6px;">
+            <button
+              class="btn btn--sm"
+              ?disabled=${props.loading || props.creating}
+              @click=${props.onShowAddForm}
+              title="Add agent"
+            >+</button>
+            <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
+              ${props.loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
         </div>
         ${
           props.error
             ? html`<div class="callout danger" style="margin-top: 12px;">${props.error}</div>`
             : nothing
         }
+        ${props.showAddForm ? renderAddAgentForm(props) : nothing}
         <div class="agent-list" style="margin-top: 12px;">
           ${
             agents.length === 0
@@ -711,6 +729,9 @@ export function renderAgents(props: AgentsProps) {
                 selectedAgent,
                 defaultId,
                 props.agentIdentityById[selectedAgent.id] ?? null,
+                props.deleting,
+                props.deleteError,
+                props.onDeleteAgent,
               )}
               ${renderAgentTabs(props.activePanel, (panel) => props.onSelectPanel(panel))}
               ${
@@ -839,15 +860,89 @@ export function renderAgents(props: AgentsProps) {
   `;
 }
 
+function renderAddAgentForm(props: AgentsProps) {
+  const handleSubmit = (e: Event) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const name = String(formData.get("name") ?? "").trim();
+    const emoji = String(formData.get("emoji") ?? "").trim();
+    if (!name) {
+      return;
+    }
+    // Derive workspace from the agent id (lowercase, hyphenated name)
+    const agentId = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    if (!agentId) {
+      return;
+    }
+    const workspace = `~/.openclaw/workspace-${agentId}`;
+    props.onCreateAgent({ name, workspace, ...(emoji ? { emoji } : {}) });
+  };
+
+  return html`
+    <div class="agent-add-form" style="margin-top: 12px;">
+      <div class="card-sub" style="margin-bottom: 8px; font-weight: 600;">New Agent</div>
+      ${
+        props.createError
+          ? html`<div class="callout danger" style="margin-bottom: 8px;">${props.createError}</div>`
+          : nothing
+      }
+      <form @submit=${handleSubmit} style="display: grid; gap: 8px;">
+        <label class="field">
+          <span>Name</span>
+          <input
+            type="text"
+            name="name"
+            placeholder="e.g. Research Assistant"
+            required
+            ?disabled=${props.creating}
+            autofocus
+          />
+        </label>
+        <label class="field">
+          <span>Emoji (optional)</span>
+          <input
+            type="text"
+            name="emoji"
+            placeholder="e.g. \u{1F916}"
+            ?disabled=${props.creating}
+            style="max-width: 80px;"
+          />
+        </label>
+        <div class="row" style="gap: 8px; margin-top: 4px;">
+          <button class="btn btn--sm primary" type="submit" ?disabled=${props.creating}>
+            ${props.creating ? "Creating…" : "Create"}
+          </button>
+          <button
+            class="btn btn--sm"
+            type="button"
+            ?disabled=${props.creating}
+            @click=${props.onHideAddForm}
+          >Cancel</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
 function renderAgentHeader(
   agent: AgentsListResult["agents"][number],
   defaultId: string | null,
   agentIdentity: AgentIdentityResult | null,
+  deleting: boolean,
+  deleteError: string | null,
+  onDeleteAgent: (agentId: string) => void,
 ) {
   const badge = agentBadgeText(agent.id, defaultId);
   const displayName = normalizeAgentLabel(agent);
   const subtitle = agent.identity?.theme?.trim() || "Agent workspace and routing.";
   const emoji = resolveAgentEmoji(agent, agentIdentity);
+  const isDefault = Boolean(defaultId && agent.id === defaultId);
+  const isMain = agent.id === "main";
+  const canDelete = !isDefault && !isMain;
   return html`
     <section class="card agent-header">
       <div class="agent-header-main">
@@ -861,8 +956,29 @@ function renderAgentHeader(
       </div>
       <div class="agent-header-meta">
         <div class="mono">${agent.id}</div>
-        ${badge ? html`<span class="agent-pill">${badge}</span>` : nothing}
+        <div class="row" style="gap: 8px;">
+          ${badge ? html`<span class="agent-pill">${badge}</span>` : nothing}
+          ${
+            canDelete
+              ? html`
+                  <button
+                    class="btn btn--sm danger"
+                    ?disabled=${deleting}
+                    @click=${() => onDeleteAgent(agent.id)}
+                    title="Delete this agent"
+                  >${deleting ? "Deleting…" : "Delete"}</button>
+                `
+              : nothing
+          }
+        </div>
       </div>
+      ${
+        deleteError
+          ? html`<div class="callout danger" style="grid-column: 1 / -1; margin-top: 8px;">
+              ${deleteError}
+            </div>`
+          : nothing
+      }
     </section>
   `;
 }

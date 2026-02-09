@@ -140,6 +140,11 @@ export type AppViewState = {
   agentsSelectedId: string | null;
   agentsModelCatalog: ModelChoice[];
   agentsPanel: "overview" | "files" | "tools" | "skills" | "channels" | "cron";
+  agentsCreating: boolean;
+  agentsCreateError: string | null;
+  agentsShowAddForm: boolean;
+  agentsDeleting: boolean;
+  agentsDeleteError: string | null;
   agentFilesLoading: boolean;
   agentFilesError: string | null;
   agentFilesList: AgentsFilesListResult | null;

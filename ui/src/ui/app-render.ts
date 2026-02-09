@@ -7,7 +7,7 @@ import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.h
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
-import { loadAgents, loadModelCatalog } from "./controllers/agents.ts";
+import { loadAgents, loadModelCatalog, createAgent, deleteAgent } from "./controllers/agents.ts";
 import { loadChannels } from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import {
@@ -1291,6 +1291,37 @@ export function renderApp(state: AppViewState) {
                   }
                 },
                 authProfiles: state.credentialsProfiles ?? [],
+                showAddForm: state.agentsShowAddForm,
+                creating: state.agentsCreating,
+                createError: state.agentsCreateError,
+                deleting: state.agentsDeleting,
+                deleteError: state.agentsDeleteError,
+                onShowAddForm: () => {
+                  state.agentsShowAddForm = true;
+                  state.agentsCreateError = null;
+                },
+                onHideAddForm: () => {
+                  state.agentsShowAddForm = false;
+                  state.agentsCreateError = null;
+                },
+                onCreateAgent: (params) => {
+                  void createAgent(state, params).then((ok) => {
+                    if (ok) {
+                      const agentIds = state.agentsList?.agents?.map((e) => e.id) ?? [];
+                      if (agentIds.length > 0) {
+                        void loadAgentIdentities(state, agentIds);
+                      }
+                      void loadConfig(state);
+                    }
+                  });
+                },
+                onDeleteAgent: (agentId) => {
+                  void deleteAgent(state, agentId, true).then((ok) => {
+                    if (ok) {
+                      void loadConfig(state);
+                    }
+                  });
+                },
               })
             : nothing
         }
