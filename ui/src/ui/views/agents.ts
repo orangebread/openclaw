@@ -19,7 +19,7 @@ import {
   normalizeToolName,
   resolveToolProfilePolicy,
 } from "../../../../src/agents/tool-policy.js";
-import { formatAgo } from "../format.ts";
+import { formatRelativeTimestamp } from "../format.ts";
 import {
   formatCronPayload,
   formatCronSchedule,
@@ -481,7 +481,9 @@ function resolveConfiguredModels(
 }
 
 function capitalizeProvider(provider: string): string {
-  if (!provider) return provider;
+  if (!provider) {
+    return provider;
+  }
   return provider.charAt(0).toUpperCase() + provider.slice(1);
 }
 
@@ -520,7 +522,7 @@ function buildAvailableProviders(
     }
   }
 
-  return Array.from(providerSet).sort();
+  return Array.from(providerSet).toSorted();
 }
 
 function buildModelsForProvider(
@@ -544,9 +546,13 @@ function buildModelsForProvider(
 
   // Catalog models for this provider.
   for (const entry of catalogModels) {
-    if (entry.provider.toLowerCase() !== normalizedProvider) continue;
+    if (entry.provider.toLowerCase() !== normalizedProvider) {
+      continue;
+    }
     const value = `${entry.provider}/${entry.id}`;
-    if (seen.has(value)) continue;
+    if (seen.has(value)) {
+      continue;
+    }
     seen.add(value);
     options.push({ value, label: entry.name || entry.id });
   }
@@ -1771,7 +1777,9 @@ function renderAgentChannels(params: {
     params.agentIdentity,
   );
   const entries = resolveChannelEntries(params.snapshot);
-  const lastSuccessLabel = params.lastSuccess ? formatAgo(params.lastSuccess) : "never";
+  const lastSuccessLabel = params.lastSuccess
+    ? formatRelativeTimestamp(params.lastSuccess)
+    : "never";
   return html`
     <section class="grid grid-cols-2">
       ${renderAgentContextCard(context, "Workspace, identity, and model configuration.")}
@@ -2076,7 +2084,7 @@ const FILE_DESCRIPTIONS: Record<string, string> = {
 function renderAgentFileRow(file: AgentFileEntry, active: string | null, onSelect: () => void) {
   const status = file.missing
     ? "Missing"
-    : `${formatBytes(file.size)} · ${formatAgo(file.updatedAtMs ?? null)}`;
+    : `${formatBytes(file.size)} · ${formatRelativeTimestamp(file.updatedAtMs ?? null)}`;
   const description = FILE_DESCRIPTIONS[file.name] ?? null;
   return html`
     <button
