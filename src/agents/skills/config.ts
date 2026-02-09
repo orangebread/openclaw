@@ -174,6 +174,9 @@ export function shouldIncludeSkill(params: {
       if (skillConfig?.apiKey && entry.metadata?.primaryEnv === envName) {
         continue;
       }
+      if (eligibility?.hasEnv?.(envName)) {
+        continue;
+      }
       return false;
     }
   }

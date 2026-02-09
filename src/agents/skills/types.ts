@@ -77,6 +77,12 @@ export type SkillEligibilityContext = {
     hasAnyBin: (bins: string[]) => boolean;
     note?: string;
   };
+  /**
+   * Optional callback to check whether a required environment variable is
+   * satisfied by an external credential store (e.g., the Credentials page).
+   * Called when the env var is not found in process.env or skill-specific config.
+   */
+  hasEnv?: (envName: string) => boolean;
 };
 
 export type SkillSnapshot = {

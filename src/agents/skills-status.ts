@@ -230,6 +230,9 @@ function buildSkillStatus(
     if (skillConfig?.apiKey && entry.metadata?.primaryEnv === envName) {
       continue;
     }
+    if (eligibility?.hasEnv?.(envName)) {
+      continue;
+    }
     missingEnv.push(envName);
   }
 
