@@ -49,7 +49,7 @@ import {
   emitAgentEvent,
   registerAgentRunContext,
 } from "../infra/agent-events.js";
-import { getRemoteSkillEligibility } from "../infra/skills-remote.js";
+import { buildSkillEligibility } from "../infra/skills-remote.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { applyVerboseOverride } from "../sessions/level-overrides.js";
@@ -192,7 +192,7 @@ export async function agentCommand(
     const skillsSnapshot = needsSkillsSnapshot
       ? buildWorkspaceSkillSnapshot(workspaceDir, {
           config: cfg,
-          eligibility: { remote: getRemoteSkillEligibility() },
+          eligibility: buildSkillEligibility(),
           snapshotVersion: skillsSnapshotVersion,
           skillFilter,
         })

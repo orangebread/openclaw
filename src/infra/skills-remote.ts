@@ -2,6 +2,8 @@ import type { SkillEligibilityContext, SkillEntry } from "../agents/skills.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { NodeRegistry } from "../gateway/node-registry.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
+import { isEnvSatisfiedByAuthStore } from "../agents/model-auth.js";
 import { loadWorkspaceSkillEntries } from "../agents/skills.js";
 import { bumpSkillsSnapshotVersion } from "../agents/skills/refresh.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -341,6 +343,18 @@ export function getRemoteSkillEligibility(): SkillEligibilityContext["remote"] |
     hasBin: (bin) => bins.has(bin),
     hasAnyBin: (required) => required.some((bin) => bins.has(bin)),
     note,
+  };
+}
+
+/**
+ * Build a complete {@link SkillEligibilityContext} that includes both remote
+ * node capabilities and auth-profile-backed environment variable checks.
+ */
+export function buildSkillEligibility(): SkillEligibilityContext {
+  const authStore = ensureAuthProfileStore();
+  return {
+    remote: getRemoteSkillEligibility(),
+    hasEnv: (envName) => isEnvSatisfiedByAuthStore(envName, authStore),
   };
 }
 

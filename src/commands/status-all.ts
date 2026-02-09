@@ -15,7 +15,7 @@ import { resolveOpenClawPackageRoot } from "../infra/openclaw-root.js";
 import { resolveOsSummary } from "../infra/os-summary.js";
 import { inspectPortUsage } from "../infra/ports.js";
 import { readRestartSentinel } from "../infra/restart-sentinel.js";
-import { getRemoteSkillEligibility } from "../infra/skills-remote.js";
+import { buildSkillEligibility } from "../infra/skills-remote.js";
 import { readTailscaleStatusJson } from "../infra/tailscale.js";
 import {
   formatUpdateChannelLabel,
@@ -257,7 +257,7 @@ export async function statusAllCommand(
             try {
               return buildWorkspaceSkillStatus(defaultWorkspace, {
                 config: cfg,
-                eligibility: { remote: getRemoteSkillEligibility() },
+                eligibility: buildSkillEligibility(),
               });
             } catch {
               return null;

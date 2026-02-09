@@ -13,7 +13,7 @@ import { buildSystemPromptParams } from "../../agents/system-prompt-params.js";
 import { buildSystemPromptReport } from "../../agents/system-prompt-report.js";
 import { buildAgentSystemPrompt } from "../../agents/system-prompt.js";
 import { buildToolSummaryMap } from "../../agents/tool-summaries.js";
-import { getRemoteSkillEligibility } from "../../infra/skills-remote.js";
+import { buildSkillEligibility } from "../../infra/skills-remote.js";
 import { buildTtsSystemPromptHint } from "../../tts/tts.js";
 
 function estimateTokensFromChars(chars: number): number {
@@ -69,7 +69,7 @@ async function resolveContextReport(
     try {
       return buildWorkspaceSkillSnapshot(workspaceDir, {
         config: params.cfg,
-        eligibility: { remote: getRemoteSkillEligibility() },
+        eligibility: buildSkillEligibility(),
         snapshotVersion: getSkillsSnapshotVersion(workspaceDir),
       });
     } catch {

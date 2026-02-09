@@ -48,7 +48,7 @@ import {
 } from "../../config/sessions.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
 import { deliverOutboundPayloads } from "../../infra/outbound/deliver.js";
-import { getRemoteSkillEligibility } from "../../infra/skills-remote.js";
+import { buildSkillEligibility } from "../../infra/skills-remote.js";
 import { logWarn } from "../../logger.js";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../../routing/session-key.js";
 import {
@@ -343,7 +343,7 @@ export async function runCronIsolatedAgentTurn(params: {
   const skillsSnapshot = needsSkillsSnapshot
     ? buildWorkspaceSkillSnapshot(workspaceDir, {
         config: cfgWithAgentDefaults,
-        eligibility: { remote: getRemoteSkillEligibility() },
+        eligibility: buildSkillEligibility(),
         snapshotVersion: skillsSnapshotVersion,
       })
     : cronSession.sessionEntry.skillsSnapshot;
