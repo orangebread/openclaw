@@ -3,6 +3,7 @@ import type { SignalStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
+import { channelIcon, renderChannelToggle } from "./channels.shared.ts";
 
 export function renderSignalCard(params: {
   props: ChannelsProps;
@@ -13,7 +14,10 @@ export function renderSignalCard(params: {
 
   return html`
     <div class="card">
-      <div class="card-title">Signal</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">${channelIcon("signal")} Signal</div>
+        ${renderChannelToggle({ channelId: "signal", props })}
+      </div>
       <div class="card-sub">signal-cli status and channel configuration.</div>
       ${accountCountLabel}
 

@@ -3,6 +3,7 @@ import type { WhatsAppStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp, formatDurationHuman } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
+import { channelIcon, renderChannelToggle } from "./channels.shared.ts";
 
 export function renderWhatsAppCard(params: {
   props: ChannelsProps;
@@ -13,7 +14,10 @@ export function renderWhatsAppCard(params: {
 
   return html`
     <div class="card">
-      <div class="card-title">WhatsApp</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">${channelIcon("whatsapp")} WhatsApp</div>
+        ${renderChannelToggle({ channelId: "whatsapp", props })}
+      </div>
       <div class="card-sub">Link WhatsApp Web and monitor connection health.</div>
       ${accountCountLabel}
 

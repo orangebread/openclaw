@@ -3,6 +3,7 @@ import type { GoogleChatStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
+import { channelIcon, renderChannelToggle } from "./channels.shared.ts";
 
 export function renderGoogleChatCard(params: {
   props: ChannelsProps;
@@ -13,7 +14,10 @@ export function renderGoogleChatCard(params: {
 
   return html`
     <div class="card">
-      <div class="card-title">Google Chat</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">${channelIcon("googlechat")} Google Chat</div>
+        ${renderChannelToggle({ channelId: "googlechat", props })}
+      </div>
       <div class="card-sub">Chat API webhook status and channel configuration.</div>
       ${accountCountLabel}
 

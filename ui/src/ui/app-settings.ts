@@ -11,7 +11,7 @@ import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents } from "./controllers/agents.ts";
-import { loadChannels } from "./controllers/channels.ts";
+import { loadChannels, loadChannelsAndCatalog } from "./controllers/channels.ts";
 import { loadConfig, loadConfigSchema } from "./controllers/config.ts";
 import { loadCredentials } from "./controllers/credentials.ts";
 import { loadCronJobs, loadCronStatus } from "./controllers/cron.ts";
@@ -426,7 +426,7 @@ export async function loadOverview(host: SettingsHost) {
 
 export async function loadChannelsTab(host: SettingsHost) {
   await Promise.all([
-    loadChannels(host as unknown as OpenClawApp, true),
+    loadChannelsAndCatalog(host as unknown as OpenClawApp, true),
     loadConfigSchema(host as unknown as OpenClawApp),
     loadConfig(host as unknown as OpenClawApp),
   ]);

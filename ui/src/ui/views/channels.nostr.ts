@@ -8,6 +8,7 @@ import {
   type NostrProfileFormState,
   type NostrProfileFormCallbacks,
 } from "./channels.nostr-profile-form.ts";
+import { channelIcon, renderChannelToggle } from "./channels.shared.ts";
 
 /**
  * Truncate a pubkey for display (shows first and last 8 chars)
@@ -184,7 +185,10 @@ export function renderNostrCard(params: {
 
   return html`
     <div class="card">
-      <div class="card-title">Nostr</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">${channelIcon("nostr")} Nostr</div>
+        ${renderChannelToggle({ channelId: "nostr", props })}
+      </div>
       <div class="card-sub">Decentralized DMs via Nostr relays (NIP-04).</div>
       ${accountCountLabel}
 

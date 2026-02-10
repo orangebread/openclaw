@@ -3,6 +3,7 @@ import type { IMessageStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
+import { channelIcon, renderChannelToggle } from "./channels.shared.ts";
 
 export function renderIMessageCard(params: {
   props: ChannelsProps;
@@ -13,7 +14,10 @@ export function renderIMessageCard(params: {
 
   return html`
     <div class="card">
-      <div class="card-title">iMessage</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">${channelIcon("imessage")} iMessage</div>
+        ${renderChannelToggle({ channelId: "imessage", props })}
+      </div>
       <div class="card-sub">macOS bridge status and channel configuration.</div>
       ${accountCountLabel}
 

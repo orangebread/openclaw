@@ -3,6 +3,7 @@ import type { SlackStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
+import { channelIcon, renderChannelToggle } from "./channels.shared.ts";
 
 export function renderSlackCard(params: {
   props: ChannelsProps;
@@ -13,7 +14,10 @@ export function renderSlackCard(params: {
 
   return html`
     <div class="card">
-      <div class="card-title">Slack</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">${channelIcon("slack")} Slack</div>
+        ${renderChannelToggle({ channelId: "slack", props })}
+      </div>
       <div class="card-sub">Socket mode status and channel configuration.</div>
       ${accountCountLabel}
 

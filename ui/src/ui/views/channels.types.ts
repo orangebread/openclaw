@@ -1,3 +1,4 @@
+import type { ChannelCatalogEntry } from "../controllers/channels.types.ts";
 import type {
   ChannelAccountSnapshot,
   ChannelsStatusSnapshot,
@@ -20,6 +21,9 @@ export type ChannelsProps = {
   connected: boolean;
   loading: boolean;
   snapshot: ChannelsStatusSnapshot | null;
+  catalog: ChannelCatalogEntry[] | null;
+  catalogLoading: boolean;
+  catalogError: string | null;
   lastError: string | null;
   lastSuccessAt: number | null;
   whatsappMessage: string | null;
@@ -47,6 +51,13 @@ export type ChannelsProps = {
   onNostrProfileSave: () => void;
   onNostrProfileImport: () => void;
   onNostrProfileToggleAdvanced: () => void;
+  setupChannelId: string | null;
+  onSetupChannel: (channelId: string | null) => void;
+  onChannelToggle: (channelId: string, enabled: boolean) => void;
+  installBusy: string | null;
+  installError: string | null;
+  installSuccess: string | null;
+  onInstallChannel: (channelId: string) => void;
 };
 
 export type ChannelsChannelData = {

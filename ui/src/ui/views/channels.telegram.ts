@@ -3,6 +3,7 @@ import type { ChannelAccountSnapshot, TelegramStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
+import { channelIcon, renderChannelToggle } from "./channels.shared.ts";
 
 export function renderTelegramCard(params: {
   props: ChannelsProps;
@@ -54,7 +55,10 @@ export function renderTelegramCard(params: {
 
   return html`
     <div class="card">
-      <div class="card-title">Telegram</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">${channelIcon("telegram")} Telegram</div>
+        ${renderChannelToggle({ channelId: "telegram", props })}
+      </div>
       <div class="card-sub">Bot status and channel configuration.</div>
       ${accountCountLabel}
 

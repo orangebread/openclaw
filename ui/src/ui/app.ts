@@ -200,6 +200,14 @@ export class OpenClawApp extends LitElement {
   @state() channelsSnapshot: ChannelsStatusSnapshot | null = null;
   @state() channelsError: string | null = null;
   @state() channelsLastSuccess: number | null = null;
+  @state() channelsCatalog: import("./controllers/channels.types.ts").ChannelCatalogEntry[] | null =
+    null;
+  @state() channelsCatalogLoading = false;
+  @state() channelsCatalogError: string | null = null;
+  @state() channelsSetupId: string | null = null;
+  @state() channelInstallBusy: string | null = null;
+  @state() channelInstallError: string | null = null;
+  @state() channelInstallSuccess: string | null = null;
   @state() whatsappLoginMessage: string | null = null;
   @state() whatsappLoginQrDataUrl: string | null = null;
   @state() whatsappLoginConnected: boolean | null = null;

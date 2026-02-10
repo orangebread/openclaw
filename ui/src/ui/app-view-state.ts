@@ -123,6 +123,13 @@ export type AppViewState = {
   channelsSnapshot: ChannelsStatusSnapshot | null;
   channelsError: string | null;
   channelsLastSuccess: number | null;
+  channelsCatalog: import("./controllers/channels.types.ts").ChannelCatalogEntry[] | null;
+  channelsCatalogLoading: boolean;
+  channelsCatalogError: string | null;
+  channelsSetupId: string | null;
+  channelInstallBusy: string | null;
+  channelInstallError: string | null;
+  channelInstallSuccess: string | null;
   whatsappLoginMessage: string | null;
   whatsappLoginQrDataUrl: string | null;
   whatsappLoginConnected: boolean | null;

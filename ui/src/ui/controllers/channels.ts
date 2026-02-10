@@ -1,7 +1,47 @@
-import type { ChannelsState } from "./channels.types.ts";
+import type { ChannelCatalogEntry, ChannelsState } from "./channels.types.ts";
 import { ChannelsStatusSnapshot } from "../types.ts";
 
-export type { ChannelsState };
+export type { ChannelCatalogEntry, ChannelsState };
+
+function collectSnapshotChannelIds(snapshot: ChannelsStatusSnapshot | null): Set<string> {
+  const ids = new Set<string>();
+  for (const entry of snapshot?.channelMeta ?? []) {
+    ids.add(entry.id);
+  }
+  for (const id of snapshot?.channelOrder ?? []) {
+    ids.add(id);
+  }
+  for (const id of Object.keys(snapshot?.channels ?? {})) {
+    ids.add(id);
+  }
+  return ids;
+}
+
+function reconcileSetupSelection(state: ChannelsState) {
+  const setupId = state.channelsSetupId;
+  if (!setupId) {
+    return;
+  }
+  const catalog = state.channelsCatalog;
+  if (!catalog) {
+    return;
+  }
+  const entry = catalog.find((candidate) => candidate.id === setupId);
+  if (!entry) {
+    state.channelsSetupId = null;
+    return;
+  }
+  const snapshotIds = collectSnapshotChannelIds(state.channelsSnapshot);
+  const stillGhost = entry.installed && !entry.configured && !snapshotIds.has(entry.id);
+  if (!stillGhost) {
+    state.channelsSetupId = null;
+  }
+}
+
+export async function loadChannelsAndCatalog(state: ChannelsState, probe: boolean) {
+  await Promise.all([loadChannels(state, probe), loadChannelsCatalog(state)]);
+  reconcileSetupSelection(state);
+}
 
 export async function loadChannels(state: ChannelsState, probe: boolean) {
   if (!state.client || !state.connected) {
@@ -73,6 +113,58 @@ export async function waitWhatsAppLogin(state: ChannelsState) {
     state.whatsappLoginConnected = null;
   } finally {
     state.whatsappBusy = false;
+  }
+}
+
+export async function loadChannelsCatalog(state: ChannelsState) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.channelsCatalogLoading) {
+    return;
+  }
+  state.channelsCatalogLoading = true;
+  state.channelsCatalogError = null;
+  try {
+    const res = await state.client.request<{ entries: ChannelCatalogEntry[] }>(
+      "channels.catalog",
+      {},
+    );
+    state.channelsCatalog = res.entries;
+  } catch (err) {
+    state.channelsCatalogError = String(err);
+  } finally {
+    state.channelsCatalogLoading = false;
+  }
+}
+
+export async function installChannel(
+  state: ChannelsState,
+  channelId: string,
+): Promise<{
+  ok: boolean;
+  pluginId?: string;
+  version?: string;
+  error?: string;
+  restartRequired?: boolean;
+}> {
+  if (!state.client || !state.connected) {
+    return { ok: false, error: "Not connected" };
+  }
+  try {
+    const res = await state.client.request<{
+      ok: boolean;
+      pluginId?: string;
+      version?: string;
+      error?: string;
+      restartRequired?: boolean;
+    }>("channels.install", {
+      channelId,
+      timeoutMs: 300_000,
+    });
+    return res;
+  } catch (err) {
+    return { ok: false, error: String(err) };
   }
 }
 

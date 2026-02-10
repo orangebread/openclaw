@@ -3,6 +3,7 @@ import type { DiscordStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
+import { channelIcon, renderChannelToggle } from "./channels.shared.ts";
 
 export function renderDiscordCard(params: {
   props: ChannelsProps;
@@ -13,7 +14,10 @@ export function renderDiscordCard(params: {
 
   return html`
     <div class="card">
-      <div class="card-title">Discord</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">${channelIcon("discord")} Discord</div>
+        ${renderChannelToggle({ channelId: "discord", props })}
+      </div>
       <div class="card-sub">Bot status and channel configuration.</div>
       ${accountCountLabel}
 

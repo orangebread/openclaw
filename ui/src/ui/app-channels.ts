@@ -1,7 +1,7 @@
 import type { OpenClawApp } from "./app.ts";
 import type { NostrProfile } from "./types.ts";
 import {
-  loadChannels,
+  loadChannelsAndCatalog,
   logoutWhatsApp,
   startWhatsAppLogin,
   waitWhatsAppLogin,
@@ -11,28 +11,28 @@ import { createNostrProfileFormState } from "./views/channels.nostr-profile-form
 
 export async function handleWhatsAppStart(host: OpenClawApp, force: boolean) {
   await startWhatsAppLogin(host, force);
-  await loadChannels(host, true);
+  await loadChannelsAndCatalog(host, true);
 }
 
 export async function handleWhatsAppWait(host: OpenClawApp) {
   await waitWhatsAppLogin(host);
-  await loadChannels(host, true);
+  await loadChannelsAndCatalog(host, true);
 }
 
 export async function handleWhatsAppLogout(host: OpenClawApp) {
   await logoutWhatsApp(host);
-  await loadChannels(host, true);
+  await loadChannelsAndCatalog(host, true);
 }
 
 export async function handleChannelConfigSave(host: OpenClawApp) {
   await saveConfig(host);
   await loadConfig(host);
-  await loadChannels(host, true);
+  await loadChannelsAndCatalog(host, true);
 }
 
 export async function handleChannelConfigReload(host: OpenClawApp) {
   await loadConfig(host);
-  await loadChannels(host, true);
+  await loadChannelsAndCatalog(host, true);
 }
 
 function parseValidationErrors(details: unknown): Record<string, string> {
@@ -173,7 +173,7 @@ export async function handleNostrProfileSave(host: OpenClawApp) {
       fieldErrors: {},
       original: { ...state.values },
     };
-    await loadChannels(host, true);
+    await loadChannelsAndCatalog(host, true);
   } catch (err) {
     host.nostrProfileFormState = {
       ...state,
@@ -243,7 +243,7 @@ export async function handleNostrProfileImport(host: OpenClawApp) {
     };
 
     if (data.saved) {
-      await loadChannels(host, true);
+      await loadChannelsAndCatalog(host, true);
     }
   } catch (err) {
     host.nostrProfileFormState = {

@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import type { ChannelCatalogEntry } from "../controllers/channels.types.ts";
 import type {
   ChannelAccountSnapshot,
   ChannelUiMetaEntry,
@@ -20,7 +21,12 @@ import { renderDiscordCard } from "./channels.discord.ts";
 import { renderGoogleChatCard } from "./channels.googlechat.ts";
 import { renderIMessageCard } from "./channels.imessage.ts";
 import { renderNostrCard } from "./channels.nostr.ts";
-import { channelEnabled, renderChannelAccountCount } from "./channels.shared.ts";
+import {
+  channelEnabled,
+  channelIcon,
+  renderChannelAccountCount,
+  renderChannelToggle,
+} from "./channels.shared.ts";
 import { renderSignalCard } from "./channels.signal.ts";
 import { renderSlackCard } from "./channels.slack.ts";
 import { renderTelegramCard } from "./channels.telegram.ts";
@@ -37,34 +43,72 @@ export function renderChannels(props: ChannelsProps) {
   const imessage = (channels?.imessage ?? null) as IMessageStatus | null;
   const nostr = (channels?.nostr ?? null) as NostrStatus | null;
   const channelOrder = resolveChannelOrder(props.snapshot);
-  const orderedChannels = channelOrder
+  const snapshotChannelIds = new Set(channelOrder);
+  const catalogGhosts = (props.catalog ?? [])
+    .filter((entry) => !snapshotChannelIds.has(entry.id) && !entry.configured)
+    .map((entry) => entry.id);
+  const catalogGhostSet = new Set(catalogGhosts);
+  const fullOrder = [...channelOrder, ...catalogGhosts];
+  const catalogMap = new Map((props.catalog ?? []).map((entry) => [entry.id, entry]));
+
+  const orderedChannels = fullOrder
     .map((key, index) => ({
       key,
       enabled: channelEnabled(key, props),
+      ghost: catalogGhostSet.has(key),
       order: index,
     }))
     .toSorted((a, b) => {
+      if (a.ghost !== b.ghost) {
+        return a.ghost ? 1 : -1;
+      }
       if (a.enabled !== b.enabled) {
         return a.enabled ? -1 : 1;
       }
       return a.order - b.order;
     });
 
+  const channelData: ChannelsChannelData = {
+    whatsapp,
+    telegram,
+    discord,
+    googlechat,
+    slack,
+    signal,
+    imessage,
+    nostr,
+    channelAccounts: props.snapshot?.channelAccounts ?? null,
+  };
+
   return html`
+    ${
+      props.catalogLoading
+        ? html`
+            <div class="muted" style="margin-bottom: 12px">Loading channel catalog\u2026</div>
+          `
+        : nothing
+    }
+    ${props.catalogError ? html`<div class="callout danger" style="margin-bottom: 12px;">Catalog error: ${props.catalogError}</div>` : nothing}
+    ${props.installError ? html`<div class="callout danger" style="margin-bottom: 12px;">Install error: ${props.installError}</div>` : nothing}
+    ${
+      props.installSuccess
+        ? html`
+            <div class="callout" style="margin-bottom: 12px">
+              Plugin installed. Restart gateway to activate.
+            </div>
+          `
+        : nothing
+    }
     <section class="grid grid-cols-2">
-      ${orderedChannels.map((channel) =>
-        renderChannel(channel.key, props, {
-          whatsapp,
-          telegram,
-          discord,
-          googlechat,
-          slack,
-          signal,
-          imessage,
-          nostr,
-          channelAccounts: props.snapshot?.channelAccounts ?? null,
-        }),
-      )}
+      ${orderedChannels.map((channel) => {
+        if (channel.ghost) {
+          const catalogEntry = catalogMap.get(channel.key);
+          if (catalogEntry) {
+            return renderGhostChannelCard(catalogEntry, props);
+          }
+        }
+        return renderChannel(channel.key, props, channelData);
+      })}
     </section>
 
     <section class="card" style="margin-top: 18px;">
@@ -193,7 +237,10 @@ function renderGenericChannelCard(
 
   return html`
     <div class="card">
-      <div class="card-title">${label}</div>
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">${channelIcon(key)} ${label}</div>
+        ${renderChannelToggle({ channelId: key, props })}
+      </div>
       <div class="card-sub">Channel status and configuration.</div>
       ${accountCountLabel}
 
@@ -281,6 +328,59 @@ function deriveConnectedStatus(account: ChannelAccountSnapshot): "Yes" | "No" | 
     return "Active";
   }
   return "n/a";
+}
+
+function renderGhostChannelCard(entry: ChannelCatalogEntry, props: ChannelsProps) {
+  const isSetupActive = props.setupChannelId === entry.id;
+
+  if (isSetupActive) {
+    return html`
+      <div class="card">
+        <div class="card-title">${channelIcon(entry.id)} ${entry.label}</div>
+        <div class="card-sub">${entry.blurb || "Available channel."}</div>
+        ${renderChannelConfigSection({ channelId: entry.id, props })}
+        <div class="row" style="margin-top: 8px;">
+          <button class="btn" @click=${() => props.onSetupChannel(null)}>Cancel</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return html`
+    <div class="card" style="opacity: 0.6;">
+      <div class="card-title">${channelIcon(entry.id)} ${entry.label}</div>
+      <div class="card-sub">${entry.blurb || "Available channel."}</div>
+      <div class="status-list" style="margin-top: 16px;">
+        <div>
+          <span class="label">Installed</span>
+          <span>${entry.installed ? "Yes" : "No"}</span>
+        </div>
+        <div>
+          <span class="label">Configured</span>
+          <span>No</span>
+        </div>
+      </div>
+      <div class="row" style="margin-top: 12px;">
+        ${
+          entry.installed && entry.hasSchema
+            ? html`<button
+                class="btn"
+                @click=${() => props.onSetupChannel(entry.id)}
+              >Set up</button>`
+            : entry.installed
+              ? html`
+                  <div class="muted">Installed. Restart gateway to finish loading this channel.</div>
+                  <button class="btn" disabled>Restart required</button>
+                `
+              : html`<button
+                class="btn"
+                ?disabled=${props.installBusy === entry.id}
+                @click=${() => props.onInstallChannel(entry.id)}
+              >${props.installBusy === entry.id ? "Installing…" : "Install"}</button>`
+        }
+      </div>
+    </div>
+  `;
 }
 
 function renderGenericAccount(account: ChannelAccountSnapshot) {

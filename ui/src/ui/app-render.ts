@@ -8,7 +8,7 @@ import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controlle
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents, loadModelCatalog, createAgent, deleteAgent } from "./controllers/agents.ts";
-import { loadChannels } from "./controllers/channels.ts";
+import { installChannel, loadChannelsAndCatalog } from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import {
   applyConfig,
@@ -272,6 +272,33 @@ export function renderApp(state: AppViewState) {
                 connected: state.connected,
                 loading: state.channelsLoading,
                 snapshot: state.channelsSnapshot,
+                catalog: state.channelsCatalog,
+                catalogLoading: state.channelsCatalogLoading,
+                catalogError: state.channelsCatalogError,
+                setupChannelId: state.channelsSetupId,
+                onSetupChannel: (channelId) => {
+                  state.channelsSetupId = channelId;
+                },
+                onChannelToggle: (channelId, enabled) => {
+                  updateConfigFormValue(state, ["channels", channelId, "enabled"], enabled);
+                  state.handleChannelConfigSave();
+                },
+                installBusy: state.channelInstallBusy,
+                installError: state.channelInstallError,
+                installSuccess: state.channelInstallSuccess,
+                onInstallChannel: async (channelId) => {
+                  state.channelInstallBusy = channelId;
+                  state.channelInstallError = null;
+                  state.channelInstallSuccess = null;
+                  const res = await installChannel(state, channelId);
+                  state.channelInstallBusy = null;
+                  if (res.ok) {
+                    state.channelInstallSuccess = channelId;
+                  } else {
+                    state.channelInstallError = res.error ?? "Installation failed";
+                  }
+                  await loadChannelsAndCatalog(state, false);
+                },
                 lastError: state.channelsError,
                 lastSuccessAt: state.channelsLastSuccess,
                 whatsappMessage: state.whatsappLoginMessage,
@@ -286,7 +313,7 @@ export function renderApp(state: AppViewState) {
                 configFormDirty: state.configFormDirty,
                 nostrProfileFormState: state.nostrProfileFormState,
                 nostrProfileAccountId: state.nostrProfileAccountId,
-                onRefresh: (probe) => loadChannels(state, probe),
+                onRefresh: (probe) => loadChannelsAndCatalog(state, probe),
                 onWhatsAppStart: (force) => state.handleWhatsAppStart(force),
                 onWhatsAppWait: () => state.handleWhatsAppWait(),
                 onWhatsAppLogout: () => state.handleWhatsAppLogout(),
@@ -793,7 +820,7 @@ export function renderApp(state: AppViewState) {
                     }
                   }
                   if (panel === "channels") {
-                    void loadChannels(state, false);
+                    void loadChannelsAndCatalog(state, false);
                   }
                   if (panel === "cron") {
                     void state.loadCron();
@@ -887,7 +914,7 @@ export function renderApp(state: AppViewState) {
                     void loadAgentIdentity(state, resolvedAgentId);
                   }
                 },
-                onChannelsRefresh: () => loadChannels(state, false),
+                onChannelsRefresh: () => loadChannelsAndCatalog(state, false),
                 onCronRefresh: () => state.loadCron(),
                 onSkillsFilterChange: (next) => (state.skillsFilter = next),
                 onSkillsRefresh: () => {
