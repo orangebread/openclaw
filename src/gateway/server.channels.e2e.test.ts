@@ -1,7 +1,11 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import type { ChannelPlugin } from "../channels/plugins/types.js";
 import type { PluginRegistry } from "../plugins/registry.js";
+import { MANIFEST_KEY } from "../compat/legacy-names.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
+import { resolveConfigDir } from "../utils.js";
 import {
   connectOk,
   installGatewayTestHooks,
@@ -136,13 +140,14 @@ const defaultRegistry = createRegistry([
 
 let server: Awaited<ReturnType<typeof startServerWithClient>>["server"];
 let ws: Awaited<ReturnType<typeof startServerWithClient>>["ws"];
+let helloOk: { type: "hello-ok"; features?: { methods?: string[] } };
 
 beforeAll(async () => {
   setRegistry(defaultRegistry);
   const started = await startServerWithClient();
   server = started.server;
   ws = started.ws;
-  await connectOk(ws);
+  helloOk = await connectOk(ws);
 });
 
 afterAll(async () => {
@@ -156,6 +161,11 @@ function setRegistry(registry: PluginRegistry) {
 }
 
 describe("gateway server channels", () => {
+  test("connect advertises channels catalog/install methods", () => {
+    expect(helloOk.features?.methods).toContain("channels.catalog");
+    expect(helloOk.features?.methods).toContain("channels.install");
+  });
+
   test("channels.status returns snapshot without probe", async () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", undefined);
     setRegistry(defaultRegistry);
@@ -220,5 +230,60 @@ describe("gateway server channels", () => {
     expect(snap.valid).toBe(true);
     expect(snap.config?.channels?.telegram?.botToken).toBeUndefined();
     expect(snap.config?.channels?.telegram?.groups?.["*"]?.requireMention).toBe(false);
+  });
+
+  test("channels.install surfaces installer errors in RPC error message", async () => {
+    const res = await rpcReq(ws, "channels.install", {
+      npmSpec: "./__openclaw_missing_plugin_package__",
+      timeoutMs: 1_000,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error?.message).toContain("npm pack failed");
+  });
+
+  test("channels.catalog marks discovered on-disk plugin as installed before restart", async () => {
+    const pluginId = "matrix";
+    const pluginDir = path.join(resolveConfigDir(), "extensions", pluginId);
+    await fs.mkdir(pluginDir, { recursive: true });
+    await fs.writeFile(
+      path.join(pluginDir, "package.json"),
+      JSON.stringify(
+        {
+          name: `@openclaw/${pluginId}`,
+          version: "0.0.1",
+          [MANIFEST_KEY]: {
+            extensions: ["index.ts"],
+            channel: {
+              id: pluginId,
+              label: "Matrix",
+              selectionLabel: "Matrix",
+              docsPath: "/channels/matrix",
+              blurb: "Matrix test plugin.",
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    try {
+      const res = await rpcReq<{
+        entries?: Array<{
+          id?: string;
+          installed?: boolean;
+          hasSchema?: boolean;
+          configured?: boolean;
+        }>;
+      }>(ws, "channels.catalog", {});
+      expect(res.ok).toBe(true);
+      const matrix = res.payload?.entries?.find((entry) => entry.id === pluginId);
+      expect(matrix).toBeDefined();
+      expect(matrix?.installed).toBe(true);
+      expect(matrix?.hasSchema).toBe(false);
+      expect(matrix?.configured).toBe(false);
+    } finally {
+      await fs.rm(pluginDir, { recursive: true, force: true });
+    }
   });
 });

@@ -55,6 +55,7 @@ const READ_METHODS = new Set([
   "health",
   "logs.tail",
   "channels.status",
+  "channels.catalog",
   "status",
   "usage.status",
   "usage.cost",
@@ -148,6 +149,7 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
     method.startsWith("wizard.") ||
     method.startsWith("update.") ||
     method === "channels.logout" ||
+    method === "channels.install" ||
     method === "agents.create" ||
     method === "agents.update" ||
     method === "agents.delete" ||
