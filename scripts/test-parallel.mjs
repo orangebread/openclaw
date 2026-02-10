@@ -16,6 +16,18 @@ const runs = [
     name: "gateway",
     args: ["vitest", "run", "--config", "vitest.gateway.config.ts"],
   },
+  {
+    name: "ui-node",
+    args: [
+      "--filter",
+      "openclaw-control-ui",
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.node.config.ts",
+    ],
+  },
 ];
 
 const children = new Set();
