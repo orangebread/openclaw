@@ -55,6 +55,11 @@ export type MemoryProviderStatus = {
     lastError?: string;
     lastProvider?: string;
   };
+  degraded?: {
+    untilMs: number;
+    reason?: string;
+    provider?: string;
+  };
   custom?: Record<string, unknown>;
 };
 

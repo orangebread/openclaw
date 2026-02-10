@@ -132,6 +132,7 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
   const message = props.messages[skill.skillKey] ?? null;
   const canInstall = skill.install.length > 0 && skill.missing.bins.length > 0;
   const showBundledBadge = Boolean(skill.bundled && skill.source !== "openclaw-bundled");
+  const showApiKeyInput = Boolean(skill.primaryEnv && skill.missing.env.includes(skill.primaryEnv));
   const missing = [
     ...skill.missing.bins.map((b) => `bin:${b}`),
     ...skill.missing.env.map((e) => `env:${e}`),
@@ -227,7 +228,7 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
             : nothing
         }
         ${
-          skill.primaryEnv
+          showApiKeyInput
             ? html`
               <div class="field" style="margin-top: 10px;">
                 <span>API key</span>

@@ -178,10 +178,13 @@ export function patchToolSchemaForClaudeCompatibility(tool: AnyAgentTool): AnyAg
       properties[alias] = properties[original];
       changed = true;
     }
-    const idx = required.indexOf(original);
-    if (idx !== -1) {
-      required.splice(idx, 1);
-      changed = true;
+    // Keep "path" required in schema guidance so models are less likely to emit empty read/write/edit calls.
+    if (original !== "path") {
+      const idx = required.indexOf(original);
+      if (idx !== -1) {
+        required.splice(idx, 1);
+        changed = true;
+      }
     }
   }
 

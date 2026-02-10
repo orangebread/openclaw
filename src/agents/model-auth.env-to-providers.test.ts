@@ -10,6 +10,12 @@ describe("resolveProvidersForEnvVar", () => {
     expect(resolveProvidersForEnvVar("MISTRAL_API_KEY")).toContain("mistral");
   });
 
+  it("includes OAuth-compatible providers for canonical env vars", () => {
+    expect(resolveProvidersForEnvVar("OPENAI_API_KEY")).toContain("openai-codex");
+    expect(resolveProvidersForEnvVar("GEMINI_API_KEY")).toContain("google-gemini-cli");
+    expect(resolveProvidersForEnvVar("GEMINI_API_KEY")).toContain("google-antigravity");
+  });
+
   it("maps special-case env vars to their provider", () => {
     expect(resolveProvidersForEnvVar("ANTHROPIC_API_KEY")).toContain("anthropic");
     expect(resolveProvidersForEnvVar("ANTHROPIC_OAUTH_TOKEN")).toContain("anthropic");
@@ -69,5 +75,10 @@ describe("isEnvSatisfiedByAuthStore", () => {
   it("matches when MINIMAX_API_KEY is satisfied by minimax-portal profile", () => {
     const store = makeStore({ "minimax-portal:default": { provider: "minimax-portal" } });
     expect(isEnvSatisfiedByAuthStore("MINIMAX_API_KEY", store)).toBe(true);
+  });
+
+  it("matches OPENAI_API_KEY when only openai-codex OAuth profile is present", () => {
+    const store = makeStore({ "openai-codex:codex-cli": { provider: "openai-codex" } });
+    expect(isEnvSatisfiedByAuthStore("OPENAI_API_KEY", store)).toBe(true);
   });
 });

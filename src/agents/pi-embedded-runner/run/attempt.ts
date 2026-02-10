@@ -51,8 +51,8 @@ import { guardSessionManager } from "../../session-tool-result-guard-wrapper.js"
 import { acquireSessionWriteLock } from "../../session-write-lock.js";
 import { detectRuntimeShell } from "../../shell-utils.js";
 import {
-  applySkillEnvOverrides,
-  applySkillEnvOverridesFromSnapshot,
+  applySkillEnvOverridesFromSnapshotWithAuth,
+  applySkillEnvOverridesWithAuth,
   loadWorkspaceSkillEntries,
   resolveSkillsPromptForRun,
 } from "../../skills.js";
@@ -162,6 +162,7 @@ export async function runEmbeddedAttempt(
       : sandbox.workspaceDir
     : resolvedWorkspace;
   await fs.mkdir(effectiveWorkspace, { recursive: true });
+  const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
 
   let restoreSkillEnv: (() => void) | undefined;
   process.chdir(effectiveWorkspace);
@@ -171,13 +172,15 @@ export async function runEmbeddedAttempt(
       ? loadWorkspaceSkillEntries(effectiveWorkspace)
       : [];
     restoreSkillEnv = params.skillsSnapshot
-      ? applySkillEnvOverridesFromSnapshot({
+      ? await applySkillEnvOverridesFromSnapshotWithAuth({
           snapshot: params.skillsSnapshot,
           config: params.config,
+          agentDir,
         })
-      : applySkillEnvOverrides({
+      : await applySkillEnvOverridesWithAuth({
           skills: skillEntries ?? [],
           config: params.config,
+          agentDir,
         });
 
     const skillsPrompt = resolveSkillsPromptForRun({
@@ -201,8 +204,6 @@ export async function runEmbeddedAttempt(
     )
       ? ["Reminder: commit your changes in this workspace after edits."]
       : undefined;
-
-    const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
 
     // Check if the model supports native image input
     const modelHasVision = params.model.input?.includes("image") ?? false;

@@ -47,8 +47,8 @@ import { guardSessionManager } from "../session-tool-result-guard-wrapper.js";
 import { acquireSessionWriteLock } from "../session-write-lock.js";
 import { detectRuntimeShell } from "../shell-utils.js";
 import {
-  applySkillEnvOverrides,
-  applySkillEnvOverridesFromSnapshot,
+  applySkillEnvOverridesFromSnapshotWithAuth,
+  applySkillEnvOverridesWithAuth,
   loadWorkspaceSkillEntries,
   resolveSkillsPromptForRun,
   type SkillSnapshot,
@@ -193,13 +193,15 @@ export async function compactEmbeddedPiSessionDirect(
       ? loadWorkspaceSkillEntries(effectiveWorkspace)
       : [];
     restoreSkillEnv = params.skillsSnapshot
-      ? applySkillEnvOverridesFromSnapshot({
+      ? await applySkillEnvOverridesFromSnapshotWithAuth({
           snapshot: params.skillsSnapshot,
           config: params.config,
+          agentDir,
         })
-      : applySkillEnvOverrides({
+      : await applySkillEnvOverridesWithAuth({
           skills: skillEntries ?? [],
           config: params.config,
+          agentDir,
         });
     const skillsPrompt = resolveSkillsPromptForRun({
       skillsSnapshot: params.skillsSnapshot,

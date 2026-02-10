@@ -287,6 +287,16 @@ const SPECIAL_PROVIDER_ENV_ENTRIES: ReadonlyArray<readonly [string, string]> = [
   ["KIMICODE_API_KEY", "kimi-coding"],
 ];
 
+/**
+ * Extra env -> provider compatibility used only for skill eligibility reverse lookup.
+ * This lets skills requiring canonical env keys accept equivalent OAuth-backed providers.
+ */
+const ELIGIBILITY_ENV_PROVIDER_COMPAT_ENTRIES: ReadonlyArray<readonly [string, string]> = [
+  ["OPENAI_API_KEY", "openai-codex"],
+  ["GEMINI_API_KEY", "google-gemini-cli"],
+  ["GEMINI_API_KEY", "google-antigravity"],
+];
+
 export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
   const normalized = normalizeProviderId(provider);
   const applied = new Set(getShellEnvAppliedKeys());
@@ -353,6 +363,9 @@ function getEnvToProvidersMap(): Map<string, string[]> {
     add(envVar, provider);
   }
   for (const [envVar, provider] of SPECIAL_PROVIDER_ENV_ENTRIES) {
+    add(envVar, provider);
+  }
+  for (const [envVar, provider] of ELIGIBILITY_ENV_PROVIDER_COMPAT_ENTRIES) {
     add(envVar, provider);
   }
 

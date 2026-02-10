@@ -36,7 +36,7 @@ describe("createOpenClawCodingTools", () => {
       const props = params.properties ?? {};
 
       expect(props.file_path).toEqual(props.path);
-      expect(params.required ?? []).not.toContain("path");
+      expect(params.required ?? []).toContain("path");
       expect(params.required ?? []).not.toContain("file_path");
     });
 

@@ -101,6 +101,8 @@ const EMBEDDING_QUERY_TIMEOUT_REMOTE_MS = 60_000;
 const EMBEDDING_QUERY_TIMEOUT_LOCAL_MS = 5 * 60_000;
 const EMBEDDING_BATCH_TIMEOUT_REMOTE_MS = 2 * 60_000;
 const EMBEDDING_BATCH_TIMEOUT_LOCAL_MS = 10 * 60_000;
+const EMBEDDING_DEGRADED_COOLDOWN_MS = 10 * 60_000;
+const EMBEDDING_DEGRADED_LOG_INTERVAL_MS = 30_000;
 
 const log = createSubsystemLogger("memory");
 
@@ -166,6 +168,10 @@ export class MemoryIndexManager implements MemorySearchManager {
   >();
   private sessionWarm = new Set<string>();
   private syncing: Promise<void> | null = null;
+  private embeddingDegradedUntilMs = 0;
+  private embeddingDegradedReason?: string;
+  private embeddingDegradedProvider?: string;
+  private embeddingDegradedLastLogAt = 0;
 
   static async get(params: {
     cfg: OpenClawConfig;
@@ -562,6 +568,14 @@ export class MemoryIndexManager implements MemorySearchManager {
         lastError: this.batchFailureLastError,
         lastProvider: this.batchFailureLastProvider,
       },
+      degraded:
+        this.embeddingDegradedUntilMs > Date.now()
+          ? {
+              untilMs: this.embeddingDegradedUntilMs,
+              reason: this.embeddingDegradedReason,
+              provider: this.embeddingDegradedProvider,
+            }
+          : undefined,
     };
   }
 
@@ -1274,6 +1288,12 @@ export class MemoryIndexManager implements MemorySearchManager {
     force?: boolean;
     progress?: (update: MemorySyncProgressUpdate) => void;
   }) {
+    if (!params?.force && this.shouldSkipSyncForEmbeddingDegradedMode()) {
+      this.logEmbeddingDegradedSkip();
+      return;
+    }
+    this.clearEmbeddingDegradedModeIfRecovered();
+
     const progress = params?.progress ? this.createSyncProgress(params.progress) : undefined;
     if (progress) {
       progress.report({
@@ -1333,8 +1353,73 @@ export class MemoryIndexManager implements MemorySearchManager {
         });
         return;
       }
+      if (!params?.force && this.shouldPauseEmbeddingSyncOnError(reason)) {
+        this.activateEmbeddingDegradedMode({
+          reason,
+          provider: this.provider.id,
+        });
+        return;
+      }
       throw err;
     }
+  }
+
+  private shouldSkipSyncForEmbeddingDegradedMode(): boolean {
+    return this.embeddingDegradedUntilMs > Date.now();
+  }
+
+  private logEmbeddingDegradedSkip(): void {
+    const now = Date.now();
+    if (now - this.embeddingDegradedLastLogAt < EMBEDDING_DEGRADED_LOG_INTERVAL_MS) {
+      return;
+    }
+    this.embeddingDegradedLastLogAt = now;
+    log.warn("memory embeddings degraded; skipping sync until cooldown ends", {
+      untilMs: this.embeddingDegradedUntilMs,
+      provider: this.embeddingDegradedProvider,
+      reason: this.embeddingDegradedReason,
+    });
+  }
+
+  private clearEmbeddingDegradedModeIfRecovered(): void {
+    if (this.embeddingDegradedUntilMs <= 0 || this.embeddingDegradedUntilMs > Date.now()) {
+      return;
+    }
+    log.info("memory embeddings degraded cooldown elapsed; resuming sync", {
+      provider: this.embeddingDegradedProvider,
+      reason: this.embeddingDegradedReason,
+    });
+    this.embeddingDegradedUntilMs = 0;
+    this.embeddingDegradedReason = undefined;
+    this.embeddingDegradedProvider = undefined;
+    this.embeddingDegradedLastLogAt = 0;
+  }
+
+  private activateEmbeddingDegradedMode(params: { reason: string; provider?: string }): void {
+    const now = Date.now();
+    const nextUntil = now + EMBEDDING_DEGRADED_COOLDOWN_MS;
+    const alreadyActive = this.embeddingDegradedUntilMs > now;
+    this.embeddingDegradedUntilMs = Math.max(this.embeddingDegradedUntilMs, nextUntil);
+    this.embeddingDegradedReason = params.reason;
+    this.embeddingDegradedProvider = params.provider;
+    this.embeddingDegradedLastLogAt = 0;
+    log.warn(
+      `memory embeddings degraded; pausing sync for ${Math.round(EMBEDDING_DEGRADED_COOLDOWN_MS / 1000)}s: ${params.reason}`,
+      {
+        provider: params.provider,
+        untilMs: this.embeddingDegradedUntilMs,
+        alreadyActive,
+      },
+    );
+  }
+
+  private shouldPauseEmbeddingSyncOnError(message: string): boolean {
+    if (!this.shouldFallbackOnError(message)) {
+      return false;
+    }
+    return /insufficient_quota|quota|billing|must be made with a secret key|key type|invalid api key|no api key resolved|401|unauthorized|forbidden/i.test(
+      message,
+    );
   }
 
   private shouldFallbackOnError(message: string): boolean {
@@ -2252,6 +2337,12 @@ export class MemoryIndexManager implements MemorySearchManager {
     return /timed out|timeout/i.test(message);
   }
 
+  private shouldDisableBatchForFailure(message: string): boolean {
+    return /asyncBatchEmbedContent not available|must be made with a secret key|key type/i.test(
+      message,
+    );
+  }
+
   private async runBatchWithTimeoutRetry<T>(params: {
     provider: string;
     run: () => Promise<T>;
@@ -2291,7 +2382,7 @@ export class MemoryIndexManager implements MemorySearchManager {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const attempts = (err as { batchAttempts?: number }).batchAttempts ?? 1;
-      const forceDisable = /asyncBatchEmbedContent not available/i.test(message);
+      const forceDisable = this.shouldDisableBatchForFailure(message);
       const failure = await this.recordBatchFailure({
         provider: params.provider,
         message,

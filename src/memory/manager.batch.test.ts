@@ -493,4 +493,63 @@ describe("memory indexing with OpenAI batches", () => {
     expect(fetchMock.mock.calls.length).toBe(fetchCalls);
     expect(embedBatch).toHaveBeenCalled();
   });
+
+  it("disables batch immediately when OpenAI batch upload requires a secret key", async () => {
+    const content = ["secret", "key", "required"].join("\n\n");
+    await fs.writeFile(path.join(workspaceDir, "memory", "2026-01-11.md"), content);
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.endsWith("/files")) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              message:
+                "Your request to POST /v1/files must be made with a secret key. You made it with the following key type: .",
+            },
+          }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const cfg = {
+      agents: {
+        defaults: {
+          workspace: workspaceDir,
+          memorySearch: {
+            provider: "openai",
+            model: "text-embedding-3-small",
+            store: { path: indexPath },
+            sync: { watch: false, onSessionStart: false, onSearch: false },
+            query: { minScore: 0 },
+            remote: { batch: { enabled: true, wait: true, pollIntervalMs: 1 } },
+          },
+        },
+        list: [{ id: "main", default: true }],
+      },
+    };
+
+    const result = await getMemorySearchManager({ cfg, agentId: "main" });
+    expect(result.manager).not.toBeNull();
+    if (!result.manager) {
+      throw new Error("manager missing");
+    }
+    manager = result.manager;
+
+    await manager.sync({ force: true });
+
+    const status = manager.status();
+    expect(status.chunks).toBeGreaterThan(0);
+    expect(status.batch?.enabled).toBe(false);
+    expect(status.batch?.failures).toBeGreaterThanOrEqual(2);
+    expect(embedBatch).toHaveBeenCalled();
+  });
 });

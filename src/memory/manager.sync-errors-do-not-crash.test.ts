@@ -4,6 +4,10 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMemorySearchManager, type MemoryIndexManager } from "./index.js";
 
+const embedBatch = vi.fn(async () => {
+  throw new Error("openai embeddings failed: 400 bad request");
+});
+
 vi.mock("chokidar", () => ({
   default: {
     watch: vi.fn(() => ({
@@ -21,9 +25,7 @@ vi.mock("./embeddings.js", () => {
         id: "mock",
         model: "mock-embed",
         embedQuery: async () => [0, 0, 0],
-        embedBatch: async () => {
-          throw new Error("openai embeddings failed: 400 bad request");
-        },
+        embedBatch,
       },
     }),
   };
@@ -36,6 +38,10 @@ describe("memory manager sync failures", () => {
 
   beforeEach(async () => {
     vi.useFakeTimers();
+    embedBatch.mockReset();
+    embedBatch.mockImplementation(async () => {
+      throw new Error("openai embeddings failed: 400 bad request");
+    });
     workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-mem-"));
     indexPath = path.join(workspaceDir, "index.sqlite");
     await fs.mkdir(path.join(workspaceDir, "memory"));
@@ -93,5 +99,45 @@ describe("memory manager sync failures", () => {
 
     process.off("unhandledRejection", handler);
     expect(unhandled).toHaveLength(0);
+  });
+
+  it("pauses non-forced sync when embeddings fail with quota/auth errors", async () => {
+    embedBatch.mockImplementation(async () => {
+      throw new Error("openai embeddings failed: insufficient_quota");
+    });
+
+    const cfg = {
+      agents: {
+        defaults: {
+          workspace: workspaceDir,
+          memorySearch: {
+            provider: "openai",
+            model: "mock-embed",
+            store: { path: indexPath },
+            sync: { watch: false, onSessionStart: false, onSearch: false },
+          },
+        },
+        list: [{ id: "main", default: true }],
+      },
+    };
+
+    const result = await getMemorySearchManager({ cfg, agentId: "main" });
+    expect(result.manager).not.toBeNull();
+    if (!result.manager) {
+      throw new Error("manager missing");
+    }
+    manager = result.manager;
+
+    await expect(manager.sync({ reason: "watch" })).resolves.toBeUndefined();
+    expect(embedBatch).toHaveBeenCalledTimes(1);
+    const statusAfterFailure = manager.status();
+    expect(statusAfterFailure.degraded?.untilMs).toBeGreaterThan(Date.now());
+
+    await expect(manager.sync({ reason: "watch" })).resolves.toBeUndefined();
+    expect(embedBatch).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000 + 1);
+    await expect(manager.sync({ reason: "watch" })).resolves.toBeUndefined();
+    expect(embedBatch).toHaveBeenCalledTimes(2);
   });
 });

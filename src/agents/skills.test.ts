@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   applySkillEnvOverrides,
   applySkillEnvOverridesFromSnapshot,
+  applySkillEnvOverridesFromSnapshotWithAuth,
+  applySkillEnvOverridesWithAuth,
   buildWorkspaceSkillCommandSpecs,
   buildWorkspaceSkillsPrompt,
   buildWorkspaceSkillSnapshot,
@@ -293,6 +295,86 @@ describe("applySkillEnvOverrides", () => {
         expect(process.env.ENV_KEY).toBeUndefined();
       } else {
         expect(process.env.ENV_KEY).toBe(originalEnv);
+      }
+    }
+  });
+
+  it("injects missing required env from auth profile credentials", async () => {
+    const workspaceDir = await makeWorkspace();
+    const skillDir = path.join(workspaceDir, "skills", "env-skill");
+    await writeSkill({
+      dir: skillDir,
+      name: "env-skill",
+      description: "Needs Gemini env",
+      metadata:
+        '{"openclaw":{"requires":{"env":["GEMINI_API_KEY"]},"primaryEnv":"GEMINI_API_KEY"}}',
+    });
+    const entries = loadWorkspaceSkillEntries(workspaceDir, {
+      managedSkillsDir: path.join(workspaceDir, ".managed"),
+    });
+
+    const originalEnv = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    const restore = await applySkillEnvOverridesWithAuth({
+      skills: entries,
+      authStore: {
+        version: 1,
+        profiles: {
+          "google:default": { type: "api_key", provider: "google", key: "gemini-profile-key" },
+        },
+      },
+    });
+
+    try {
+      expect(process.env.GEMINI_API_KEY).toBe("gemini-profile-key");
+    } finally {
+      restore();
+      if (originalEnv === undefined) {
+        expect(process.env.GEMINI_API_KEY).toBeUndefined();
+      } else {
+        expect(process.env.GEMINI_API_KEY).toBe(originalEnv);
+      }
+    }
+  });
+
+  it("injects OPENAI_API_KEY from openai-codex OAuth profiles for snapshot runs", async () => {
+    const originalEnv = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+
+    const restore = await applySkillEnvOverridesFromSnapshotWithAuth({
+      snapshot: {
+        prompt: "",
+        skills: [
+          {
+            name: "openai-whisper-api",
+            primaryEnv: "OPENAI_API_KEY",
+            requiredEnv: ["OPENAI_API_KEY"],
+          },
+        ],
+      },
+      authStore: {
+        version: 1,
+        profiles: {
+          "openai-codex:codex-cli": {
+            type: "oauth",
+            provider: "openai-codex",
+            access: "oauth-access-token",
+            refresh: "oauth-refresh-token",
+            expires: Date.now() + 60_000,
+          },
+        },
+      },
+    });
+
+    try {
+      expect(process.env.OPENAI_API_KEY).toBe("oauth-access-token");
+    } finally {
+      restore();
+      if (originalEnv === undefined) {
+        expect(process.env.OPENAI_API_KEY).toBeUndefined();
+      } else {
+        expect(process.env.OPENAI_API_KEY).toBe(originalEnv);
       }
     }
   });
