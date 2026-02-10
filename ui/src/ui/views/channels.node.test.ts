@@ -82,6 +82,9 @@ function createProps(overrides: Partial<ChannelsProps> = {}): ChannelsProps {
     installError: null,
     installSuccess: null,
     onInstallChannel: () => undefined,
+    restartBusy: false,
+    restartError: null,
+    onRestartGateway: () => undefined,
     ...overrides,
   };
 }
@@ -127,7 +130,7 @@ describe("renderChannels ghost cards", () => {
       }),
     );
     const htmlString = stringifyTemplate(template);
-    expect(htmlString).toContain("Restart required");
+    expect(htmlString).toContain("Restart gateway");
     expect(htmlString).not.toContain(">Install<");
     expect(htmlString).not.toContain(">Set up<");
   });

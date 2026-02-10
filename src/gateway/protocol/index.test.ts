@@ -69,5 +69,6 @@ describe("ProtocolSchemas", () => {
     expect(ProtocolSchemas.ChannelsCatalogResult).toBeDefined();
     expect(ProtocolSchemas.ChannelsInstallParams).toBeDefined();
     expect(ProtocolSchemas.ChannelsInstallResult).toBeDefined();
+    expect(ProtocolSchemas.GatewayRestartParams).toBeDefined();
   });
 });

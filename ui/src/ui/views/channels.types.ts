@@ -58,6 +58,9 @@ export type ChannelsProps = {
   installError: string | null;
   installSuccess: string | null;
   onInstallChannel: (channelId: string) => void;
+  restartBusy: boolean;
+  restartError: string | null;
+  onRestartGateway: () => void;
 };
 
 export type ChannelsChannelData = {

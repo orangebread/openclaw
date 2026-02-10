@@ -90,6 +90,7 @@ export function renderChannels(props: ChannelsProps) {
     }
     ${props.catalogError ? html`<div class="callout danger" style="margin-bottom: 12px;">Catalog error: ${props.catalogError}</div>` : nothing}
     ${props.installError ? html`<div class="callout danger" style="margin-bottom: 12px;">Install error: ${props.installError}</div>` : nothing}
+    ${props.restartError ? html`<div class="callout danger" style="margin-bottom: 12px;">Restart error: ${props.restartError}</div>` : nothing}
     ${
       props.installSuccess
         ? html`
@@ -370,7 +371,11 @@ function renderGhostChannelCard(entry: ChannelCatalogEntry, props: ChannelsProps
             : entry.installed
               ? html`
                   <div class="muted">Installed. Restart gateway to finish loading this channel.</div>
-                  <button class="btn" disabled>Restart required</button>
+                  <button
+                    class="btn"
+                    ?disabled=${props.restartBusy}
+                    @click=${() => props.onRestartGateway()}
+                  >${props.restartBusy ? "Restarting…" : "Restart gateway"}</button>
                 `
               : html`<button
                 class="btn"

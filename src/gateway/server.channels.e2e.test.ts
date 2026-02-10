@@ -164,6 +164,7 @@ describe("gateway server channels", () => {
   test("connect advertises channels catalog/install methods", () => {
     expect(helloOk.features?.methods).toContain("channels.catalog");
     expect(helloOk.features?.methods).toContain("channels.install");
+    expect(helloOk.features?.methods).toContain("gateway.restart");
   });
 
   test("channels.status returns snapshot without probe", async () => {
@@ -285,5 +286,14 @@ describe("gateway server channels", () => {
     } finally {
       await fs.rm(pluginDir, { recursive: true, force: true });
     }
+  });
+
+  test("gateway.restart validates params", async () => {
+    const res = await rpcReq(ws, "gateway.restart", {
+      restartDelayMs: 0,
+      unexpected: true,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error?.message).toContain("invalid gateway.restart params");
   });
 });

@@ -45,6 +45,16 @@ export const UpdateRunParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const GatewayRestartParamsSchema = Type.Object(
+  {
+    sessionKey: Type.Optional(Type.String()),
+    note: Type.Optional(Type.String()),
+    reason: Type.Optional(Type.String()),
+    restartDelayMs: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+
 export const ConfigUiHintSchema = Type.Object(
   {
     label: Type.Optional(Type.String()),

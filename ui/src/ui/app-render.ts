@@ -8,7 +8,7 @@ import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controlle
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents, loadModelCatalog, createAgent, deleteAgent } from "./controllers/agents.ts";
-import { installChannel, loadChannelsAndCatalog } from "./controllers/channels.ts";
+import { installChannel, loadChannelsAndCatalog, restartGateway } from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import {
   applyConfig,
@@ -286,10 +286,13 @@ export function renderApp(state: AppViewState) {
                 installBusy: state.channelInstallBusy,
                 installError: state.channelInstallError,
                 installSuccess: state.channelInstallSuccess,
+                restartBusy: state.channelRestartBusy,
+                restartError: state.channelRestartError,
                 onInstallChannel: async (channelId) => {
                   state.channelInstallBusy = channelId;
                   state.channelInstallError = null;
                   state.channelInstallSuccess = null;
+                  state.channelRestartError = null;
                   const res = await installChannel(state, channelId);
                   state.channelInstallBusy = null;
                   if (res.ok) {
@@ -298,6 +301,15 @@ export function renderApp(state: AppViewState) {
                     state.channelInstallError = res.error ?? "Installation failed";
                   }
                   await loadChannelsAndCatalog(state, false);
+                },
+                onRestartGateway: async () => {
+                  state.channelRestartBusy = true;
+                  state.channelRestartError = null;
+                  const res = await restartGateway(state);
+                  state.channelRestartBusy = false;
+                  if (!res.ok) {
+                    state.channelRestartError = res.error ?? "Restart failed";
+                  }
                 },
                 lastError: state.channelsError,
                 lastSuccessAt: state.channelsLastSuccess,

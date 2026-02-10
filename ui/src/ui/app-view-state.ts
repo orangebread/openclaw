@@ -130,6 +130,8 @@ export type AppViewState = {
   channelInstallBusy: string | null;
   channelInstallError: string | null;
   channelInstallSuccess: string | null;
+  channelRestartBusy: boolean;
+  channelRestartError: string | null;
   whatsappLoginMessage: string | null;
   whatsappLoginQrDataUrl: string | null;
   whatsappLoginConnected: boolean | null;

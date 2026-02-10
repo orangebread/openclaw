@@ -96,6 +96,8 @@ import {
   ConfigApplyParamsSchema,
   type ConfigGetParams,
   ConfigGetParamsSchema,
+  type GatewayRestartParams,
+  GatewayRestartParamsSchema,
   type ConfigPatchParams,
   ConfigPatchParamsSchema,
   type ConfigSchemaParams,
@@ -361,6 +363,9 @@ export const validateConfigGetParams = ajv.compile<ConfigGetParams>(ConfigGetPar
 export const validateConfigSetParams = ajv.compile<ConfigSetParams>(ConfigSetParamsSchema);
 export const validateConfigApplyParams = ajv.compile<ConfigApplyParams>(ConfigApplyParamsSchema);
 export const validateConfigPatchParams = ajv.compile<ConfigPatchParams>(ConfigPatchParamsSchema);
+export const validateGatewayRestartParams = ajv.compile<GatewayRestartParams>(
+  GatewayRestartParamsSchema,
+);
 export const validateConfigSchemaParams = ajv.compile<ConfigSchemaParams>(ConfigSchemaParamsSchema);
 export const validateWizardStartParams = ajv.compile<WizardStartParams>(WizardStartParamsSchema);
 export const validateWizardNextParams = ajv.compile<WizardNextParams>(WizardNextParamsSchema);
@@ -515,6 +520,7 @@ export {
   ConfigSetParamsSchema,
   ConfigApplyParamsSchema,
   ConfigPatchParamsSchema,
+  GatewayRestartParamsSchema,
   ConfigSchemaParamsSchema,
   ConfigSchemaResponseSchema,
   AuthFlowListParamsSchema,
@@ -621,6 +627,7 @@ export type {
   ConfigSetParams,
   ConfigApplyParams,
   ConfigPatchParams,
+  GatewayRestartParams,
   ConfigSchemaParams,
   ConfigSchemaResponse,
   AuthFlowListParams,

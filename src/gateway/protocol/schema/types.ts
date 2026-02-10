@@ -68,6 +68,7 @@ import type {
 import type {
   ConfigApplyParamsSchema,
   ConfigGetParamsSchema,
+  GatewayRestartParamsSchema,
   ConfigPatchParamsSchema,
   ConfigSchemaParamsSchema,
   ConfigSchemaResponseSchema,
@@ -219,6 +220,7 @@ export type ConfigGetParams = Static<typeof ConfigGetParamsSchema>;
 export type ConfigSetParams = Static<typeof ConfigSetParamsSchema>;
 export type ConfigApplyParams = Static<typeof ConfigApplyParamsSchema>;
 export type ConfigPatchParams = Static<typeof ConfigPatchParamsSchema>;
+export type GatewayRestartParams = Static<typeof GatewayRestartParamsSchema>;
 export type ConfigSchemaParams = Static<typeof ConfigSchemaParamsSchema>;
 export type ConfigSchemaResponse = Static<typeof ConfigSchemaResponseSchema>;
 export type WizardStartParams = Static<typeof WizardStartParamsSchema>;

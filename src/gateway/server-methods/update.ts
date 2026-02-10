@@ -13,10 +13,78 @@ import {
   ErrorCodes,
   errorShape,
   formatValidationErrors,
+  validateGatewayRestartParams,
   validateUpdateRunParams,
 } from "../protocol/index.js";
 
 export const updateHandlers: GatewayRequestHandlers = {
+  "gateway.restart": async ({ params, respond }) => {
+    if (!validateGatewayRestartParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid gateway.restart params: ${formatValidationErrors(validateGatewayRestartParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const sessionKey =
+      typeof (params as { sessionKey?: unknown }).sessionKey === "string"
+        ? (params as { sessionKey?: string }).sessionKey?.trim() || undefined
+        : undefined;
+    const note =
+      typeof (params as { note?: unknown }).note === "string"
+        ? (params as { note?: string }).note?.trim() || undefined
+        : undefined;
+    const reason =
+      typeof (params as { reason?: unknown }).reason === "string"
+        ? (params as { reason?: string }).reason?.trim().slice(0, 200) || undefined
+        : undefined;
+    const restartDelayMsRaw = (params as { restartDelayMs?: unknown }).restartDelayMs;
+    const restartDelayMs =
+      typeof restartDelayMsRaw === "number" && Number.isFinite(restartDelayMsRaw)
+        ? Math.max(0, Math.floor(restartDelayMsRaw))
+        : undefined;
+
+    const payload: RestartSentinelPayload = {
+      kind: "restart",
+      status: "ok",
+      ts: Date.now(),
+      sessionKey,
+      message: note ?? reason ?? null,
+      doctorHint: formatDoctorNonInteractiveHint(),
+      stats: {
+        mode: "gateway.restart",
+        reason: reason ?? null,
+      },
+    };
+    let sentinelPath: string | null = null;
+    try {
+      sentinelPath = await writeRestartSentinel(payload);
+    } catch {
+      sentinelPath = null;
+    }
+
+    const restart = scheduleGatewaySigusr1Restart({
+      delayMs: restartDelayMs,
+      reason: reason ?? "gateway.restart",
+    });
+
+    respond(
+      true,
+      {
+        ok: true,
+        restart,
+        sentinel: {
+          path: sentinelPath,
+          payload,
+        },
+      },
+      undefined,
+    );
+  },
   "update.run": async ({ params, respond }) => {
     if (!validateUpdateRunParams(params)) {
       respond(

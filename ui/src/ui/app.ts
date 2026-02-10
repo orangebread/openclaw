@@ -208,6 +208,8 @@ export class OpenClawApp extends LitElement {
   @state() channelInstallBusy: string | null = null;
   @state() channelInstallError: string | null = null;
   @state() channelInstallSuccess: string | null = null;
+  @state() channelRestartBusy = false;
+  @state() channelRestartError: string | null = null;
   @state() whatsappLoginMessage: string | null = null;
   @state() whatsappLoginQrDataUrl: string | null = null;
   @state() whatsappLoginConnected: boolean | null = null;

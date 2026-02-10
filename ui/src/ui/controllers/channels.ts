@@ -168,6 +168,28 @@ export async function installChannel(
   }
 }
 
+export async function restartGateway(
+  state: ChannelsState,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!state.client || !state.connected) {
+    return { ok: false, error: "Not connected" };
+  }
+  try {
+    await state.client.request("gateway.restart", {
+      reason: "channels.install",
+      restartDelayMs: 500,
+    });
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Restart can drop the websocket before response arrives.
+    if (!state.connected && /gateway closed/.test(message)) {
+      return { ok: true };
+    }
+    return { ok: false, error: message };
+  }
+}
+
 export async function logoutWhatsApp(state: ChannelsState) {
   if (!state.client || !state.connected || state.whatsappBusy) {
     return;

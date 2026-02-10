@@ -70,6 +70,7 @@ import {
 import {
   ConfigApplyParamsSchema,
   ConfigGetParamsSchema,
+  GatewayRestartParamsSchema,
   ConfigPatchParamsSchema,
   ConfigSchemaParamsSchema,
   ConfigSchemaResponseSchema,
@@ -230,6 +231,7 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   ConfigSetParams: ConfigSetParamsSchema,
   ConfigApplyParams: ConfigApplyParamsSchema,
   ConfigPatchParams: ConfigPatchParamsSchema,
+  GatewayRestartParams: GatewayRestartParamsSchema,
   ConfigSchemaParams: ConfigSchemaParamsSchema,
   ConfigSchemaResponse: ConfigSchemaResponseSchema,
   WizardStartParams: WizardStartParamsSchema,

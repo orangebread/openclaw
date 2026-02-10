@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadChannelsAndCatalog, type ChannelsState } from "./channels.ts";
+import { loadChannelsAndCatalog, restartGateway, type ChannelsState } from "./channels.ts";
 
 function createState(): ChannelsState {
   return {
@@ -16,6 +16,8 @@ function createState(): ChannelsState {
     channelInstallBusy: null,
     channelInstallError: null,
     channelInstallSuccess: null,
+    channelRestartBusy: false,
+    channelRestartError: null,
     whatsappLoginMessage: null,
     whatsappLoginQrDataUrl: null,
     whatsappLoginConnected: null,
@@ -127,5 +129,20 @@ describe("loadChannelsAndCatalog", () => {
     await loadChannelsAndCatalog(state, true);
 
     expect(state.channelsSetupId).toBe("matrix");
+  });
+
+  it("requests gateway.restart with channel-install reason", async () => {
+    const request = vi.fn(async () => ({ ok: true }));
+    const state = createState();
+    state.connected = true;
+    state.client = { request } as unknown as ChannelsState["client"];
+
+    const res = await restartGateway(state);
+
+    expect(res.ok).toBe(true);
+    expect(request).toHaveBeenCalledWith("gateway.restart", {
+      reason: "channels.install",
+      restartDelayMs: 500,
+    });
   });
 });
