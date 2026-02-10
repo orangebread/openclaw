@@ -54,6 +54,10 @@ import type {
   AuthProfilesUpsertApiKeyParamsSchema,
 } from "./auth-profiles.js";
 import type {
+  ChannelsCatalogParamsSchema,
+  ChannelsCatalogResultSchema,
+  ChannelsInstallParamsSchema,
+  ChannelsInstallResultSchema,
   ChannelsLogoutParamsSchema,
   ChannelsStatusParamsSchema,
   ChannelsStatusResultSchema,
@@ -232,6 +236,10 @@ export type TalkModeParams = Static<typeof TalkModeParamsSchema>;
 export type ChannelsStatusParams = Static<typeof ChannelsStatusParamsSchema>;
 export type ChannelsStatusResult = Static<typeof ChannelsStatusResultSchema>;
 export type ChannelsLogoutParams = Static<typeof ChannelsLogoutParamsSchema>;
+export type ChannelsCatalogParams = Static<typeof ChannelsCatalogParamsSchema>;
+export type ChannelsCatalogResult = Static<typeof ChannelsCatalogResultSchema>;
+export type ChannelsInstallParams = Static<typeof ChannelsInstallParamsSchema>;
+export type ChannelsInstallResult = Static<typeof ChannelsInstallResultSchema>;
 export type WebLoginStartParams = Static<typeof WebLoginStartParamsSchema>;
 export type WebLoginWaitParams = Static<typeof WebLoginWaitParamsSchema>;
 export type AgentSummary = Static<typeof AgentSummarySchema>;

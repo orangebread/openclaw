@@ -1,6 +1,6 @@
 import type { ErrorObject } from "ajv";
 import { describe, expect, it } from "vitest";
-import { formatValidationErrors } from "./index.js";
+import { formatValidationErrors, ProtocolSchemas } from "./index.js";
 
 const makeError = (overrides: Partial<ErrorObject>): ErrorObject => ({
   keyword: "type",
@@ -60,5 +60,14 @@ describe("formatValidationErrors", () => {
     expect(formatValidationErrors([err, err])).toBe(
       "at /auth: must have required property 'token'",
     );
+  });
+});
+
+describe("ProtocolSchemas", () => {
+  it("includes channels catalog/install schemas", () => {
+    expect(ProtocolSchemas.ChannelsCatalogParams).toBeDefined();
+    expect(ProtocolSchemas.ChannelsCatalogResult).toBeDefined();
+    expect(ProtocolSchemas.ChannelsInstallParams).toBeDefined();
+    expect(ProtocolSchemas.ChannelsInstallResult).toBeDefined();
   });
 });

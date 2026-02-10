@@ -70,6 +70,14 @@ import {
   AgentsListResultSchema,
   type AgentWaitParams,
   AgentWaitParamsSchema,
+  type ChannelsCatalogParams,
+  ChannelsCatalogParamsSchema,
+  type ChannelsCatalogResult,
+  ChannelsCatalogResultSchema,
+  type ChannelsInstallParams,
+  ChannelsInstallParamsSchema,
+  type ChannelsInstallResult,
+  ChannelsInstallResultSchema,
   type ChannelsLogoutParams,
   ChannelsLogoutParamsSchema,
   type ChannelsStatusParams,
@@ -367,6 +375,12 @@ export const validateChannelsStatusParams = ajv.compile<ChannelsStatusParams>(
 export const validateChannelsLogoutParams = ajv.compile<ChannelsLogoutParams>(
   ChannelsLogoutParamsSchema,
 );
+export const validateChannelsCatalogParams = ajv.compile<ChannelsCatalogParams>(
+  ChannelsCatalogParamsSchema,
+);
+export const validateChannelsInstallParams = ajv.compile<ChannelsInstallParams>(
+  ChannelsInstallParamsSchema,
+);
 export const validateModelsListParams = ajv.compile<ModelsListParams>(ModelsListParamsSchema);
 export const validateSkillsStatusParams = ajv.compile<SkillsStatusParams>(SkillsStatusParamsSchema);
 export const validateSkillsBinsParams = ajv.compile<SkillsBinsParams>(SkillsBinsParamsSchema);
@@ -522,6 +536,10 @@ export {
   WizardNextResultSchema,
   WizardStartResultSchema,
   WizardStatusResultSchema,
+  ChannelsCatalogParamsSchema,
+  ChannelsCatalogResultSchema,
+  ChannelsInstallParamsSchema,
+  ChannelsInstallResultSchema,
   ChannelsStatusParamsSchema,
   ChannelsStatusResultSchema,
   ChannelsLogoutParamsSchema,
@@ -625,6 +643,10 @@ export type {
   WizardStartResult,
   WizardStatusResult,
   TalkModeParams,
+  ChannelsCatalogParams,
+  ChannelsCatalogResult,
+  ChannelsInstallParams,
+  ChannelsInstallResult,
   ChannelsStatusParams,
   ChannelsStatusResult,
   ChannelsLogoutParams,

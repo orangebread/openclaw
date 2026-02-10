@@ -87,6 +87,56 @@ export const ChannelsLogoutParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const ChannelsCatalogParamsSchema = Type.Object({}, { additionalProperties: false });
+
+export const ChannelsCatalogEntrySchema = Type.Object(
+  {
+    id: NonEmptyString,
+    label: NonEmptyString,
+    detailLabel: Type.Optional(Type.String()),
+    blurb: Type.Optional(Type.String()),
+    systemImage: Type.Optional(Type.String()),
+    installed: Type.Boolean(),
+    configured: Type.Boolean(),
+    enabled: Type.Boolean(),
+    hasSchema: Type.Boolean(),
+    install: Type.Optional(
+      Type.Object({
+        npmSpec: Type.String(),
+        localPath: Type.Optional(Type.String()),
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+export const ChannelsCatalogResultSchema = Type.Object(
+  {
+    entries: Type.Array(ChannelsCatalogEntrySchema),
+  },
+  { additionalProperties: false },
+);
+
+export const ChannelsInstallParamsSchema = Type.Object(
+  {
+    channelId: Type.Optional(NonEmptyString),
+    npmSpec: Type.Optional(NonEmptyString),
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+
+export const ChannelsInstallResultSchema = Type.Object(
+  {
+    ok: Type.Boolean(),
+    pluginId: Type.Optional(Type.String()),
+    version: Type.Optional(Type.String()),
+    error: Type.Optional(Type.String()),
+    restartRequired: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: true },
+);
+
 export const WebLoginStartParamsSchema = Type.Object(
   {
     force: Type.Optional(Type.Boolean()),

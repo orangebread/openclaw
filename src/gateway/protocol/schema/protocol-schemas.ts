@@ -56,6 +56,10 @@ import {
   AuthProfilesUpsertApiKeyParamsSchema,
 } from "./auth-profiles.js";
 import {
+  ChannelsCatalogParamsSchema,
+  ChannelsCatalogResultSchema,
+  ChannelsInstallParamsSchema,
+  ChannelsInstallResultSchema,
   ChannelsLogoutParamsSchema,
   ChannelsStatusParamsSchema,
   ChannelsStatusResultSchema,
@@ -240,6 +244,10 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   WizardCurrentResult: WizardCurrentResultSchema,
   WizardCancelCurrentResult: WizardCancelCurrentResultSchema,
   TalkModeParams: TalkModeParamsSchema,
+  ChannelsCatalogParams: ChannelsCatalogParamsSchema,
+  ChannelsCatalogResult: ChannelsCatalogResultSchema,
+  ChannelsInstallParams: ChannelsInstallParamsSchema,
+  ChannelsInstallResult: ChannelsInstallResultSchema,
   ChannelsStatusParams: ChannelsStatusParamsSchema,
   ChannelsStatusResult: ChannelsStatusResultSchema,
   ChannelsLogoutParams: ChannelsLogoutParamsSchema,
