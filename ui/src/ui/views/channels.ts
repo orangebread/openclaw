@@ -18,13 +18,16 @@ import type { ChannelKey, ChannelsChannelData, ChannelsProps } from "./channels.
 import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
 import { renderDiscordCard } from "./channels.discord.ts";
+import { renderChannelDrawer } from "./channels.drawer.ts";
 import { renderGoogleChatCard } from "./channels.googlechat.ts";
 import { renderIMessageCard } from "./channels.imessage.ts";
 import { renderNostrCard } from "./channels.nostr.ts";
 import {
+  channelConfigured,
   channelEnabled,
   channelIcon,
   renderChannelAccountCount,
+  renderChannelStatusPill,
   renderChannelToggle,
 } from "./channels.shared.ts";
 import { renderSignalCard } from "./channels.signal.ts";
@@ -54,6 +57,7 @@ export function renderChannels(props: ChannelsProps) {
   const orderedChannels = fullOrder
     .map((key, index) => ({
       key,
+      configured: channelConfigured(key, props),
       enabled: channelEnabled(key, props),
       ghost: catalogGhostSet.has(key),
       order: index,
@@ -61,6 +65,9 @@ export function renderChannels(props: ChannelsProps) {
     .toSorted((a, b) => {
       if (a.ghost !== b.ghost) {
         return a.ghost ? 1 : -1;
+      }
+      if (a.configured !== b.configured) {
+        return a.configured ? -1 : 1;
       }
       if (a.enabled !== b.enabled) {
         return a.enabled ? -1 : 1;
@@ -131,7 +138,48 @@ export function renderChannels(props: ChannelsProps) {
 ${props.snapshot ? JSON.stringify(props.snapshot, null, 2) : "No snapshot yet."}
       </pre>
     </section>
+
+    ${props.activeDrawerChannelId ? renderDrawerForChannel(props, channelData) : nothing}
   `;
+}
+
+function renderDrawerForChannel(props: ChannelsProps, channelData: ChannelsChannelData) {
+  const channelId = props.activeDrawerChannelId!;
+  const label = resolveChannelLabel(props.snapshot, channelId);
+
+  // Compute nostr profile form state if the drawer is for nostr
+  let nostrProfileFormState = null;
+  let nostrProfileFormCallbacks = null;
+  let onNostrEditProfile: (() => void) | undefined;
+  if (channelId === "nostr") {
+    const nostrAccounts = channelData.channelAccounts?.nostr ?? [];
+    const primaryAccount = nostrAccounts[0];
+    const accountId = primaryAccount?.accountId ?? "default";
+    const profile =
+      (primaryAccount as { profile?: NostrProfile | null } | undefined)?.profile ?? null;
+    const showForm = props.nostrProfileAccountId === accountId ? props.nostrProfileFormState : null;
+    nostrProfileFormState = showForm;
+    nostrProfileFormCallbacks = showForm
+      ? {
+          onFieldChange: props.onNostrProfileFieldChange,
+          onSave: props.onNostrProfileSave,
+          onImport: props.onNostrProfileImport,
+          onCancel: props.onNostrProfileCancel,
+          onToggleAdvanced: props.onNostrProfileToggleAdvanced,
+        }
+      : null;
+    onNostrEditProfile = () => props.onNostrProfileEdit(accountId, profile);
+  }
+
+  return renderChannelDrawer({
+    channelId,
+    label,
+    props,
+    channelData,
+    nostrProfileFormState,
+    nostrProfileFormCallbacks,
+    onNostrEditProfile,
+  });
 }
 
 function resolveChannelOrder(snapshot: ChannelsStatusSnapshot | null): ChannelKey[] {
@@ -231,9 +279,7 @@ function renderGenericChannelCard(
   const status = props.snapshot?.channels?.[key] as Record<string, unknown> | undefined;
   const configured = typeof status?.configured === "boolean" ? status.configured : undefined;
   const running = typeof status?.running === "boolean" ? status.running : undefined;
-  const connected = typeof status?.connected === "boolean" ? status.connected : undefined;
   const lastError = typeof status?.lastError === "string" ? status.lastError : undefined;
-  const accounts = channelAccounts[key] ?? [];
   const accountCountLabel = renderChannelAccountCount(key, channelAccounts);
 
   return html`
@@ -242,43 +288,25 @@ function renderGenericChannelCard(
         <div class="card-title">${channelIcon(key)} ${label}</div>
         ${renderChannelToggle({ channelId: key, props })}
       </div>
-      <div class="card-sub">Channel status and configuration.</div>
+      <div class="card-sub">
+        ${renderChannelStatusPill(!!configured, !!lastError)}
+        Channel status and configuration.
+      </div>
       ${accountCountLabel}
 
-      ${
-        accounts.length > 0
-          ? html`
-            <div class="account-card-list">
-              ${accounts.map((account) => renderGenericAccount(account))}
-            </div>
-          `
-          : html`
-            <div class="status-list" style="margin-top: 16px;">
-              <div>
-                <span class="label">Configured</span>
-                <span>${configured == null ? "n/a" : configured ? "Yes" : "No"}</span>
-              </div>
-              <div>
-                <span class="label">Running</span>
-                <span>${running == null ? "n/a" : running ? "Yes" : "No"}</span>
-              </div>
-              <div>
-                <span class="label">Connected</span>
-                <span>${connected == null ? "n/a" : connected ? "Yes" : "No"}</span>
-              </div>
-            </div>
-          `
-      }
+      <div class="channel-tile-status">
+        <div><span class="label">Running</span> <span>${running == null ? "n/a" : running ? "Yes" : "No"}</span></div>
+      </div>
 
       ${
         lastError
-          ? html`<div class="callout danger" style="margin-top: 12px;">
-            ${lastError}
-          </div>`
+          ? html`<div class="callout danger" style="margin-top: 12px;">${lastError}</div>`
           : nothing
       }
 
-      ${renderChannelConfigSection({ channelId: key, props })}
+      <div class="channel-tile-actions">
+        <button class="btn" @click=${() => props.onOpenChannelDrawer(key)}>Configure</button>
+      </div>
     </div>
   `;
 }
@@ -295,40 +323,6 @@ function resolveChannelMetaMap(
 function resolveChannelLabel(snapshot: ChannelsStatusSnapshot | null, key: string): string {
   const meta = resolveChannelMetaMap(snapshot)[key];
   return meta?.label ?? snapshot?.channelLabels?.[key] ?? key;
-}
-
-const RECENT_ACTIVITY_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
-
-function hasRecentActivity(account: ChannelAccountSnapshot): boolean {
-  if (!account.lastInboundAt) {
-    return false;
-  }
-  return Date.now() - account.lastInboundAt < RECENT_ACTIVITY_THRESHOLD_MS;
-}
-
-function deriveRunningStatus(account: ChannelAccountSnapshot): "Yes" | "No" | "Active" {
-  if (account.running) {
-    return "Yes";
-  }
-  // If we have recent inbound activity, the channel is effectively running
-  if (hasRecentActivity(account)) {
-    return "Active";
-  }
-  return "No";
-}
-
-function deriveConnectedStatus(account: ChannelAccountSnapshot): "Yes" | "No" | "Active" | "n/a" {
-  if (account.connected === true) {
-    return "Yes";
-  }
-  if (account.connected === false) {
-    return "No";
-  }
-  // If connected is null/undefined but we have recent activity, show as active
-  if (hasRecentActivity(account)) {
-    return "Active";
-  }
-  return "n/a";
 }
 
 function renderGhostChannelCard(entry: ChannelCatalogEntry, props: ChannelsProps) {
@@ -392,47 +386,6 @@ function renderGhostChannelCard(entry: ChannelCatalogEntry, props: ChannelsProps
                     @click=${() => props.onRestartGateway()}
                   >${props.restartBusy ? "Restarting…" : "Restart gateway"}</button>
                 `
-        }
-      </div>
-    </div>
-  `;
-}
-
-function renderGenericAccount(account: ChannelAccountSnapshot) {
-  const runningStatus = deriveRunningStatus(account);
-  const connectedStatus = deriveConnectedStatus(account);
-
-  return html`
-    <div class="account-card">
-      <div class="account-card-header">
-        <div class="account-card-title">${account.name || account.accountId}</div>
-        <div class="account-card-id">${account.accountId}</div>
-      </div>
-      <div class="status-list account-card-status">
-        <div>
-          <span class="label">Running</span>
-          <span>${runningStatus}</span>
-        </div>
-        <div>
-          <span class="label">Configured</span>
-          <span>${account.configured ? "Yes" : "No"}</span>
-        </div>
-        <div>
-          <span class="label">Connected</span>
-          <span>${connectedStatus}</span>
-        </div>
-        <div>
-          <span class="label">Last inbound</span>
-          <span>${account.lastInboundAt ? formatRelativeTimestamp(account.lastInboundAt) : "n/a"}</span>
-        </div>
-        ${
-          account.lastError
-            ? html`
-              <div class="account-card-error">
-                ${account.lastError}
-              </div>
-            `
-            : nothing
         }
       </div>
     </div>

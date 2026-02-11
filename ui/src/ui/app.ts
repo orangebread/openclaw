@@ -205,6 +205,7 @@ export class OpenClawApp extends LitElement {
   @state() channelsCatalogLoading = false;
   @state() channelsCatalogError: string | null = null;
   @state() channelsSetupId: string | null = null;
+  @state() channelsActiveDrawerId: string | null = null;
   @state() channelInstallBusy: string | null = null;
   @state() channelInstallError: string | null = null;
   @state() channelInstallSuccess: string | null = null;

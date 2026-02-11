@@ -103,6 +103,7 @@ function isApprovedElevatedSender(params: {
   addToken(params.ctx.SenderName);
   addToken(params.ctx.SenderUsername);
   addToken(params.ctx.SenderTag);
+  addToken(params.ctx.SenderId);
   addToken(params.ctx.SenderE164);
   addToken(params.ctx.From);
   addToken(stripSenderPrefix(params.ctx.From));

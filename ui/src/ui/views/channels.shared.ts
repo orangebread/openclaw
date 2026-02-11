@@ -3,6 +3,36 @@ import type { ChannelCatalogEntry } from "../controllers/channels.types.ts";
 import type { ChannelAccountSnapshot } from "../types.ts";
 import type { ChannelKey, ChannelsProps } from "./channels.types.ts";
 
+export function channelConfigured(key: ChannelKey, props: ChannelsProps): boolean {
+  const snapshot = props.snapshot;
+  const channels = snapshot?.channels as Record<string, unknown> | null;
+  if (!snapshot || !channels) {
+    return false;
+  }
+  const channelStatus = channels[key] as Record<string, unknown> | undefined;
+  if (typeof channelStatus?.configured === "boolean" && channelStatus.configured) {
+    return true;
+  }
+  const accounts = snapshot.channelAccounts?.[key] ?? [];
+  return accounts.some((account) => account.configured);
+}
+
+export function renderChannelStatusPill(configured: boolean, hasError: boolean) {
+  if (hasError) {
+    return html`
+      <span class="channel-status-pill channel-status-error">error</span>
+    `;
+  }
+  if (configured) {
+    return html`
+      <span class="channel-status-pill channel-status-ok">configured</span>
+    `;
+  }
+  return html`
+    <span class="channel-status-pill">not configured</span>
+  `;
+}
+
 export function channelEnabled(key: ChannelKey, props: ChannelsProps) {
   const snapshot = props.snapshot;
   const channels = snapshot?.channels as Record<string, unknown> | null;

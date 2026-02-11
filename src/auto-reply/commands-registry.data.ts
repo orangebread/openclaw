@@ -189,6 +189,14 @@ function buildChatCommands(): ChatCommandDefinition[] {
       category: "management",
     }),
     defineChatCommand({
+      key: "project",
+      description: "Project workflow (bootstrap repo channel + ship PR + auto-merge).",
+      textAlias: "/project",
+      acceptsArgs: true,
+      scope: "text",
+      category: "management",
+    }),
+    defineChatCommand({
       key: "context",
       nativeName: "context",
       description: "Explain how context is built and used.",

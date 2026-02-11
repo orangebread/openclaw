@@ -2307,3 +2307,125 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Channel drawer ── */
+.channel-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 190;
+  animation: channel-fade-in 0.18s ease-out;
+}
+@keyframes channel-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes channel-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.channel-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(480px, 100vw);
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  z-index: 195;
+  display: flex;
+  flex-direction: column;
+  animation: channel-slide-in-right 0.2s ease-out;
+}
+.channel-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.channel-drawer-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.channel-drawer-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.channel-drawer-close {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.channel-drawer-close:hover {
+  background: var(--bg-secondary);
+}
+.channel-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+.channel-drawer-section {
+  margin-bottom: 20px;
+}
+.channel-drawer-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+/* ── Channel status pill ── */
+.channel-status-pill {
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  text-transform: lowercase;
+  color: var(--muted);
+}
+.channel-status-ok {
+  color: var(--ok);
+  border-color: rgba(34, 197, 94, 0.35);
+  background: var(--ok-subtle);
+}
+.channel-status-error {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.35);
+  background: var(--danger-subtle);
+}
+
+/* ── Channel compact tiles ── */
+.channel-tile-status {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.channel-tile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}

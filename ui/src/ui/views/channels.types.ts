@@ -51,6 +51,9 @@ export type ChannelsProps = {
   onNostrProfileSave: () => void;
   onNostrProfileImport: () => void;
   onNostrProfileToggleAdvanced: () => void;
+  activeDrawerChannelId: string | null;
+  onOpenChannelDrawer: (channelId: string) => void;
+  onCloseChannelDrawer: () => void;
   setupChannelId: string | null;
   onSetupChannel: (channelId: string | null) => void;
   onChannelToggle: (channelId: string, enabled: boolean) => void;

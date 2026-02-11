@@ -280,6 +280,13 @@ export function renderApp(state: AppViewState) {
                 catalog: state.channelsCatalog,
                 catalogLoading: state.channelsCatalogLoading,
                 catalogError: state.channelsCatalogError,
+                activeDrawerChannelId: state.channelsActiveDrawerId,
+                onOpenChannelDrawer: (channelId) => {
+                  state.channelsActiveDrawerId = channelId;
+                },
+                onCloseChannelDrawer: () => {
+                  state.channelsActiveDrawerId = null;
+                },
                 setupChannelId: state.channelsSetupId,
                 onSetupChannel: (channelId) => {
                   state.channelsSetupId = channelId;

@@ -127,6 +127,7 @@ export type AppViewState = {
   channelsCatalogLoading: boolean;
   channelsCatalogError: string | null;
   channelsSetupId: string | null;
+  channelsActiveDrawerId: string | null;
   channelInstallBusy: string | null;
   channelInstallError: string | null;
   channelInstallSuccess: string | null;
