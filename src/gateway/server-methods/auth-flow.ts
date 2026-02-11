@@ -17,10 +17,57 @@ import {
 import { ensureAuthProfileStore, upsertAuthProfile } from "../../agents/auth-profiles.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../../agents/defaults.js";
 import { modelKey, normalizeProviderId } from "../../agents/model-selection.js";
+import { SYNTHETIC_DEFAULT_MODEL_REF } from "../../agents/synthetic-models.js";
+import { VENICE_DEFAULT_MODEL_REF } from "../../agents/venice-models.js";
 import { resolveDefaultAgentWorkspaceDir } from "../../agents/workspace.js";
 import { formatApiKeyPreview } from "../../commands/auth-choice.api-key.js";
+import { normalizeApiKeyInput } from "../../commands/auth-choice.api-key.js";
 import { validateAnthropicSetupToken } from "../../commands/auth-token.js";
+import {
+  applyAuthProfileConfig,
+  applyOpenrouterConfig,
+  applyXaiConfig,
+  applyMoonshotConfig,
+  applyKimiCodeConfig,
+  applyZaiConfig,
+  applyXiaomiConfig,
+  applySyntheticConfig,
+  applyVeniceConfig,
+  applyTogetherConfig,
+  applyVercelAiGatewayConfig,
+  applyQianfanConfig,
+  applyCloudflareAiGatewayConfig as applyCloudflareAiGatewayConfigPatch,
+} from "../../commands/onboard-auth.config-core.js";
+import { applyOpencodeZenConfig as applyOpencodeZenConfigFull } from "../../commands/onboard-auth.config-opencode.js";
+import {
+  setOpenrouterApiKey,
+  setXaiApiKey,
+  setMoonshotApiKey,
+  setKimiCodingApiKey,
+  setZaiApiKey,
+  setXiaomiApiKey,
+  setSyntheticApiKey,
+  setVeniceApiKey,
+  setTogetherApiKey,
+  setOpencodeZenApiKey,
+  setVercelAiGatewayApiKey,
+  setQianfanApiKey,
+  setCloudflareAiGatewayConfig,
+  OPENROUTER_DEFAULT_MODEL_REF,
+  XAI_DEFAULT_MODEL_REF,
+  ZAI_DEFAULT_MODEL_REF,
+  XIAOMI_DEFAULT_MODEL_REF,
+  TOGETHER_DEFAULT_MODEL_REF,
+  VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
+  CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF,
+} from "../../commands/onboard-auth.credentials.js";
+import {
+  MOONSHOT_DEFAULT_MODEL_REF,
+  KIMI_CODING_MODEL_REF,
+  QIANFAN_DEFAULT_MODEL_REF,
+} from "../../commands/onboard-auth.models.js";
 import { OPENAI_CODEX_DEFAULT_MODEL } from "../../commands/openai-codex-model-default.js";
+import { OPENCODE_ZEN_DEFAULT_MODEL } from "../../commands/opencode-zen-model-default.js";
 import { readConfigFileSnapshot } from "../../config/config.js";
 import { enablePluginInConfig } from "../../plugins/enable.js";
 import { loadOpenClawPlugins } from "../../plugins/loader.js";
@@ -40,6 +87,172 @@ import {
   validateAuthFlowStartParams,
 } from "../protocol/index.js";
 import { formatForLog } from "../ws-log.js";
+
+// ---------------------------------------------------------------------------
+// Built-in API-key provider registry
+// ---------------------------------------------------------------------------
+// Each entry describes a simple API-key provider that the terminal wizard
+// supports but that has no ProviderPlugin.  The gateway uses this registry
+// to (a) include the provider in `auth.flow.list` and (b) drive a built-in
+// interactive flow via `auth.flow.start`.
+// ---------------------------------------------------------------------------
+type BuiltinApiKeyProviderEntry = {
+  /** Canonical provider ID (used as profile prefix).  Must match CLI. */
+  providerId: string;
+  /** Human-readable label shown in the UI. */
+  label: string;
+  /** Hint / docs link shown next to the "Connect" button. */
+  hint?: string;
+  /** Label for the auth method row. */
+  methodLabel: string;
+  /** Intro note shown before asking for the key (optional). */
+  introNote?: string;
+  /** Prompt text for the API key text input. */
+  keyPrompt: string;
+  /** Persist the API key. */
+  setApiKey: (key: string) => void | Promise<void>;
+  /** Default model ref (e.g. "openrouter/auto"). */
+  defaultModel: string;
+  /** Apply the full config (provider config + set default model). */
+  applyConfig: (cfg: OpenClawConfig) => OpenClawConfig;
+};
+
+const BUILTIN_API_KEY_PROVIDERS: BuiltinApiKeyProviderEntry[] = [
+  {
+    providerId: "openrouter",
+    label: "OpenRouter",
+    hint: "Unified gateway to many models",
+    methodLabel: "API key",
+    keyPrompt: "Enter OpenRouter API key",
+    setApiKey: (key) => setOpenrouterApiKey(key),
+    defaultModel: OPENROUTER_DEFAULT_MODEL_REF,
+    applyConfig: applyOpenrouterConfig,
+  },
+  {
+    providerId: "xai",
+    label: "xAI (Grok)",
+    hint: "Grok models via xAI",
+    methodLabel: "API key",
+    keyPrompt: "Enter xAI API key",
+    setApiKey: (key) => setXaiApiKey(key),
+    defaultModel: XAI_DEFAULT_MODEL_REF,
+    applyConfig: applyXaiConfig,
+  },
+  {
+    providerId: "moonshot",
+    label: "Moonshot AI (Kimi K2.5)",
+    hint: "Kimi K2.5 via Moonshot",
+    methodLabel: "API key",
+    keyPrompt: "Enter Moonshot API key",
+    setApiKey: (key) => setMoonshotApiKey(key),
+    defaultModel: MOONSHOT_DEFAULT_MODEL_REF,
+    applyConfig: applyMoonshotConfig,
+  },
+  {
+    providerId: "kimi-coding",
+    label: "Kimi Coding",
+    hint: "Kimi Coding at kimi.com/code",
+    methodLabel: "API key",
+    introNote:
+      "Kimi Coding uses a dedicated endpoint and API key.\nGet your API key at: https://www.kimi.com/code/en",
+    keyPrompt: "Enter Kimi Coding API key",
+    setApiKey: (key) => setKimiCodingApiKey(key),
+    defaultModel: KIMI_CODING_MODEL_REF,
+    applyConfig: applyKimiCodeConfig,
+  },
+  {
+    providerId: "zai",
+    label: "Z.AI (GLM 4.7)",
+    hint: "GLM models via Z.AI",
+    methodLabel: "API key",
+    keyPrompt: "Enter Z.AI API key",
+    setApiKey: (key) => setZaiApiKey(key),
+    defaultModel: ZAI_DEFAULT_MODEL_REF,
+    applyConfig: applyZaiConfig,
+  },
+  {
+    providerId: "xiaomi",
+    label: "Xiaomi",
+    hint: "MiMo models via Xiaomi",
+    methodLabel: "API key",
+    keyPrompt: "Enter Xiaomi API key",
+    setApiKey: (key) => setXiaomiApiKey(key),
+    defaultModel: XIAOMI_DEFAULT_MODEL_REF,
+    applyConfig: applyXiaomiConfig,
+  },
+  {
+    providerId: "synthetic",
+    label: "Synthetic",
+    hint: "MiniMax M2.1 via Synthetic",
+    methodLabel: "API key",
+    keyPrompt: "Enter Synthetic API key",
+    setApiKey: (key) => setSyntheticApiKey(key),
+    defaultModel: SYNTHETIC_DEFAULT_MODEL_REF,
+    applyConfig: applySyntheticConfig,
+  },
+  {
+    providerId: "venice",
+    label: "Venice AI",
+    hint: "Privacy-focused inference",
+    methodLabel: "API key",
+    introNote:
+      "Venice AI provides privacy-focused inference with uncensored models.\nGet your API key at: https://venice.ai/settings/api",
+    keyPrompt: "Enter Venice AI API key",
+    setApiKey: (key) => setVeniceApiKey(key),
+    defaultModel: VENICE_DEFAULT_MODEL_REF,
+    applyConfig: applyVeniceConfig,
+  },
+  {
+    providerId: "together",
+    label: "Together AI",
+    hint: "Open-source models via Together",
+    methodLabel: "API key",
+    introNote:
+      "Together AI provides access to leading open-source models.\nGet your API key at: https://api.together.xyz/settings/api-keys",
+    keyPrompt: "Enter Together AI API key",
+    setApiKey: (key) => setTogetherApiKey(key),
+    defaultModel: TOGETHER_DEFAULT_MODEL_REF,
+    applyConfig: applyTogetherConfig,
+  },
+  {
+    providerId: "opencode",
+    label: "OpenCode Zen",
+    hint: "Multi-model gateway via OpenCode",
+    methodLabel: "API key",
+    introNote:
+      "OpenCode Zen provides access to Claude, GPT, Gemini, and more.\nGet your API key at: https://opencode.ai/auth",
+    keyPrompt: "Enter OpenCode Zen API key",
+    setApiKey: (key) => setOpencodeZenApiKey(key),
+    defaultModel: OPENCODE_ZEN_DEFAULT_MODEL,
+    applyConfig: (cfg) => applyOpencodeZenConfigFull(cfg),
+  },
+  {
+    providerId: "vercel-ai-gateway",
+    label: "Vercel AI Gateway",
+    hint: "AI gateway via Vercel",
+    methodLabel: "API key",
+    keyPrompt: "Enter Vercel AI Gateway API key",
+    setApiKey: (key) => setVercelAiGatewayApiKey(key),
+    defaultModel: VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
+    applyConfig: applyVercelAiGatewayConfig,
+  },
+  {
+    providerId: "qianfan",
+    label: "Qianfan",
+    hint: "Baidu Qianfan models",
+    methodLabel: "API key",
+    introNote:
+      "Get your API key at: https://console.bce.baidu.com/qianfan/ais/console/apiKey\nAPI key format: bce-v3/ALTAK-...",
+    keyPrompt: "Enter Qianfan API key",
+    setApiKey: (key) => setQianfanApiKey(key),
+    defaultModel: QIANFAN_DEFAULT_MODEL_REF,
+    applyConfig: applyQianfanConfig,
+  },
+];
+
+const BUILTIN_API_KEY_PROVIDERS_BY_ID = new Map(
+  BUILTIN_API_KEY_PROVIDERS.map((entry) => [entry.providerId, entry]),
+);
 
 function resolveOwnerDeviceId(params: {
   client: { connect?: { device?: { id?: string } } } | null;
@@ -642,6 +855,200 @@ async function runPluginProviderFlow(params: {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Built-in API-key flow runner
+// ---------------------------------------------------------------------------
+// Drives an interactive flow for simple API-key providers that have no plugin.
+// Steps: (optional) intro note → text input for API key → store + return.
+// ---------------------------------------------------------------------------
+async function runBuiltinApiKeyFlow(params: {
+  providerId: string;
+  methodId: string;
+  api: import("../auth-flow-session.js").AuthFlowSessionApi;
+}): Promise<AuthFlowCompletePayload> {
+  const entry = BUILTIN_API_KEY_PROVIDERS_BY_ID.get(normalizeProviderId(params.providerId));
+  if (!entry) {
+    throw new Error(`unknown built-in API-key provider: ${params.providerId}`);
+  }
+
+  const { api } = params;
+
+  if (entry.introNote) {
+    await api.note(entry.introNote, entry.label);
+  }
+
+  const rawKey = await api.text({
+    message: entry.keyPrompt,
+    sensitive: true,
+    validate: (value) => (value.trim() ? undefined : "API key is required"),
+  });
+
+  const apiKey = normalizeApiKeyInput(rawKey);
+  await entry.setApiKey(apiKey);
+
+  const profileId = `${entry.providerId}:default`;
+  upsertAuthProfile({
+    profileId,
+    credential: { type: "api_key", provider: entry.providerId, key: apiKey },
+    agentDir: resolveOpenClawAgentDir(),
+  });
+
+  const snapshot = await readConfigFileSnapshot();
+  const baseConfig: OpenClawConfig = snapshot.valid ? (snapshot.config ?? {}) : {};
+
+  // Apply auth profile reference + provider-specific config + default model.
+  const withAuthProfile = applyAuthProfileConfig(baseConfig, {
+    profileId,
+    provider: entry.providerId,
+    mode: "api_key",
+  });
+  const fullyApplied = entry.applyConfig(withAuthProfile);
+
+  // Compute a diff-style config patch for the UI to apply.
+  let configPatch: unknown = {};
+  configPatch = mergeConfigPatch(
+    configPatch,
+    buildAuthProfileRefPatch({
+      profileId,
+      provider: entry.providerId,
+      mode: "api_key",
+    }),
+  );
+  // Diff the provider-specific changes.
+  configPatch = mergeConfigPatch(configPatch, diffConfigPatch(baseConfig, fullyApplied));
+
+  return {
+    profiles: [
+      toCompletionProfile({
+        profileId,
+        credential: { type: "api_key", provider: entry.providerId, key: apiKey },
+      }),
+    ],
+    configPatch,
+    defaultModel: entry.defaultModel,
+    notes: [`${entry.label} API key stored.`],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Cloudflare AI Gateway flow runner (multi-field)
+// ---------------------------------------------------------------------------
+async function runCloudflareAiGatewayFlow(params: {
+  api: import("../auth-flow-session.js").AuthFlowSessionApi;
+}): Promise<AuthFlowCompletePayload> {
+  const { api } = params;
+
+  await api.note(
+    "Cloudflare AI Gateway requires an Account ID, Gateway ID, and API key.",
+    "Cloudflare AI Gateway",
+  );
+
+  const accountId = await api.text({
+    message: "Enter Cloudflare Account ID",
+    validate: (value) => (value.trim() ? undefined : "Account ID is required"),
+  });
+
+  const gatewayId = await api.text({
+    message: "Enter Cloudflare AI Gateway ID",
+    validate: (value) => (value.trim() ? undefined : "Gateway ID is required"),
+  });
+
+  const rawKey = await api.text({
+    message: "Enter Cloudflare AI Gateway API key",
+    sensitive: true,
+    validate: (value) => (value.trim() ? undefined : "API key is required"),
+  });
+
+  const apiKey = normalizeApiKeyInput(rawKey);
+  await setCloudflareAiGatewayConfig(accountId.trim(), gatewayId.trim(), apiKey);
+
+  const profileId = "cloudflare-ai-gateway:default";
+  const provider = "cloudflare-ai-gateway";
+
+  const snapshot = await readConfigFileSnapshot();
+  const baseConfig: OpenClawConfig = snapshot.valid ? (snapshot.config ?? {}) : {};
+
+  const withAuthProfile = applyAuthProfileConfig(baseConfig, {
+    profileId,
+    provider,
+    mode: "api_key",
+  });
+  const fullyApplied = applyCloudflareAiGatewayConfigPatch(withAuthProfile, {
+    accountId: accountId.trim(),
+    gatewayId: gatewayId.trim(),
+  });
+
+  let configPatch: unknown = {};
+  configPatch = mergeConfigPatch(
+    configPatch,
+    buildAuthProfileRefPatch({ profileId, provider, mode: "api_key" }),
+  );
+  configPatch = mergeConfigPatch(configPatch, diffConfigPatch(baseConfig, fullyApplied));
+
+  return {
+    profiles: [
+      toCompletionProfile({
+        profileId,
+        credential: { type: "api_key", provider, key: apiKey },
+      }),
+    ],
+    configPatch,
+    defaultModel: CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF,
+    notes: ["Cloudflare AI Gateway configured."],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Config diff helper
+// ---------------------------------------------------------------------------
+// Produces a shallow "patch" object containing only the top-level keys that
+// changed between `before` and `after`.  Used to compute the configPatch
+// payload for built-in API-key flows.
+//
+// IMPORTANT: The result is sanitised via `stripSecretsFromPatch` to avoid
+// leaking any `apiKey` values that config appliers may have preserved from
+// the existing config.
+// ---------------------------------------------------------------------------
+function diffConfigPatch(before: OpenClawConfig, after: OpenClawConfig): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  for (const key of Object.keys(after) as Array<keyof OpenClawConfig>) {
+    if (after[key] !== before[key]) {
+      patch[key] = after[key];
+    }
+  }
+  return stripSecretsFromPatch(patch);
+}
+
+/**
+ * Recursively remove `apiKey` properties from a config patch so that
+ * credentials stored on disk are never sent back to the UI.  The UI
+ * credential model is write-only; the patch should only carry structural
+ * config (base URLs, model definitions, auth profile references, etc.).
+ */
+function stripSecretsFromPatch(value: unknown): any {
+  if (!isPlainRecord(value)) {
+    return value;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (k === "apiKey") {
+      continue;
+    }
+    result[k] = isPlainRecord(v) || Array.isArray(v) ? stripSecretsDeep(v) : v;
+  }
+  return result;
+}
+
+function stripSecretsDeep(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripSecretsDeep);
+  }
+  if (isPlainRecord(value)) {
+    return stripSecretsFromPatch(value);
+  }
+  return value;
+}
+
 export const authFlowHandlers: GatewayRequestHandlers = {
   "auth.flow.list": async ({ params, respond }) => {
     if (!validateAuthFlowListParams(params)) {
@@ -767,6 +1174,40 @@ export const authFlowHandlers: GatewayRequestHandlers = {
           },
         ],
       },
+      // Built-in API-key providers (generated from registry).
+      ...BUILTIN_API_KEY_PROVIDERS.map((entry) => ({
+        providerId: entry.providerId,
+        label: entry.label,
+        methods: [
+          {
+            providerId: entry.providerId,
+            providerLabel: entry.label,
+            methodId: "api_key",
+            label: entry.methodLabel,
+            hint: entry.hint,
+            kind: "custom" as const,
+            supportsRemote: true,
+            supportsRevoke: false,
+          },
+        ],
+      })),
+      // Cloudflare AI Gateway (multi-field, custom flow).
+      {
+        providerId: "cloudflare-ai-gateway",
+        label: "Cloudflare AI Gateway",
+        methods: [
+          {
+            providerId: "cloudflare-ai-gateway",
+            providerLabel: "Cloudflare AI Gateway",
+            methodId: "api_key",
+            label: "API key + Account/Gateway IDs",
+            hint: "Requires Account ID, Gateway ID, and API key",
+            kind: "custom" as const,
+            supportsRemote: true,
+            supportsRevoke: false,
+          },
+        ],
+      },
     ];
 
     for (const provider of builtinProviders) {
@@ -858,6 +1299,14 @@ export const authFlowHandlers: GatewayRequestHandlers = {
         methodId.trim().toLowerCase() === "oauth"
       ) {
         return await runOpenAICodexOAuthFlow({ api });
+      }
+      // Built-in API-key providers (no plugin required).
+      if (BUILTIN_API_KEY_PROVIDERS_BY_ID.has(normalizeProviderId(providerId))) {
+        return await runBuiltinApiKeyFlow({ providerId, methodId, api });
+      }
+      // Cloudflare AI Gateway (multi-field custom flow).
+      if (normalizeProviderId(providerId) === "cloudflare-ai-gateway") {
+        return await runCloudflareAiGatewayFlow({ api });
       }
       return await runPluginProviderFlow({ providerId, methodId, mode, api });
     });

@@ -117,6 +117,23 @@ export const ChannelsCatalogResultSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const ChannelsEnableParamsSchema = Type.Object(
+  {
+    channelId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const ChannelsEnableResultSchema = Type.Object(
+  {
+    ok: Type.Boolean(),
+    channelId: Type.Optional(Type.String()),
+    error: Type.Optional(Type.String()),
+    restartRequired: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: true },
+);
+
 export const ChannelsInstallParamsSchema = Type.Object(
   {
     channelId: Type.Optional(NonEmptyString),

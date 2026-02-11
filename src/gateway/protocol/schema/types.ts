@@ -56,6 +56,8 @@ import type {
 import type {
   ChannelsCatalogParamsSchema,
   ChannelsCatalogResultSchema,
+  ChannelsEnableParamsSchema,
+  ChannelsEnableResultSchema,
   ChannelsInstallParamsSchema,
   ChannelsInstallResultSchema,
   ChannelsLogoutParamsSchema,
@@ -240,6 +242,8 @@ export type ChannelsStatusResult = Static<typeof ChannelsStatusResultSchema>;
 export type ChannelsLogoutParams = Static<typeof ChannelsLogoutParamsSchema>;
 export type ChannelsCatalogParams = Static<typeof ChannelsCatalogParamsSchema>;
 export type ChannelsCatalogResult = Static<typeof ChannelsCatalogResultSchema>;
+export type ChannelsEnableParams = Static<typeof ChannelsEnableParamsSchema>;
+export type ChannelsEnableResult = Static<typeof ChannelsEnableResultSchema>;
 export type ChannelsInstallParams = Static<typeof ChannelsInstallParamsSchema>;
 export type ChannelsInstallResult = Static<typeof ChannelsInstallResultSchema>;
 export type WebLoginStartParams = Static<typeof WebLoginStartParamsSchema>;

@@ -8,7 +8,12 @@ import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controlle
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents, loadModelCatalog, createAgent, deleteAgent } from "./controllers/agents.ts";
-import { installChannel, loadChannelsAndCatalog, restartGateway } from "./controllers/channels.ts";
+import {
+  enableChannel,
+  installChannel,
+  loadChannelsAndCatalog,
+  restartGateway,
+} from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import {
   applyConfig,
@@ -299,6 +304,20 @@ export function renderApp(state: AppViewState) {
                     state.channelInstallSuccess = channelId;
                   } else {
                     state.channelInstallError = res.error ?? "Installation failed";
+                  }
+                  await loadChannelsAndCatalog(state, false);
+                },
+                onEnableChannel: async (channelId) => {
+                  state.channelInstallBusy = channelId;
+                  state.channelInstallError = null;
+                  state.channelInstallSuccess = null;
+                  state.channelRestartError = null;
+                  const res = await enableChannel(state, channelId);
+                  state.channelInstallBusy = null;
+                  if (res.ok) {
+                    state.channelInstallSuccess = channelId;
+                  } else {
+                    state.channelInstallError = res.error ?? "Enable failed";
                   }
                   await loadChannelsAndCatalog(state, false);
                 },

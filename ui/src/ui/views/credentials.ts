@@ -17,9 +17,13 @@ import type {
 import { formatMs } from "../format.ts";
 
 function normalizeProviderId(provider?: string | null): string {
-  if (!provider) return "";
+  if (!provider) {
+    return "";
+  }
   const normalized = provider.trim().toLowerCase();
-  if (normalized === "z.ai" || normalized === "z-ai") return "zai";
+  if (normalized === "z.ai" || normalized === "z-ai") {
+    return "zai";
+  }
   return normalized;
 }
 
@@ -38,7 +42,9 @@ function inferAuthFlowMode(gatewayUrl: string): AuthFlowMode {
 
 function scrollToCardWithinContent(targetId: string) {
   const el = document.getElementById(targetId);
-  if (!el) return;
+  if (!el) {
+    return;
+  }
 
   const content = el.closest(".content") as HTMLElement | null;
   if (!content) {
@@ -59,11 +65,15 @@ function resolveAuthFlowMethod(
 ) {
   const providers = list?.providers ?? [];
   for (const provider of providers) {
-    if (normalizeProviderId(provider.providerId) !== normalizeProviderId(providerId)) continue;
+    if (normalizeProviderId(provider.providerId) !== normalizeProviderId(providerId)) {
+      continue;
+    }
     const method = provider.methods.find(
       (m) => m.methodId.toLowerCase() === methodId.toLowerCase(),
     );
-    if (method) return method;
+    if (method) {
+      return method;
+    }
   }
   return null;
 }
@@ -203,23 +213,49 @@ function renderProfileRow(
 }
 
 function resolveWizardStepTitle(step: WizardStep): string {
-  if (step.title && step.title.trim()) return step.title.trim();
-  if (step.type === "select") return "Select";
-  if (step.type === "multiselect") return "Select";
-  if (step.type === "confirm") return "Confirm";
-  if (step.type === "text") return step.sensitive ? "Secret" : "Input";
-  if (step.type === "note") return "Note";
+  if (step.title && step.title.trim()) {
+    return step.title.trim();
+  }
+  if (step.type === "select") {
+    return "Select";
+  }
+  if (step.type === "multiselect") {
+    return "Select";
+  }
+  if (step.type === "confirm") {
+    return "Confirm";
+  }
+  if (step.type === "text") {
+    return step.sensitive ? "Secret" : "Input";
+  }
+  if (step.type === "note") {
+    return "Note";
+  }
   return "Wizard";
 }
 
 function resolveAuthFlowStepTitle(step: AuthFlowStep): string {
-  if ("title" in step && step.title && step.title.trim()) return step.title.trim();
-  if (step.type === "openUrl") return "Open URL";
-  if (step.type === "select") return "Select";
-  if (step.type === "multiselect") return "Select";
-  if (step.type === "confirm") return "Confirm";
-  if (step.type === "text") return step.sensitive ? "Secret" : "Input";
-  if (step.type === "note") return "Note";
+  if ("title" in step && step.title && step.title.trim()) {
+    return step.title.trim();
+  }
+  if (step.type === "openUrl") {
+    return "Open URL";
+  }
+  if (step.type === "select") {
+    return "Select";
+  }
+  if (step.type === "multiselect") {
+    return "Select";
+  }
+  if (step.type === "confirm") {
+    return "Confirm";
+  }
+  if (step.type === "text") {
+    return step.sensitive ? "Secret" : "Input";
+  }
+  if (step.type === "note") {
+    return "Note";
+  }
   return "Connect";
 }
 
@@ -656,7 +692,9 @@ export function renderCredentials(props: CredentialsProps) {
   const openManualApiKeyPanel = (providerId: string) => {
     window.setTimeout(() => {
       const advanced = document.getElementById("credentials-advanced") as HTMLDetailsElement | null;
-      if (advanced) advanced.open = true;
+      if (advanced) {
+        advanced.open = true;
+      }
       openApiKeyPanel("credentials-manual-api-key-panel", providerId);
     }, 0);
   };
@@ -691,11 +729,19 @@ export function renderCredentials(props: CredentialsProps) {
       : null;
 
   const renderAuthFlowInline = (providerIds: string[]) => {
-    if (!hasAuthFlow) return nothing;
-    if (!authFlowOwned) return nothing;
-    if (!activeAuthProvider) return nothing;
+    if (!hasAuthFlow) {
+      return nothing;
+    }
+    if (!authFlowOwned) {
+      return nothing;
+    }
+    if (!activeAuthProvider) {
+      return nothing;
+    }
     const matches = providerIds.some((p) => normalizeProviderId(p) === activeAuthProvider);
-    if (!matches) return nothing;
+    if (!matches) {
+      return nothing;
+    }
 
     return html`
       ${
@@ -798,7 +844,9 @@ export function renderCredentials(props: CredentialsProps) {
           @click=${() => {
             props.onApiKeyFormChange({ apiKey: "" });
             const panel = document.getElementById(opts.panelId) as HTMLDetailsElement | null;
-            if (panel) panel.open = false;
+            if (panel) {
+              panel.open = false;
+            }
           }}
         >
           Cancel
@@ -844,10 +892,16 @@ export function renderCredentials(props: CredentialsProps) {
         style="margin-top: 12px;"
         @toggle=${(e: Event) => {
           const el = e.currentTarget as HTMLDetailsElement;
-          if (!el.open) return;
+          if (!el.open) {
+            return;
+          }
           const provider = normalizeProviderId(props.apiKeyForm.provider);
-          if (provider) return;
-          if (!providerOptions.length) return;
+          if (provider) {
+            return;
+          }
+          if (!providerOptions.length) {
+            return;
+          }
           onProviderChange(providerOptions[0]!.id);
         }}
       >
@@ -960,7 +1014,7 @@ export function renderCredentials(props: CredentialsProps) {
           : nothing
       }
 
-      <div class="row" style="margin-top: 12px; gap: 12px; flex-wrap: wrap;">
+      <div class="row" style="margin-top: 12px; gap: 12px; flex-wrap: wrap; align-items: stretch;">
         <div class="card" style="flex: 1; min-width: 260px;">
           <div class="card-title">OpenAI Codex</div>
           <div class="card-sub">Sign in with OAuth</div>
@@ -1179,8 +1233,14 @@ export function renderCredentials(props: CredentialsProps) {
         hasAuthFlow &&
         authFlowOwned &&
         (!activeAuthProvider ||
-          !["openai-codex", "anthropic", "google-gemini-cli", "google-antigravity"].some(
-            (p) => normalizeProviderId(p) === activeAuthProvider,
+          !(
+            ["openai-codex", "anthropic", "google-gemini-cli", "google-antigravity"].some(
+              (p) => normalizeProviderId(p) === activeAuthProvider,
+            ) ||
+            // Exclude providers rendered inline in the Advanced section.
+            (props.authFlowList?.providers ?? []).some(
+              (p) => normalizeProviderId(p.providerId) === activeAuthProvider,
+            )
           ))
           ? html`
             <div class="callout info" style="margin-top: 12px;">
@@ -1413,6 +1473,7 @@ export function renderCredentials(props: CredentialsProps) {
                       `;
                     })}
                   </div>
+                  ${renderAuthFlowInline([provider.providerId])}
                 </div>
               `,
               )}

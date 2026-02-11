@@ -163,6 +163,7 @@ function setRegistry(registry: PluginRegistry) {
 describe("gateway server channels", () => {
   test("connect advertises channels catalog/install methods", () => {
     expect(helloOk.features?.methods).toContain("channels.catalog");
+    expect(helloOk.features?.methods).toContain("channels.enable");
     expect(helloOk.features?.methods).toContain("channels.install");
     expect(helloOk.features?.methods).toContain("gateway.restart");
   });
@@ -286,6 +287,47 @@ describe("gateway server channels", () => {
     } finally {
       await fs.rm(pluginDir, { recursive: true, force: true });
     }
+  });
+
+  test("channels.catalog includes core bundled channels even when plugin metadata is absent", async () => {
+    setRegistry(createRegistry([]));
+    const { writeConfigFile } = await loadConfigHelpers();
+    await writeConfigFile({});
+
+    const res = await rpcReq<{
+      entries?: Array<{
+        id?: string;
+        installed?: boolean;
+        enabled?: boolean;
+        configured?: boolean;
+      }>;
+    }>(ws, "channels.catalog", {});
+    expect(res.ok).toBe(true);
+    const whatsapp = res.payload?.entries?.find((entry) => entry.id === "whatsapp");
+    expect(whatsapp).toBeDefined();
+    expect(whatsapp?.installed).toBe(true);
+    expect(whatsapp?.enabled).toBe(false);
+    expect(whatsapp?.configured).toBe(false);
+  });
+
+  test("channels.enable writes plugin enablement for a channel", async () => {
+    setRegistry(createRegistry([]));
+    const { readConfigFileSnapshot, writeConfigFile } = await loadConfigHelpers();
+    await writeConfigFile({});
+
+    const res = await rpcReq<{
+      ok?: boolean;
+      channelId?: string;
+      restartRequired?: boolean;
+    }>(ws, "channels.enable", { channelId: "whatsapp" });
+    expect(res.ok).toBe(true);
+    expect(res.payload?.ok).toBe(true);
+    expect(res.payload?.channelId).toBe("whatsapp");
+    expect(res.payload?.restartRequired).toBe(true);
+
+    const snapshot = await readConfigFileSnapshot();
+    expect(snapshot.valid).toBe(true);
+    expect(snapshot.config?.plugins?.entries?.whatsapp?.enabled).toBe(true);
   });
 
   test("gateway.restart validates params", async () => {

@@ -74,6 +74,10 @@ import {
   ChannelsCatalogParamsSchema,
   type ChannelsCatalogResult,
   ChannelsCatalogResultSchema,
+  type ChannelsEnableParams,
+  ChannelsEnableParamsSchema,
+  type ChannelsEnableResult,
+  ChannelsEnableResultSchema,
   type ChannelsInstallParams,
   ChannelsInstallParamsSchema,
   type ChannelsInstallResult,
@@ -383,6 +387,9 @@ export const validateChannelsLogoutParams = ajv.compile<ChannelsLogoutParams>(
 export const validateChannelsCatalogParams = ajv.compile<ChannelsCatalogParams>(
   ChannelsCatalogParamsSchema,
 );
+export const validateChannelsEnableParams = ajv.compile<ChannelsEnableParams>(
+  ChannelsEnableParamsSchema,
+);
 export const validateChannelsInstallParams = ajv.compile<ChannelsInstallParams>(
   ChannelsInstallParamsSchema,
 );
@@ -544,6 +551,8 @@ export {
   WizardStatusResultSchema,
   ChannelsCatalogParamsSchema,
   ChannelsCatalogResultSchema,
+  ChannelsEnableParamsSchema,
+  ChannelsEnableResultSchema,
   ChannelsInstallParamsSchema,
   ChannelsInstallResultSchema,
   ChannelsStatusParamsSchema,
@@ -652,6 +661,8 @@ export type {
   TalkModeParams,
   ChannelsCatalogParams,
   ChannelsCatalogResult,
+  ChannelsEnableParams,
+  ChannelsEnableResult,
   ChannelsInstallParams,
   ChannelsInstallResult,
   ChannelsStatusParams,

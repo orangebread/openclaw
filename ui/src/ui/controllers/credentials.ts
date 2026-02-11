@@ -93,14 +93,20 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeProviderId(provider?: string | null): string {
-  if (!provider) return "";
+  if (!provider) {
+    return "";
+  }
   const normalized = provider.trim().toLowerCase();
-  if (normalized === "z.ai" || normalized === "z-ai") return "zai";
+  if (normalized === "z.ai" || normalized === "z-ai") {
+    return "zai";
+  }
   return normalized;
 }
 
 function stripDefaultModelPatch(patch: unknown): unknown {
-  if (!isPlainRecord(patch)) return patch;
+  if (!isPlainRecord(patch)) {
+    return patch;
+  }
   // Config patch is transported over the wire as JSON; assume it's JSON-serializable.
   const clone = JSON.parse(JSON.stringify(patch)) as Record<string, unknown>;
   const agents = clone.agents;
@@ -167,10 +173,16 @@ async function loadDisconnectImpacts(
     const lockedTextAgents: string[] = [];
     const lockedImageAgents: string[] = [];
     for (const entry of agentsList) {
-      if (!isPlainRecord(entry)) continue;
+      if (!isPlainRecord(entry)) {
+        continue;
+      }
       const id = typeof entry.id === "string" && entry.id.trim() ? entry.id.trim() : "(unknown)";
-      if (entry.authProfileId === profileId) lockedTextAgents.push(id);
-      if (entry.imageAuthProfileId === profileId) lockedImageAgents.push(id);
+      if (entry.authProfileId === profileId) {
+        lockedTextAgents.push(id);
+      }
+      if (entry.imageAuthProfileId === profileId) {
+        lockedImageAgents.push(id);
+      }
     }
 
     return {
@@ -188,14 +200,25 @@ async function loadDisconnectImpacts(
 }
 
 function resetAuthFlowAnswerForStep(step: AuthFlowStep | null): unknown {
-  if (!step) return null;
-  if (step.type === "note") return true;
-  if (step.type === "openUrl") return true;
-  if (step.type === "confirm")
+  if (!step) {
+    return null;
+  }
+  if (step.type === "note") {
+    return true;
+  }
+  if (step.type === "openUrl") {
+    return true;
+  }
+  if (step.type === "confirm") {
     return typeof step.initialValue === "boolean" ? step.initialValue : false;
-  if (step.type === "text") return typeof step.initialValue === "string" ? step.initialValue : "";
+  }
+  if (step.type === "text") {
+    return typeof step.initialValue === "string" ? step.initialValue : "";
+  }
   if (step.type === "select") {
-    if (step.initialValue !== undefined) return step.initialValue;
+    if (step.initialValue !== undefined) {
+      return step.initialValue;
+    }
     return step.options?.[0]?.value ?? null;
   }
   if (step.type === "multiselect") {
@@ -205,13 +228,22 @@ function resetAuthFlowAnswerForStep(step: AuthFlowStep | null): unknown {
 }
 
 function resetWizardAnswerForStep(step: WizardStep | null): unknown {
-  if (!step) return null;
-  if (step.type === "note") return true;
-  if (step.type === "confirm")
+  if (!step) {
+    return null;
+  }
+  if (step.type === "note") {
+    return true;
+  }
+  if (step.type === "confirm") {
     return typeof step.initialValue === "boolean" ? step.initialValue : false;
-  if (step.type === "text") return typeof step.initialValue === "string" ? step.initialValue : "";
+  }
+  if (step.type === "text") {
+    return typeof step.initialValue === "string" ? step.initialValue : "";
+  }
   if (step.type === "select") {
-    if (step.initialValue !== undefined) return step.initialValue;
+    if (step.initialValue !== undefined) {
+      return step.initialValue;
+    }
     return step.options?.[0]?.value ?? null;
   }
   if (step.type === "multiselect") {
@@ -242,7 +274,9 @@ function clearAuthFlowState(state: CredentialsState) {
 async function refreshWizardOwnership(
   state: CredentialsState,
 ): Promise<WizardCurrentResult | null> {
-  if (!state.client || !state.connected) return null;
+  if (!state.client || !state.connected) {
+    return null;
+  }
   const res = (await state.client.request("wizard.current", {})) as WizardCurrentResult | undefined;
   if (!res?.running) {
     clearWizardState(state);
@@ -262,7 +296,9 @@ async function refreshWizardOwnership(
 async function refreshAuthFlowOwnership(
   state: CredentialsState,
 ): Promise<AuthFlowCurrentResult | null> {
-  if (!state.client || !state.connected) return null;
+  if (!state.client || !state.connected) {
+    return null;
+  }
   const res = (await state.client.request("auth.flow.current", {})) as
     | AuthFlowCurrentResult
     | undefined;
@@ -288,7 +324,9 @@ async function fetchWizardStep(
   const res = (await state.client?.request("wizard.next", { sessionId })) as
     | WizardNextResult
     | undefined;
-  if (!res) return null;
+  if (!res) {
+    return null;
+  }
   if (res.done || (res.status && res.status !== "running")) {
     clearWizardState(state);
     return null;
@@ -306,7 +344,9 @@ async function fetchAuthFlowStep(
   const res = (await state.client?.request("auth.flow.next", { sessionId })) as
     | AuthFlowNextResult
     | undefined;
-  if (!res) return null;
+  if (!res) {
+    return null;
+  }
   if (res.done || (res.status && res.status !== "running")) {
     clearAuthFlowState(state);
     state.credentialsAuthFlowResult = res.result ?? null;
@@ -326,7 +366,9 @@ export function updateCredentialsApiKeyForm(
 }
 
 export async function loadCredentials(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
   const inFlight = credentialsLoadInFlight.get(state);
   if (inFlight) {
     credentialsLoadQueued.set(state, true);
@@ -388,7 +430,9 @@ export async function loadCredentials(state: CredentialsState) {
           state.credentialsError = String(err);
         }
 
-        if (!credentialsLoadQueued.get(state)) break;
+        if (!credentialsLoadQueued.get(state)) {
+          break;
+        }
       }
     } finally {
       state.credentialsLoading = false;
@@ -403,8 +447,12 @@ export async function loadCredentials(state: CredentialsState) {
 }
 
 async function applyAuthFlowConfigPatch(state: CredentialsState, patch: unknown) {
-  if (!state.client || !state.connected) return;
-  if (!patch || typeof patch !== "object" || Array.isArray(patch)) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    return;
+  }
 
   state.credentialsAuthFlowApplyError = null;
 
@@ -442,8 +490,12 @@ async function applyAuthFlowConfigPatch(state: CredentialsState, patch: unknown)
 }
 
 export async function upsertCredentialsApiKeyProfile(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsSaving) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsSaving) {
+    return;
+  }
   state.credentialsSaving = true;
   state.credentialsError = null;
   state.credentialsSuccess = null;
@@ -475,7 +527,9 @@ export async function upsertCredentialsApiKeyProfile(state: CredentialsState) {
       const shouldRetry =
         message.includes("auth base hash required") ||
         message.includes("auth store changed since last load");
-      if (!shouldRetry) throw err;
+      if (!shouldRetry) {
+        throw err;
+      }
 
       await loadCredentials(state);
       await attemptUpsert();
@@ -490,9 +544,15 @@ export async function upsertCredentialsApiKeyProfile(state: CredentialsState) {
     const expiresAtMs = Date.now() + 5500;
     state.credentialsSuccess = { message: "Credential saved.", profileId, expiresAtMs };
     window.setTimeout(() => {
-      if (!state.credentialsSuccess) return;
-      if (state.credentialsSuccess.profileId !== profileId) return;
-      if (state.credentialsSuccess.expiresAtMs !== expiresAtMs) return;
+      if (!state.credentialsSuccess) {
+        return;
+      }
+      if (state.credentialsSuccess.profileId !== profileId) {
+        return;
+      }
+      if (state.credentialsSuccess.expiresAtMs !== expiresAtMs) {
+        return;
+      }
       state.credentialsSuccess = null;
     }, 5600);
 
@@ -526,10 +586,16 @@ export async function upsertCredentialsApiKeyProfile(state: CredentialsState) {
 }
 
 export async function requestDeleteCredentialsProfile(state: CredentialsState, profileId: string) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsSaving) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsSaving) {
+    return;
+  }
   const trimmed = profileId.trim();
-  if (!trimmed) return;
+  if (!trimmed) {
+    return;
+  }
 
   const profile = state.credentialsProfiles.find((p) => p.id === trimmed) ?? null;
   const provider = profile?.provider ? normalizeProviderId(profile.provider) : null;
@@ -551,7 +617,9 @@ export async function requestDeleteCredentialsProfile(state: CredentialsState, p
 
   try {
     const impacts = await loadDisconnectImpacts(state, trimmed);
-    if (state.credentialsDisconnectDialog?.requestId !== requestId) return;
+    if (state.credentialsDisconnectDialog?.requestId !== requestId) {
+      return;
+    }
     state.credentialsDisconnectDialog = {
       ...state.credentialsDisconnectDialog,
       impactsLoading: false,
@@ -559,7 +627,9 @@ export async function requestDeleteCredentialsProfile(state: CredentialsState, p
       impacts,
     };
   } catch (err) {
-    if (state.credentialsDisconnectDialog?.requestId !== requestId) return;
+    if (state.credentialsDisconnectDialog?.requestId !== requestId) {
+      return;
+    }
     state.credentialsDisconnectDialog = {
       ...state.credentialsDisconnectDialog,
       impactsLoading: false,
@@ -570,15 +640,23 @@ export async function requestDeleteCredentialsProfile(state: CredentialsState, p
 }
 
 export function cancelDeleteCredentialsProfile(state: CredentialsState) {
-  if (!state.credentialsDisconnectDialog?.open) return;
+  if (!state.credentialsDisconnectDialog?.open) {
+    return;
+  }
   state.credentialsDisconnectDialog = null;
 }
 
 export async function confirmDeleteCredentialsProfile(state: CredentialsState, profileId: string) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsSaving) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsSaving) {
+    return;
+  }
   const trimmed = profileId.trim();
-  if (!trimmed) return;
+  if (!trimmed) {
+    return;
+  }
 
   state.credentialsSaving = true;
   state.credentialsError = null;
@@ -598,7 +676,9 @@ export async function confirmDeleteCredentialsProfile(state: CredentialsState, p
       const shouldRetry =
         message.includes("auth base hash required") ||
         message.includes("auth store changed since last load");
-      if (!shouldRetry) throw err;
+      if (!shouldRetry) {
+        throw err;
+      }
 
       await loadCredentials(state);
       await attemptDelete();
@@ -616,8 +696,12 @@ export async function startCredentialsAuthFlow(
   state: CredentialsState,
   params: { providerId: string; methodId: string; mode: "local" | "remote" },
 ) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsAuthFlowBusy) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsAuthFlowBusy) {
+    return;
+  }
   state.credentialsAuthFlowBusy = true;
   state.credentialsAuthFlowError = null;
   state.credentialsAuthFlowApplyError = null;
@@ -641,6 +725,11 @@ export async function startCredentialsAuthFlow(
     if (res.done || (res.status && res.status !== "running")) {
       const hadProviderProfilesBefore = state.credentialsAuthFlowHadProviderProfilesBefore;
       clearAuthFlowState(state);
+      if (res.status === "error") {
+        state.credentialsAuthFlowError = res.error || "auth flow failed";
+        await loadCredentials(state);
+        return;
+      }
       state.credentialsAuthFlowResult = res.result ?? null;
       if (res.result?.configPatch) {
         const patch = hadProviderProfilesBefore
@@ -668,8 +757,12 @@ export async function startCredentialsAuthFlow(
 }
 
 export async function resumeCredentialsAuthFlow(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsAuthFlowBusy) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsAuthFlowBusy) {
+    return;
+  }
   state.credentialsAuthFlowBusy = true;
   state.credentialsAuthFlowError = null;
   try {
@@ -687,8 +780,12 @@ export async function resumeCredentialsAuthFlow(state: CredentialsState) {
 }
 
 export async function cancelCurrentCredentialsAuthFlow(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsAuthFlowBusy) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsAuthFlowBusy) {
+    return;
+  }
   state.credentialsAuthFlowBusy = true;
   state.credentialsAuthFlowError = null;
   try {
@@ -704,9 +801,15 @@ export async function cancelCurrentCredentialsAuthFlow(state: CredentialsState) 
 }
 
 export async function advanceCredentialsAuthFlow(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsAuthFlowBusy) return;
-  if (!state.credentialsAuthFlowStep) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsAuthFlowBusy) {
+    return;
+  }
+  if (!state.credentialsAuthFlowStep) {
+    return;
+  }
   state.credentialsAuthFlowBusy = true;
   state.credentialsAuthFlowError = null;
   const submittedStep = state.credentialsAuthFlowStep;
@@ -739,6 +842,11 @@ export async function advanceCredentialsAuthFlow(state: CredentialsState) {
     }
     if (res.done || (res.status && res.status !== "running")) {
       clearAuthFlowState(state);
+      if (res.status === "error") {
+        state.credentialsAuthFlowError = res.error || "auth flow failed";
+        await loadCredentials(state);
+        return;
+      }
       state.credentialsAuthFlowResult = res.result ?? null;
       if (res.result?.configPatch) {
         const patch = hadProviderProfilesBefore
@@ -778,10 +886,16 @@ export function updateCredentialsAuthFlowAnswer(state: CredentialsState, next: u
 }
 
 export async function applyPendingCredentialsAuthFlowDefaults(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsAuthFlowBusy) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsAuthFlowBusy) {
+    return;
+  }
   const model = state.credentialsAuthFlowPendingDefaultModel?.trim() ?? "";
-  if (!model) return;
+  if (!model) {
+    return;
+  }
   state.credentialsAuthFlowBusy = true;
   state.credentialsAuthFlowApplyError = null;
   try {
@@ -796,8 +910,12 @@ export async function applyPendingCredentialsAuthFlowDefaults(state: Credentials
 }
 
 export async function startCredentialsWizard(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsWizardBusy) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsWizardBusy) {
+    return;
+  }
   state.credentialsWizardBusy = true;
   state.credentialsWizardError = null;
   try {
@@ -827,8 +945,12 @@ export async function startCredentialsWizard(state: CredentialsState) {
 }
 
 export async function resumeCredentialsWizard(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsWizardBusy) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsWizardBusy) {
+    return;
+  }
   state.credentialsWizardBusy = true;
   state.credentialsWizardError = null;
   try {
@@ -846,8 +968,12 @@ export async function resumeCredentialsWizard(state: CredentialsState) {
 }
 
 export async function cancelCurrentCredentialsWizard(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsWizardBusy) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsWizardBusy) {
+    return;
+  }
   state.credentialsWizardBusy = true;
   state.credentialsWizardError = null;
   try {
@@ -863,9 +989,15 @@ export async function cancelCurrentCredentialsWizard(state: CredentialsState) {
 }
 
 export async function advanceCredentialsWizard(state: CredentialsState) {
-  if (!state.client || !state.connected) return;
-  if (state.credentialsWizardBusy) return;
-  if (!state.credentialsWizardStep) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.credentialsWizardBusy) {
+    return;
+  }
+  if (!state.credentialsWizardStep) {
+    return;
+  }
   state.credentialsWizardBusy = true;
   state.credentialsWizardError = null;
   const submittedStep = state.credentialsWizardStep;

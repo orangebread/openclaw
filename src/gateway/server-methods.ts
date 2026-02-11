@@ -150,6 +150,7 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
     method.startsWith("update.") ||
     method === "gateway.restart" ||
     method === "channels.logout" ||
+    method === "channels.enable" ||
     method === "channels.install" ||
     method === "agents.create" ||
     method === "agents.update" ||

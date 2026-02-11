@@ -82,6 +82,7 @@ function createProps(overrides: Partial<ChannelsProps> = {}): ChannelsProps {
     installError: null,
     installSuccess: null,
     onInstallChannel: () => undefined,
+    onEnableChannel: () => undefined,
     restartBusy: false,
     restartError: null,
     onRestartGateway: () => undefined,
@@ -121,7 +122,7 @@ describe("renderChannels ghost cards", () => {
             label: "Matrix",
             installed: true,
             configured: false,
-            enabled: false,
+            enabled: true,
             hasSchema: false,
             blurb: "Matrix channel",
             install: { npmSpec: "@openclaw/matrix" },
@@ -131,6 +132,29 @@ describe("renderChannels ghost cards", () => {
     );
     const htmlString = stringifyTemplate(template);
     expect(htmlString).toContain("Restart gateway");
+    expect(htmlString).not.toContain(">Install<");
+    expect(htmlString).not.toContain(">Set up<");
+  });
+
+  it("renders Enable action for installed but disabled channels", () => {
+    const template = renderChannels(
+      createProps({
+        catalog: [
+          {
+            id: "matrix",
+            label: "Matrix",
+            installed: true,
+            configured: false,
+            enabled: false,
+            hasSchema: false,
+            blurb: "Matrix channel",
+          },
+        ],
+      }),
+    );
+    const htmlString = stringifyTemplate(template);
+    expect(htmlString).toContain("Enable");
+    expect(htmlString).not.toContain("Restart gateway");
     expect(htmlString).not.toContain(">Install<");
     expect(htmlString).not.toContain(">Set up<");
   });

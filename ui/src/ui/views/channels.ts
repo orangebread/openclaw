@@ -95,7 +95,7 @@ export function renderChannels(props: ChannelsProps) {
       props.installSuccess
         ? html`
             <div class="callout" style="margin-bottom: 12px">
-              Plugin installed. Restart gateway to activate.
+              Channel plugin updated. Restart gateway to activate.
             </div>
           `
         : nothing
@@ -360,16 +360,31 @@ function renderGhostChannelCard(entry: ChannelCatalogEntry, props: ChannelsProps
           <span class="label">Configured</span>
           <span>No</span>
         </div>
+        <div>
+          <span class="label">Enabled</span>
+          <span>${entry.enabled ? "Yes" : "No"}</span>
+        </div>
       </div>
       <div class="row" style="margin-top: 12px;">
         ${
-          entry.installed && entry.hasSchema
+          !entry.installed
             ? html`<button
                 class="btn"
-                @click=${() => props.onSetupChannel(entry.id)}
-              >Set up</button>`
-            : entry.installed
-              ? html`
+                ?disabled=${props.installBusy === entry.id}
+                @click=${() => props.onInstallChannel(entry.id)}
+              >${props.installBusy === entry.id ? "Installing…" : "Install"}</button>`
+            : !entry.enabled
+              ? html`<button
+                class="btn"
+                ?disabled=${props.installBusy === entry.id}
+                @click=${() => props.onEnableChannel(entry.id)}
+              >${props.installBusy === entry.id ? "Enabling…" : "Enable"}</button>`
+              : entry.hasSchema
+                ? html`<button
+                  class="btn"
+                  @click=${() => props.onSetupChannel(entry.id)}
+                >Set up</button>`
+                : html`
                   <div class="muted">Installed. Restart gateway to finish loading this channel.</div>
                   <button
                     class="btn"
@@ -377,11 +392,6 @@ function renderGhostChannelCard(entry: ChannelCatalogEntry, props: ChannelsProps
                     @click=${() => props.onRestartGateway()}
                   >${props.restartBusy ? "Restarting…" : "Restart gateway"}</button>
                 `
-              : html`<button
-                class="btn"
-                ?disabled=${props.installBusy === entry.id}
-                @click=${() => props.onInstallChannel(entry.id)}
-              >${props.installBusy === entry.id ? "Installing…" : "Install"}</button>`
         }
       </div>
     </div>

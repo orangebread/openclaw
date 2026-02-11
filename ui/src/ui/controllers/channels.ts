@@ -168,6 +168,33 @@ export async function installChannel(
   }
 }
 
+export async function enableChannel(
+  state: ChannelsState,
+  channelId: string,
+): Promise<{
+  ok: boolean;
+  channelId?: string;
+  error?: string;
+  restartRequired?: boolean;
+}> {
+  if (!state.client || !state.connected) {
+    return { ok: false, error: "Not connected" };
+  }
+  try {
+    const res = await state.client.request<{
+      ok: boolean;
+      channelId?: string;
+      error?: string;
+      restartRequired?: boolean;
+    }>("channels.enable", {
+      channelId,
+    });
+    return res;
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
 export async function restartGateway(
   state: ChannelsState,
 ): Promise<{ ok: boolean; error?: string }> {

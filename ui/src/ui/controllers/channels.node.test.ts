@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadChannelsAndCatalog, restartGateway, type ChannelsState } from "./channels.ts";
+import {
+  enableChannel,
+  loadChannelsAndCatalog,
+  restartGateway,
+  type ChannelsState,
+} from "./channels.ts";
 
 function createState(): ChannelsState {
   return {
@@ -144,5 +149,17 @@ describe("loadChannelsAndCatalog", () => {
       reason: "channels.install",
       restartDelayMs: 500,
     });
+  });
+
+  it("requests channels.enable for installed-but-disabled plugins", async () => {
+    const request = vi.fn(async () => ({ ok: true, channelId: "whatsapp", restartRequired: true }));
+    const state = createState();
+    state.connected = true;
+    state.client = { request } as unknown as ChannelsState["client"];
+
+    const res = await enableChannel(state, "whatsapp");
+
+    expect(res.ok).toBe(true);
+    expect(request).toHaveBeenCalledWith("channels.enable", { channelId: "whatsapp" });
   });
 });

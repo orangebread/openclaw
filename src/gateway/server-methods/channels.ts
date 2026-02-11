@@ -13,11 +13,17 @@ import {
   type ChannelId,
   getChannelPlugin,
   listChannelPlugins,
-  normalizeChannelId,
+  normalizeChannelId as normalizePluginChannelId,
 } from "../../channels/plugins/index.js";
 import { buildChannelAccountSnapshot } from "../../channels/plugins/status.js";
-import { loadConfig, readConfigFileSnapshot } from "../../config/config.js";
+import {
+  listChatChannels,
+  normalizeChannelId as normalizeDockedChannelId,
+} from "../../channels/registry.js";
+import { loadConfig, readConfigFileSnapshot, writeConfigFile } from "../../config/config.js";
 import { getChannelActivity } from "../../infra/channel-activity.js";
+import { normalizePluginsConfig, resolveEnableState } from "../../plugins/config-state.js";
+import { enablePluginInConfig } from "../../plugins/enable.js";
 import { installPluginFromNpmSpec, resolvePluginInstallDir } from "../../plugins/install.js";
 import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -27,6 +33,7 @@ import {
   errorShape,
   formatValidationErrors,
   validateChannelsCatalogParams,
+  validateChannelsEnableParams,
   validateChannelsInstallParams,
   validateChannelsLogoutParams,
   validateChannelsStatusParams,
@@ -53,6 +60,12 @@ function isCatalogPluginInstalled(params: { cfg: OpenClawConfig; channelId: stri
   } catch {
     return false;
   }
+}
+
+function resolveBundledPluginEnabled(params: { cfg: OpenClawConfig; pluginId: string }): boolean {
+  const pluginsConfig = normalizePluginsConfig(params.cfg.plugins);
+  const resolved = resolveEnableState(params.pluginId, "bundled", pluginsConfig);
+  return resolved.enabled;
 }
 
 export async function logoutChannelAccount(params: {
@@ -272,7 +285,7 @@ export const channelsHandlers: GatewayRequestHandlers = {
       return;
     }
     const rawChannel = (params as { channel?: unknown }).channel;
-    const channelId = typeof rawChannel === "string" ? normalizeChannelId(rawChannel) : null;
+    const channelId = typeof rawChannel === "string" ? normalizePluginChannelId(rawChannel) : null;
     if (!channelId) {
       respond(
         false,
@@ -314,6 +327,92 @@ export const channelsHandlers: GatewayRequestHandlers = {
       respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatForLog(err)));
     }
   },
+  "channels.enable": async ({ params, respond }) => {
+    if (!validateChannelsEnableParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid channels.enable params: ${formatValidationErrors(validateChannelsEnableParams.errors)}`,
+        ),
+      );
+      return;
+    }
+
+    const rawChannelId = (params as { channelId?: string }).channelId?.trim();
+    if (!rawChannelId) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "channelId is required"));
+      return;
+    }
+    const channelId = normalizeDockedChannelId(rawChannelId) ?? rawChannelId;
+    const knownChannelIds = new Set<string>([
+      ...listChannelPlugins().map((plugin) => plugin.id),
+      ...listChannelPluginCatalogEntries().map((entry) => entry.id),
+      ...listChatChannels().map((meta) => meta.id),
+    ]);
+    if (!knownChannelIds.has(channelId)) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `channel "${channelId}" not found in catalog`),
+      );
+      return;
+    }
+
+    const snapshot = await readConfigFileSnapshot();
+    if (!snapshot.valid) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "config invalid; fix it before enabling channels"),
+      );
+      return;
+    }
+
+    const enabled = enablePluginInConfig(snapshot.config ?? {}, channelId);
+    if (!enabled.enabled) {
+      respond(
+        false,
+        {
+          ok: false,
+          channelId,
+          error: enabled.reason ?? "channel enable failed",
+          restartRequired: false,
+        },
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `channel "${channelId}" cannot be enabled: ${enabled.reason ?? "unknown reason"}`,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await writeConfigFile(enabled.config);
+      respond(
+        true,
+        {
+          ok: true,
+          channelId,
+          restartRequired: true,
+        },
+        undefined,
+      );
+    } catch (err) {
+      const message = formatForLog(err);
+      respond(
+        false,
+        {
+          ok: false,
+          channelId,
+          error: message,
+          restartRequired: false,
+        },
+        errorShape(ErrorCodes.UNAVAILABLE, message),
+      );
+    }
+  },
   "channels.catalog": ({ params, respond }) => {
     if (!validateChannelsCatalogParams(params)) {
       respond(
@@ -330,9 +429,12 @@ export const channelsHandlers: GatewayRequestHandlers = {
     const cfg = loadConfig();
     const loadedPlugins = listChannelPlugins();
     const loadedIds = new Set(loadedPlugins.map((p) => p.id));
+    const coreChannelMeta = listChatChannels();
+    const coreChannelMetaById = new Map(coreChannelMeta.map((meta) => [meta.id, meta]));
 
     // Use listChannelPluginCatalogEntries for full discovery (bundled + external catalog).
     const catalogEntries = listChannelPluginCatalogEntries();
+    const catalogIds = new Set(catalogEntries.map((entry) => entry.id));
 
     const entries: Array<Record<string, unknown>> = [];
 
@@ -367,6 +469,7 @@ export const channelsHandlers: GatewayRequestHandlers = {
       if (loadedIds.has(catalogEntry.id)) {
         continue;
       }
+      const isCoreChannel = coreChannelMetaById.has(catalogEntry.id);
       entries.push({
         id: catalogEntry.id,
         label: catalogEntry.meta.label,
@@ -376,14 +479,35 @@ export const channelsHandlers: GatewayRequestHandlers = {
           catalogEntry.meta.label,
         blurb: catalogEntry.meta.blurb ?? "",
         ...(catalogEntry.meta.systemImage ? { systemImage: catalogEntry.meta.systemImage } : {}),
-        installed: isCatalogPluginInstalled({ cfg, channelId: catalogEntry.id }),
+        installed: isCoreChannel || isCatalogPluginInstalled({ cfg, channelId: catalogEntry.id }),
         configured: false,
-        enabled: false,
+        enabled: isCoreChannel
+          ? resolveBundledPluginEnabled({ cfg, pluginId: catalogEntry.id })
+          : false,
         hasSchema: false,
         install: {
           npmSpec: catalogEntry.install.npmSpec,
           ...(catalogEntry.install.localPath ? { localPath: catalogEntry.install.localPath } : {}),
         },
+      });
+    }
+
+    // Core channels can still be valid catalog targets even when plugin package metadata
+    // omits `openclaw.channel`. Keep them visible and actionable in the UI.
+    for (const meta of coreChannelMeta) {
+      if (loadedIds.has(meta.id) || catalogIds.has(meta.id)) {
+        continue;
+      }
+      entries.push({
+        id: meta.id,
+        label: meta.label,
+        detailLabel: meta.detailLabel ?? meta.selectionLabel ?? meta.label,
+        blurb: meta.blurb ?? "",
+        ...(meta.systemImage ? { systemImage: meta.systemImage } : {}),
+        installed: true,
+        configured: false,
+        enabled: resolveBundledPluginEnabled({ cfg, pluginId: meta.id }),
+        hasSchema: false,
       });
     }
 
