@@ -24,6 +24,7 @@ This is deliberately **read-only** in v1.
 ## 2) Security requirements
 
 Hard constraints:
+
 - No arbitrary filesystem reads.
 - No symlink traversal.
 - No `..` traversal.
@@ -31,11 +32,13 @@ Hard constraints:
 - Require authenticated operator scope.
 
 Recommended default allowlist (workspace-relative):
+
 - `notes/`
 - `links/`
 - `review/`
 
 Optional allowlist additions (explicit):
+
 - `memory/` (if desired)
 
 ## 3) Backend API design (Gateway WS)
@@ -43,59 +46,68 @@ Optional allowlist additions (explicit):
 ### 3.1 New methods
 
 #### `workspace.list`
+
 Params:
+
 ```jsonc
 {
   "agentId": "orchestrator",
-  "dir": "notes",               // workspace-relative
+  "dir": "notes", // workspace-relative
   "maxDepth": 4,
   "includeHidden": false,
-  "maxEntries": 500,            // safety cap (server may clamp)
-  "cursor": null                // optional pagination cursor (v1 optional)
+  "maxEntries": 500, // safety cap (server may clamp)
+  "cursor": null, // optional pagination cursor (v1 optional)
 }
 ```
 
 Response:
+
 ```jsonc
 {
   "dir": "notes",
   "cursor": null,
   "entries": [
     { "path": "notes/project-a.md", "kind": "file", "sizeBytes": 1234, "modifiedAtMs": 0 },
-    { "path": "notes/projects", "kind": "dir", "modifiedAtMs": 0 }
-  ]
+    { "path": "notes/projects", "kind": "dir", "modifiedAtMs": 0 },
+  ],
 }
 ```
 
 #### `workspace.read`
+
 Params:
+
 ```jsonc
 {
   "agentId": "orchestrator",
   "path": "notes/project-a.md",
-  "maxBytes": 200000
+  "maxBytes": 200000,
 }
 ```
 
 Response:
+
 ```jsonc
 {
   "path": "notes/project-a.md",
   "contentType": "text/markdown",
   "truncated": false,
-  "content": "..."
+  "content": "...",
 }
 ```
 
 ### 3.2 Authorization
 
 V1 recommendation (lowest integration friction):
+
 - Require `operator.read` (or `operator.admin`) for `workspace.list` and `workspace.read`.
 
 Optional future hardening:
+
 - Introduce a dedicated scope (e.g., `operator.workspace`) once scopes are plumbed end-to-end (pairing UI, token issuance, and gateway method authorization).
 
 Implementation approach:
+
 - Enforce scope inside the `workspace.*` handlers (deny with `NOT_AUTHORIZED`).
 
 ## 4) Backend implementation notes
