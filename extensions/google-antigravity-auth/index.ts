@@ -37,12 +37,24 @@ const RESPONSE_PAGE = `<!DOCTYPE html>
   <head>
     <meta charset="utf-8" />
     <title>OpenClaw Antigravity OAuth</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
   <body>
     <main>
       <h1>Authentication complete</h1>
-      <p>You can return to the terminal.</p>
+      <p>Returning you to OpenClaw…</p>
+      <p>If this tab does not close automatically, you can close it manually.</p>
     </main>
+    <script>
+      (() => {
+        try {
+          window.opener?.postMessage({ source: "openclaw-oauth", provider: "google-antigravity", status: "complete" }, "*");
+        } catch {}
+        window.setTimeout(() => {
+          window.close();
+        }, 120);
+      })();
+    </script>
   </body>
 </html>`;
 

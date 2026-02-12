@@ -125,6 +125,7 @@ export type CredentialsProps = {
   onResumeAuthFlow: () => void;
   onCancelAuthFlow: () => void;
   onAuthFlowAnswerChange: (next: unknown) => void;
+  onAuthFlowOpenUrl: (url: string) => void;
   onAuthFlowContinue: () => void;
   onApplyAuthFlowDefaults: () => void;
 
@@ -292,7 +293,9 @@ function renderAuthFlowStep(
       <div class="mono" style="white-space: pre-wrap; word-break: break-word;">${open.url}</div>
     </div>
     <div class="row" style="margin-top: 12px; gap: 10px; flex-wrap: wrap;">
-      <a class="btn" href=${open.url} target="_blank" rel="noreferrer">Open</a>
+      <button class="btn primary" ?disabled=${props.authFlowBusy} @click=${() => props.onAuthFlowOpenUrl(open.url)}>
+        ${props.authFlowBusy ? "Opening…" : "Open and continue"}
+      </button>
       <button
         class="btn"
         @click=${async () => {
@@ -305,7 +308,7 @@ function renderAuthFlowStep(
       >
         Copy
       </button>
-      ${renderContinue("I opened it")}
+      ${renderContinue("Continue manually")}
       <button class="btn" ?disabled=${props.authFlowBusy} @click=${props.onCancelAuthFlow}>
         Cancel
       </button>

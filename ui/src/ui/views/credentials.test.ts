@@ -52,6 +52,7 @@ describe("credentials view", () => {
     onResumeAuthFlow: vi.fn(),
     onCancelAuthFlow: vi.fn(),
     onAuthFlowAnswerChange: vi.fn(),
+    onAuthFlowOpenUrl: vi.fn(),
     onAuthFlowContinue: vi.fn(),
     onApplyAuthFlowDefaults: vi.fn(),
     onStartWizard: vi.fn(),

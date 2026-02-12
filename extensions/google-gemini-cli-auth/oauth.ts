@@ -284,9 +284,14 @@ async function waitForLocalCallback(params: {
         res.statusCode = 200;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.end(
-          "<!doctype html><html><head><meta charset='utf-8'/></head>" +
-            "<body><h2>Gemini CLI OAuth complete</h2>" +
-            "<p>You can close this window and return to OpenClaw.</p></body></html>",
+          "<!doctype html><html><head><meta charset='utf-8'/>" +
+            "<meta name='viewport' content='width=device-width, initial-scale=1'/>" +
+            "<title>OpenClaw Gemini OAuth</title></head>" +
+            "<body><main><h2>Gemini CLI OAuth complete</h2>" +
+            "<p>Returning you to OpenClaw…</p>" +
+            "<p>If this tab does not close automatically, you can close it manually.</p></main>" +
+            "<script>(()=>{try{window.opener?.postMessage({source:'openclaw-oauth',provider:'google-gemini-cli',status:'complete'},'*');}catch{}" +
+            "window.setTimeout(()=>window.close(),120);})();</script></body></html>",
         );
 
         finish(undefined, { code, state });

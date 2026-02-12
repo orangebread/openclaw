@@ -1,6 +1,8 @@
 import { html, nothing } from "lit";
+import { until } from "lit/directives/until.js";
 import type { AppViewState } from "./app-view-state.ts";
 import type { UsageState } from "./controllers/usage.ts";
+import type { KnowledgeBaseProps } from "./views/knowledge-base.ts";
 import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 import { refreshChatAvatar } from "./app-chat.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
@@ -32,6 +34,7 @@ import {
   cancelCurrentCredentialsWizard,
   confirmDeleteCredentialsProfile,
   loadCredentials,
+  openCredentialsAuthFlowUrl,
   requestDeleteCredentialsProfile,
   resumeCredentialsAuthFlow,
   resumeCredentialsWizard,
@@ -105,7 +108,6 @@ import { renderDebug } from "./views/debug.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
 import { renderInstances } from "./views/instances.ts";
-import { renderKnowledgeBase } from "./views/knowledge-base.ts";
 import { renderLogs } from "./views/logs.ts";
 import { renderNodes } from "./views/nodes.ts";
 import { renderOverview } from "./views/overview.ts";
@@ -115,6 +117,23 @@ import { renderUsage } from "./views/usage.ts";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
+
+let knowledgeBaseViewPromise: Promise<typeof import("./views/knowledge-base.ts")> | null = null;
+function loadKnowledgeBaseView() {
+  if (!knowledgeBaseViewPromise) {
+    knowledgeBaseViewPromise = import("./views/knowledge-base.ts");
+  }
+  return knowledgeBaseViewPromise;
+}
+
+function renderKnowledgeBaseLazy(props: KnowledgeBaseProps) {
+  return until(
+    loadKnowledgeBaseView().then((mod) => mod.renderKnowledgeBase(props)),
+    html`
+      <section class="card"><div class="muted">Loading…</div></section>
+    `,
+  );
+}
 
 function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   const list = state.agentsList?.agents ?? [];
@@ -421,6 +440,7 @@ export function renderApp(state: AppViewState) {
                 onResumeAuthFlow: () => resumeCredentialsAuthFlow(state),
                 onCancelAuthFlow: () => cancelCurrentCredentialsAuthFlow(state),
                 onAuthFlowAnswerChange: (next) => updateCredentialsAuthFlowAnswer(state, next),
+                onAuthFlowOpenUrl: (url) => openCredentialsAuthFlowUrl(state, url),
                 onAuthFlowContinue: () => advanceCredentialsAuthFlow(state),
                 onApplyAuthFlowDefaults: () => applyPendingCredentialsAuthFlowDefaults(state),
                 onStartWizard: () => startCredentialsWizard(state),
@@ -434,7 +454,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "knowledge-base"
-            ? renderKnowledgeBase({
+            ? renderKnowledgeBaseLazy({
                 connected: state.connected,
                 loading: state.kbLoading,
                 error: state.kbError,

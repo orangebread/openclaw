@@ -87,6 +87,9 @@ export type CredentialsState = {
 
 const credentialsLoadInFlight = new WeakMap<CredentialsState, Promise<void>>();
 const credentialsLoadQueued = new WeakMap<CredentialsState, boolean>();
+const authFlowHandledStepIds = new WeakMap<CredentialsState, Set<string>>();
+const authFlowPopupWindow = new WeakMap<CredentialsState, Window>();
+const authFlowAutoAdvanceTimer = new WeakMap<CredentialsState, number>();
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -101,6 +104,167 @@ function normalizeProviderId(provider?: string | null): string {
     return "zai";
   }
   return normalized;
+}
+
+function isOAuthLikeMethodId(methodId: string | null): boolean {
+  return Boolean(methodId && methodId.trim().toLowerCase().includes("oauth"));
+}
+
+function getHandledAuthFlowStepIds(state: CredentialsState): Set<string> {
+  let ids = authFlowHandledStepIds.get(state);
+  if (!ids) {
+    ids = new Set<string>();
+    authFlowHandledStepIds.set(state, ids);
+  }
+  return ids;
+}
+
+function clearAuthFlowAutoAdvanceTimer(state: CredentialsState) {
+  const timer = authFlowAutoAdvanceTimer.get(state);
+  if (timer === undefined) {
+    return;
+  }
+  authFlowAutoAdvanceTimer.delete(state);
+  try {
+    window.clearTimeout(timer);
+  } catch {
+    // ignore
+  }
+}
+
+function closeAuthFlowPopupWindow(state: CredentialsState) {
+  const popup = authFlowPopupWindow.get(state);
+  authFlowPopupWindow.delete(state);
+  if (!popup || popup.closed) {
+    return;
+  }
+  try {
+    popup.close();
+  } catch {
+    // ignore
+  }
+}
+
+function resetAuthFlowAutomation(state: CredentialsState, opts?: { closePopup?: boolean }) {
+  clearAuthFlowAutoAdvanceTimer(state);
+  authFlowHandledStepIds.delete(state);
+  if (opts?.closePopup) {
+    closeAuthFlowPopupWindow(state);
+  }
+}
+
+function prepareAuthFlowPopupWindow(state: CredentialsState, methodId: string | null) {
+  if (!isOAuthLikeMethodId(methodId)) {
+    return;
+  }
+  if (typeof window === "undefined" || typeof window.open !== "function") {
+    return;
+  }
+  closeAuthFlowPopupWindow(state);
+  try {
+    const popup = window.open("", "_blank");
+    if (!popup || popup.closed) {
+      return;
+    }
+    try {
+      popup.document.title = "OpenClaw OAuth";
+      popup.document.body.innerHTML =
+        '<main style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; padding: 24px;">' +
+        '<h1 style="margin: 0 0 8px 0; font-size: 20px;">Connecting…</h1>' +
+        '<p style="margin: 0; color: #475569;">We are opening your sign-in page.</p>' +
+        "</main>";
+    } catch {
+      // ignore
+    }
+    authFlowPopupWindow.set(state, popup);
+  } catch {
+    // ignore (popup blocked)
+  }
+}
+
+function openAuthFlowUrlInBrowser(state: CredentialsState, url: string): boolean {
+  const popup = authFlowPopupWindow.get(state);
+  if (popup && !popup.closed) {
+    try {
+      popup.location.assign(url);
+      popup.focus();
+      return true;
+    } catch {
+      // ignore and try fallback open below
+    }
+  }
+
+  if (typeof window === "undefined" || typeof window.open !== "function") {
+    return false;
+  }
+  try {
+    const opened = window.open(url, "_blank");
+    if (!opened || opened.closed) {
+      return false;
+    }
+    authFlowPopupWindow.set(state, opened);
+    try {
+      opened.focus();
+    } catch {
+      // ignore
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function scheduleAuthFlowAutoAdvance(state: CredentialsState, stepId: string, delayMs = 0) {
+  clearAuthFlowAutoAdvanceTimer(state);
+  if (typeof window === "undefined") {
+    return;
+  }
+  const timer = window.setTimeout(
+    () => {
+      if (!state.credentialsAuthFlowRunning || !state.credentialsAuthFlowOwned) {
+        return;
+      }
+      if (state.credentialsAuthFlowBusy) {
+        return;
+      }
+      if (state.credentialsAuthFlowStep?.id !== stepId) {
+        return;
+      }
+      void advanceCredentialsAuthFlow(state);
+    },
+    Math.max(0, delayMs),
+  );
+  authFlowAutoAdvanceTimer.set(state, timer);
+}
+
+function maybeAutoHandleAuthFlowStep(state: CredentialsState) {
+  const step = state.credentialsAuthFlowStep;
+  if (!step) {
+    return;
+  }
+  if (!isOAuthLikeMethodId(state.credentialsAuthFlowMethodId)) {
+    return;
+  }
+
+  const handledStepIds = getHandledAuthFlowStepIds(state);
+  if (handledStepIds.has(step.id)) {
+    return;
+  }
+
+  if (step.type === "note") {
+    handledStepIds.add(step.id);
+    scheduleAuthFlowAutoAdvance(state, step.id, 80);
+    return;
+  }
+
+  if (step.type === "openUrl") {
+    const opened = openAuthFlowUrlInBrowser(state, step.url);
+    if (!opened) {
+      return;
+    }
+    handledStepIds.add(step.id);
+    scheduleAuthFlowAutoAdvance(state, step.id, 120);
+  }
 }
 
 function stripDefaultModelPatch(patch: unknown): unknown {
@@ -265,6 +429,7 @@ function clearWizardState(state: CredentialsState) {
 }
 
 function clearAuthFlowState(state: CredentialsState) {
+  resetAuthFlowAutomation(state, { closePopup: true });
   state.credentialsAuthFlowRunning = false;
   state.credentialsAuthFlowOwned = false;
   state.credentialsAuthFlowSessionId = null;
@@ -313,6 +478,7 @@ async function refreshAuthFlowOwnership(
   state.credentialsAuthFlowOwned = Boolean(res.owned);
   state.credentialsAuthFlowSessionId = res.owned && res.sessionId ? res.sessionId : null;
   if (!state.credentialsAuthFlowOwned) {
+    resetAuthFlowAutomation(state, { closePopup: false });
     state.credentialsAuthFlowStep = null;
     state.credentialsAuthFlowAnswer = null;
   }
@@ -361,6 +527,7 @@ async function fetchAuthFlowStep(
   const step = res.step ?? null;
   state.credentialsAuthFlowStep = step;
   state.credentialsAuthFlowAnswer = resetAuthFlowAnswerForStep(step);
+  maybeAutoHandleAuthFlowStep(state);
   return step;
 }
 
@@ -708,6 +875,8 @@ export async function startCredentialsAuthFlow(
   if (state.credentialsAuthFlowBusy) {
     return;
   }
+  resetAuthFlowAutomation(state, { closePopup: true });
+  prepareAuthFlowPopupWindow(state, params.methodId);
   state.credentialsAuthFlowBusy = true;
   state.credentialsAuthFlowError = null;
   state.credentialsAuthFlowApplyError = null;
@@ -754,6 +923,7 @@ export async function startCredentialsAuthFlow(
     state.credentialsAuthFlowSessionId = res.sessionId;
     state.credentialsAuthFlowStep = res.step ?? null;
     state.credentialsAuthFlowAnswer = resetAuthFlowAnswerForStep(state.credentialsAuthFlowStep);
+    maybeAutoHandleAuthFlowStep(state);
   } catch (err) {
     state.credentialsAuthFlowError = String(err);
     await refreshAuthFlowOwnership(state);
@@ -865,6 +1035,7 @@ export async function advanceCredentialsAuthFlow(state: CredentialsState) {
     state.credentialsAuthFlowSessionId = sessionId;
     state.credentialsAuthFlowStep = res.step ?? null;
     state.credentialsAuthFlowAnswer = resetAuthFlowAnswerForStep(state.credentialsAuthFlowStep);
+    maybeAutoHandleAuthFlowStep(state);
   } catch (err) {
     state.credentialsAuthFlowError = String(err);
     await refreshAuthFlowOwnership(state);
@@ -883,6 +1054,23 @@ export async function advanceCredentialsAuthFlow(state: CredentialsState) {
 
 export function updateCredentialsAuthFlowAnswer(state: CredentialsState, next: unknown) {
   state.credentialsAuthFlowAnswer = next;
+}
+
+export async function openCredentialsAuthFlowUrl(state: CredentialsState, url: string) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (!url.trim()) {
+    return;
+  }
+  const opened = openAuthFlowUrlInBrowser(state, url);
+  if (!opened) {
+    state.credentialsAuthFlowError =
+      "Unable to open the browser automatically. Copy the URL and continue manually.";
+    return;
+  }
+  state.credentialsAuthFlowError = null;
+  await advanceCredentialsAuthFlow(state);
 }
 
 export async function applyPendingCredentialsAuthFlowDefaults(state: CredentialsState) {

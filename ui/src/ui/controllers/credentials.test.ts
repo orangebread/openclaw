@@ -5,6 +5,7 @@ import {
   advanceCredentialsWizard,
   cancelCurrentCredentialsAuthFlow,
   confirmDeleteCredentialsProfile,
+  openCredentialsAuthFlowUrl,
   requestDeleteCredentialsProfile,
   loadCredentials,
   startCredentialsAuthFlow,
@@ -353,6 +354,164 @@ describe("credentials controller", () => {
     expect(state.credentialsAuthFlowAnswer).toBeNull();
     expect(state.credentialsAuthFlowResult?.defaultModel).toBe("openai-codex/gpt-5.2");
     expect(state.credentialsAuthFlowApplyError).toBeNull();
+  });
+
+  it("auto-advances oauth note steps", async () => {
+    vi.useFakeTimers();
+    try {
+      const request = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+        if (method === "auth.flow.start") {
+          return {
+            sessionId: "flow-note",
+            done: false,
+            status: "running",
+            step: { id: "note-1", type: "note", message: "OAuth intro" },
+          };
+        }
+        if (method === "auth.flow.next") {
+          expect(params?.sessionId).toBe("flow-note");
+          const answer = params?.answer as { stepId?: string; value?: unknown } | undefined;
+          expect(answer?.stepId).toBe("note-1");
+          expect(answer?.value).toBe(true);
+          return {
+            done: false,
+            status: "running",
+            step: { id: "text-1", type: "text", message: "Paste callback URL", sensitive: true },
+          };
+        }
+        throw new Error(`unexpected method: ${method}`);
+      });
+
+      const state = createState({ client: { request } as unknown as GatewayBrowserClient });
+      await startCredentialsAuthFlow(state, {
+        providerId: "openai-codex",
+        methodId: "oauth",
+        mode: "remote",
+      });
+      expect(state.credentialsAuthFlowStep?.id).toBe("note-1");
+
+      await vi.runAllTimersAsync();
+      expect(state.credentialsAuthFlowStep?.id).toBe("text-1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens oauth URL in pre-opened popup and closes it after completion", async () => {
+    vi.useFakeTimers();
+    const popup = {
+      closed: false,
+      focus: vi.fn(),
+      close: vi.fn(),
+      location: { assign: vi.fn() },
+      document: {
+        title: "",
+        body: { innerHTML: "" },
+      },
+    } as unknown as Window;
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(popup);
+    try {
+      const request = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+        if (method === "auth.flow.start") {
+          return {
+            sessionId: "flow-open",
+            done: false,
+            status: "running",
+            step: { id: "open-1", type: "openUrl", url: "https://example.com/oauth" },
+          };
+        }
+        if (method === "auth.flow.next") {
+          expect(params?.sessionId).toBe("flow-open");
+          const answer = params?.answer as { stepId?: string; value?: unknown } | undefined;
+          expect(answer?.stepId).toBe("open-1");
+          expect(answer?.value).toBe(true);
+          return {
+            done: true,
+            status: "done",
+            result: { profiles: [] },
+          };
+        }
+        if (method === "auth.profiles.get") {
+          return { exists: true, profiles: [], baseHash: "hash-1" };
+        }
+        if (method === "auth.flow.list") {
+          return { quickConnect: [], providers: [] };
+        }
+        if (method === "auth.flow.current") {
+          return { running: false };
+        }
+        if (method === "wizard.current") {
+          return { running: false };
+        }
+        throw new Error(`unexpected method: ${method}`);
+      });
+
+      const state = createState({ client: { request } as unknown as GatewayBrowserClient });
+      await startCredentialsAuthFlow(state, {
+        providerId: "openai-codex",
+        methodId: "oauth",
+        mode: "local",
+      });
+      expect(openSpy).toHaveBeenCalledWith("", "_blank");
+      expect(state.credentialsAuthFlowStep?.id).toBe("open-1");
+
+      await vi.runAllTimersAsync();
+      expect(popup.location.assign).toHaveBeenCalledWith("https://example.com/oauth");
+      expect(popup.close).toHaveBeenCalled();
+      expect(state.credentialsAuthFlowRunning).toBe(false);
+    } finally {
+      openSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens URL and advances from manual open-url action", async () => {
+    const popup = {
+      closed: false,
+      focus: vi.fn(),
+      close: vi.fn(),
+    } as unknown as Window;
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(popup);
+    try {
+      const request = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+        if (method === "auth.flow.next") {
+          expect(params?.sessionId).toBe("flow-manual");
+          return { done: true, status: "done", result: { profiles: [] } };
+        }
+        if (method === "auth.profiles.get") {
+          return { exists: true, profiles: [], baseHash: "hash-1" };
+        }
+        if (method === "auth.flow.list") {
+          return { quickConnect: [], providers: [] };
+        }
+        if (method === "auth.flow.current") {
+          return { running: false };
+        }
+        if (method === "wizard.current") {
+          return { running: false };
+        }
+        throw new Error(`unexpected method: ${method}`);
+      });
+      const state = createState({
+        client: { request } as unknown as GatewayBrowserClient,
+        credentialsAuthFlowRunning: true,
+        credentialsAuthFlowOwned: true,
+        credentialsAuthFlowSessionId: "flow-manual",
+        credentialsAuthFlowMethodId: "oauth",
+        credentialsAuthFlowStep: {
+          id: "open-manual",
+          type: "openUrl",
+          url: "https://example.com/login",
+        },
+        credentialsAuthFlowAnswer: true,
+      });
+
+      await openCredentialsAuthFlowUrl(state, "https://example.com/login");
+      expect(openSpy).toHaveBeenCalledWith("https://example.com/login", "_blank");
+      expect(state.credentialsAuthFlowRunning).toBe(false);
+    } finally {
+      openSpy.mockRestore();
+    }
   });
 
   it("cancels current auth flow", async () => {
