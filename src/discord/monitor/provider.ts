@@ -15,6 +15,7 @@ import {
   resolveNativeSkillsEnabled,
 } from "../../config/commands.js";
 import { loadConfig } from "../../config/config.js";
+import { buildGatewayConnectionDetails } from "../../gateway/call.js";
 import { danger, logVerbose, shouldLogVerbose, warn } from "../../globals.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { createDiscordRetryRunner } from "../../infra/retry-policy.js";
@@ -49,6 +50,7 @@ import {
 export type MonitorDiscordOpts = {
   token?: string;
   accountId?: string;
+  gatewayUrl?: string;
   config?: OpenClawConfig;
   runtime?: RuntimeEnv;
   abortSignal?: AbortSignal;
@@ -467,6 +469,13 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     }),
   );
 
+  const approvalsGatewayUrl = buildGatewayConnectionDetails({
+    config: cfg,
+    ...(typeof opts.gatewayUrl === "string" && opts.gatewayUrl.trim()
+      ? { url: opts.gatewayUrl.trim() }
+      : {}),
+  }).url;
+
   // Initialize exec approvals handler if enabled
   const execApprovalsConfig = discordCfg.execApprovals ?? {};
   const execApprovalsHandler = execApprovalsConfig.enabled
@@ -474,6 +483,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         token,
         accountId: account.accountId,
         config: execApprovalsConfig,
+        gatewayUrl: approvalsGatewayUrl,
         cfg,
         runtime,
       })
@@ -485,6 +495,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         token,
         accountId: account.accountId,
         config: workflowApprovalsConfig,
+        gatewayUrl: approvalsGatewayUrl,
         cfg,
         runtime,
       })

@@ -61,7 +61,16 @@ const plugin = {
       log: api.logger,
     });
 
-    api.registerHttpHandler(httpHandler);
+    api.registerHttpHandler(httpHandler, {
+      auth: "gateway",
+      match: (req) => {
+        const url = new URL(req.url ?? "/", "http://localhost");
+        if (!url.pathname.startsWith("/api/channels/nostr/")) {
+          return false;
+        }
+        return Boolean(url.pathname.match(/^\/api\/channels\/nostr\/[^/]+\/profile(\/import)?$/));
+      },
+    });
   },
 };
 

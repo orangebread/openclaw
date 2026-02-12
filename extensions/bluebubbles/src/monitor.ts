@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
+import { timingSafeEqual } from "node:crypto";
 import {
   createReplyPrefixOptions,
   logAckFailure,
@@ -67,6 +68,13 @@ let blueBubblesShortIdCounter = 0;
 function trimOrUndefined(value?: string | null): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
 function generateShortId(): string {
@@ -1459,6 +1467,46 @@ export async function handleBlueBubblesWebhookRequest(
     return true;
   }
 
+  const authHeader = String(req.headers.authorization ?? "");
+  const bearer = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice("bearer ".length).trim()
+    : "";
+  const querySecret = (
+    url.searchParams.get("password") ??
+    url.searchParams.get("guid") ??
+    ""
+  ).trim();
+  if (bearer && querySecret && bearer !== querySecret) {
+    res.statusCode = 401;
+    res.end("unauthorized");
+    console.warn("[bluebubbles] webhook rejected: conflicting auth credentials provided");
+    return true;
+  }
+  const providedSecret = bearer || querySecret;
+  if (!providedSecret) {
+    res.statusCode = 401;
+    res.end("unauthorized");
+    console.warn("[bluebubbles] webhook rejected: missing webhook secret");
+    return true;
+  }
+
+  const matching = targets.filter((target) => {
+    const token = target.account.config.password?.trim();
+    if (!token) {
+      return false;
+    }
+    return safeEqual(providedSecret, token);
+  });
+
+  if (matching.length === 0) {
+    res.statusCode = 401;
+    res.end("unauthorized");
+    console.warn(
+      `[bluebubbles] webhook rejected: unauthorized password=${maskSecret(providedSecret)}`,
+    );
+    return true;
+  }
+
   const body = await readJsonBody(req, 1024 * 1024);
   if (!body.ok) {
     res.statusCode = body.error === "payload too large" ? 413 : 400;
@@ -1515,37 +1563,6 @@ export async function handleBlueBubblesWebhookRequest(
     res.statusCode = 400;
     res.end("invalid payload");
     console.warn("[bluebubbles] webhook rejected: unable to parse message payload");
-    return true;
-  }
-
-  const matching = targets.filter((target) => {
-    const token = target.account.config.password?.trim();
-    if (!token) {
-      return true;
-    }
-    const guidParam = url.searchParams.get("guid") ?? url.searchParams.get("password");
-    const headerToken =
-      req.headers["x-guid"] ??
-      req.headers["x-password"] ??
-      req.headers["x-bluebubbles-guid"] ??
-      req.headers["authorization"];
-    const guid = (Array.isArray(headerToken) ? headerToken[0] : headerToken) ?? guidParam ?? "";
-    if (guid && guid.trim() === token) {
-      return true;
-    }
-    const remote = req.socket?.remoteAddress ?? "";
-    if (remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1") {
-      return true;
-    }
-    return false;
-  });
-
-  if (matching.length === 0) {
-    res.statusCode = 401;
-    res.end("unauthorized");
-    console.warn(
-      `[bluebubbles] webhook rejected: unauthorized guid=${maskSecret(url.searchParams.get("guid") ?? url.searchParams.get("password") ?? "")}`,
-    );
     return true;
   }
 
