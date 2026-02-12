@@ -46,8 +46,8 @@ function scrollToCardWithinContent(targetId: string) {
     return;
   }
 
-  const content = el.closest(".content") as HTMLElement | null;
-  if (!content) {
+  const content = el.closest(".content");
+  if (!(content instanceof HTMLElement)) {
     el.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
@@ -902,7 +902,11 @@ export function renderCredentials(props: CredentialsProps) {
           if (!providerOptions.length) {
             return;
           }
-          onProviderChange(providerOptions[0]!.id);
+          const first = providerOptions[0];
+          if (!first) {
+            return;
+          }
+          onProviderChange(first.id);
         }}
       >
         <summary style="list-style: none; cursor: pointer;">
@@ -1612,7 +1616,10 @@ export function renderCredentials(props: CredentialsProps) {
               ${
                 props.disconnectDialog.impacts
                   ? (() => {
-                      const impacts = props.disconnectDialog.impacts!;
+                      const impacts = props.disconnectDialog.impacts;
+                      if (!impacts) {
+                        return nothing;
+                      }
                       const usedByAgents = Array.from(
                         new Set([...impacts.lockedTextAgents, ...impacts.lockedImageAgents]),
                       );

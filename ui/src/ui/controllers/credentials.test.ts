@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { GatewayBrowserClient } from "../gateway.js";
 import {
   advanceCredentialsAuthFlow,
   advanceCredentialsWizard,
@@ -11,7 +12,7 @@ import {
   startCredentialsWizard,
   upsertCredentialsApiKeyProfile,
   type CredentialsState,
-} from "./credentials";
+} from "./credentials.js";
 
 function createState(overrides?: Partial<CredentialsState>): CredentialsState {
   return {
@@ -74,10 +75,10 @@ describe("credentials controller", () => {
       }
       throw new Error(`unexpected method: ${method}`);
     });
-    const state = createState({ client: { request } as any });
+    const state = createState({ client: { request } as unknown as GatewayBrowserClient });
     await loadCredentials(state);
     expect(state.credentialsBaseHash).toBe("hash-1");
-    expect(state.credentialsProfiles.map((p) => p.id)).toEqual(["openai:default"]);
+    expect(state.credentialsProfiles.map((profile) => profile.id)).toEqual(["openai:default"]);
   });
 
   it("clears apiKey after failed upsert", async () => {
@@ -85,14 +86,22 @@ describe("credentials controller", () => {
       if (method === "auth.profiles.upsertApiKey") {
         throw new Error("auth store changed since last load; re-run auth.profiles.get and retry");
       }
-      if (method === "wizard.current") return { running: false };
-      if (method === "auth.flow.list") return { quickConnect: [], providers: [] };
-      if (method === "auth.flow.current") return { running: false };
-      if (method === "auth.profiles.get") return { exists: true, profiles: [], baseHash: "hash-1" };
+      if (method === "wizard.current") {
+        return { running: false };
+      }
+      if (method === "auth.flow.list") {
+        return { quickConnect: [], providers: [] };
+      }
+      if (method === "auth.flow.current") {
+        return { running: false };
+      }
+      if (method === "auth.profiles.get") {
+        return { exists: true, profiles: [], baseHash: "hash-1" };
+      }
       throw new Error(`unexpected method: ${method}`);
     });
     const state = createState({
-      client: { request } as any,
+      client: { request } as unknown as GatewayBrowserClient,
       credentialsBaseHash: "hash-1",
       credentialsApiKeyForm: {
         profileId: "openai:default",
@@ -107,7 +116,7 @@ describe("credentials controller", () => {
   });
 
   it("starts and advances wizard steps without persisting secrets", async () => {
-    const request = vi.fn(async (method: string, params?: any) => {
+    const request = vi.fn(async (method: string, params?: Record<string, unknown>) => {
       if (method === "wizard.start") {
         return {
           sessionId: "sess-1",
@@ -117,19 +126,30 @@ describe("credentials controller", () => {
         };
       }
       if (method === "wizard.next") {
-        if (params?.answer?.stepId !== "step-1") {
+        const answer = params?.answer as { stepId?: string } | undefined;
+        if (answer?.stepId !== "step-1") {
           throw new Error("unexpected stepId");
         }
         return { done: true, status: "done" };
       }
-      if (method === "wizard.current") return { running: false };
-      if (method === "auth.flow.list") return { quickConnect: [], providers: [] };
-      if (method === "auth.flow.current") return { running: false };
-      if (method === "auth.profiles.get") return { exists: true, profiles: [], baseHash: "hash-1" };
-      if (method === "wizard.cancelCurrent") return { cancelled: true };
+      if (method === "wizard.current") {
+        return { running: false };
+      }
+      if (method === "auth.flow.list") {
+        return { quickConnect: [], providers: [] };
+      }
+      if (method === "auth.flow.current") {
+        return { running: false };
+      }
+      if (method === "auth.profiles.get") {
+        return { exists: true, profiles: [], baseHash: "hash-1" };
+      }
+      if (method === "wizard.cancelCurrent") {
+        return { cancelled: true };
+      }
       throw new Error(`unexpected method: ${method}`);
     });
-    const state = createState({ client: { request } as any });
+    const state = createState({ client: { request } as unknown as GatewayBrowserClient });
     await startCredentialsWizard(state);
     expect(state.credentialsWizardRunning).toBe(true);
     expect(state.credentialsWizardStep?.type).toBe("text");
@@ -152,11 +172,15 @@ describe("credentials controller", () => {
           step: { id: "step-2", type: "note", title: "Hello", message: "Welcome" },
         };
       }
-      if (method === "auth.flow.list") return { quickConnect: [], providers: [] };
-      if (method === "auth.flow.current") return { running: false };
+      if (method === "auth.flow.list") {
+        return { quickConnect: [], providers: [] };
+      }
+      if (method === "auth.flow.current") {
+        return { running: false };
+      }
       throw new Error(`unexpected method: ${method}`);
     });
-    const state = createState({ client: { request } as any });
+    const state = createState({ client: { request } as unknown as GatewayBrowserClient });
     await resumeCredentialsWizard(state);
     expect(state.credentialsWizardRunning).toBe(true);
     expect(state.credentialsWizardOwned).toBe(true);
@@ -166,7 +190,7 @@ describe("credentials controller", () => {
 
   it("retries delete once on baseHash mismatch", async () => {
     let deleteCalls = 0;
-    const request = vi.fn(async (method: string, params?: any) => {
+    const request = vi.fn(async (method: string, params?: Record<string, unknown>) => {
       if (method === "auth.profiles.delete") {
         deleteCalls += 1;
         if (deleteCalls === 1) {
@@ -182,14 +206,20 @@ describe("credentials controller", () => {
       if (method === "config.get") {
         return { valid: false };
       }
-      if (method === "wizard.current") return { running: false };
-      if (method === "auth.flow.list") return { quickConnect: [], providers: [] };
-      if (method === "auth.flow.current") return { running: false };
+      if (method === "wizard.current") {
+        return { running: false };
+      }
+      if (method === "auth.flow.list") {
+        return { quickConnect: [], providers: [] };
+      }
+      if (method === "auth.flow.current") {
+        return { running: false };
+      }
       throw new Error(`unexpected method: ${method}`);
     });
 
     const state = createState({
-      client: { request } as any,
+      client: { request } as unknown as GatewayBrowserClient,
       credentialsBaseHash: "hash-1",
       credentialsProfiles: [
         { id: "openai:default", provider: "openai", type: "api_key", preview: "sk-••••" },
@@ -203,9 +233,9 @@ describe("credentials controller", () => {
   });
 
   it("refreshes credentials after delete even if a load is in-flight", async () => {
-    let resolveFirstGet!: (value: any) => void;
-    const firstGet = new Promise((resolve) => {
-      resolveFirstGet = resolve as any;
+    let resolveFirstGet!: (value: unknown) => void;
+    const firstGet = new Promise<unknown>((resolve) => {
+      resolveFirstGet = resolve;
     });
 
     let getCalls = 0;
@@ -217,16 +247,26 @@ describe("credentials controller", () => {
         }
         return { exists: true, profiles: [], baseHash: "hash-2" };
       }
-      if (method === "wizard.current") return { running: false };
-      if (method === "auth.flow.list") return { quickConnect: [], providers: [] };
-      if (method === "auth.flow.current") return { running: false };
-      if (method === "auth.profiles.delete") return { baseHash: "hash-1" };
-      if (method === "config.get") return { valid: false };
+      if (method === "wizard.current") {
+        return { running: false };
+      }
+      if (method === "auth.flow.list") {
+        return { quickConnect: [], providers: [] };
+      }
+      if (method === "auth.flow.current") {
+        return { running: false };
+      }
+      if (method === "auth.profiles.delete") {
+        return { baseHash: "hash-1" };
+      }
+      if (method === "config.get") {
+        return { valid: false };
+      }
       throw new Error(`unexpected method: ${method}`);
     });
 
     const state = createState({
-      client: { request } as any,
+      client: { request } as unknown as GatewayBrowserClient,
       credentialsBaseHash: "hash-1",
       credentialsProfiles: [
         { id: "openai:default", provider: "openai", type: "api_key", preview: "sk-••••" },
@@ -252,7 +292,7 @@ describe("credentials controller", () => {
   });
 
   it("starts and completes auth flow and applies config patch", async () => {
-    const request = vi.fn(async (method: string, params?: any) => {
+    const request = vi.fn(async (method: string, params?: Record<string, unknown>) => {
       if (method === "auth.flow.start") {
         expect(params?.providerId).toBe("openai-codex");
         return {
@@ -264,7 +304,8 @@ describe("credentials controller", () => {
       }
       if (method === "auth.flow.next") {
         expect(params?.sessionId).toBe("flow-1");
-        expect(params?.answer?.stepId).toBe("step-1");
+        const answer = params?.answer as { stepId?: string } | undefined;
+        expect(answer?.stepId).toBe("step-1");
         return {
           done: true,
           status: "done",
@@ -283,14 +324,22 @@ describe("credentials controller", () => {
         expect(String(params?.raw)).toContain("openai-codex/gpt-5.2");
         return { ok: true };
       }
-      if (method === "auth.flow.current") return { running: false };
-      if (method === "auth.flow.list") return { quickConnect: [], providers: [] };
-      if (method === "wizard.current") return { running: false };
-      if (method === "auth.profiles.get") return { exists: true, profiles: [], baseHash: "hash-1" };
+      if (method === "auth.flow.current") {
+        return { running: false };
+      }
+      if (method === "auth.flow.list") {
+        return { quickConnect: [], providers: [] };
+      }
+      if (method === "wizard.current") {
+        return { running: false };
+      }
+      if (method === "auth.profiles.get") {
+        return { exists: true, profiles: [], baseHash: "hash-1" };
+      }
       throw new Error(`unexpected method: ${method}`);
     });
 
-    const state = createState({ client: { request } as any });
+    const state = createState({ client: { request } as unknown as GatewayBrowserClient });
     await startCredentialsAuthFlow(state, {
       providerId: "openai-codex",
       methodId: "oauth",
@@ -308,19 +357,29 @@ describe("credentials controller", () => {
 
   it("cancels current auth flow", async () => {
     const request = vi.fn(async (method: string) => {
-      if (method === "auth.flow.cancelCurrent") return { cancelled: true };
-      if (method === "auth.flow.list") return { quickConnect: [], providers: [] };
-      if (method === "auth.flow.current") return { running: false };
-      if (method === "wizard.current") return { running: false };
-      if (method === "auth.profiles.get") return { exists: true, profiles: [], baseHash: "hash-1" };
+      if (method === "auth.flow.cancelCurrent") {
+        return { cancelled: true };
+      }
+      if (method === "auth.flow.list") {
+        return { quickConnect: [], providers: [] };
+      }
+      if (method === "auth.flow.current") {
+        return { running: false };
+      }
+      if (method === "wizard.current") {
+        return { running: false };
+      }
+      if (method === "auth.profiles.get") {
+        return { exists: true, profiles: [], baseHash: "hash-1" };
+      }
       throw new Error(`unexpected method: ${method}`);
     });
     const state = createState({
-      client: { request } as any,
+      client: { request } as unknown as GatewayBrowserClient,
       credentialsAuthFlowRunning: true,
       credentialsAuthFlowOwned: true,
       credentialsAuthFlowSessionId: "flow-2",
-      credentialsAuthFlowStep: { id: "step-2", type: "note", title: "Hi", message: "Hello" } as any,
+      credentialsAuthFlowStep: { id: "step-2", type: "note", title: "Hi", message: "Hello" },
       credentialsAuthFlowAnswer: true,
     });
     await cancelCurrentCredentialsAuthFlow(state);

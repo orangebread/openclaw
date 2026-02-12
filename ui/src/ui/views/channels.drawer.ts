@@ -4,7 +4,6 @@ import type {
   DiscordStatus,
   GoogleChatStatus,
   IMessageStatus,
-  NostrProfile,
   NostrStatus,
   SignalStatus,
   SlackStatus,

@@ -1,6 +1,6 @@
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
-import { renderCredentials, type CredentialsProps } from "./credentials";
+import { renderCredentials, type CredentialsProps } from "./credentials.js";
 
 describe("credentials view", () => {
   const base = (): CredentialsProps => ({

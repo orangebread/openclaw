@@ -1,4 +1,4 @@
-import type { GatewayBrowserClient } from "../gateway";
+import type { GatewayBrowserClient } from "../gateway.js";
 import type {
   AuthProfileSummary,
   AuthProfilesGetResult,
@@ -13,7 +13,7 @@ import type {
   WizardNextResult,
   WizardStartResult,
   WizardStep,
-} from "../types";
+} from "../types.js";
 
 export type CredentialsApiKeyFormState = {
   profileId: string;
@@ -108,7 +108,11 @@ function stripDefaultModelPatch(patch: unknown): unknown {
     return patch;
   }
   // Config patch is transported over the wire as JSON; assume it's JSON-serializable.
-  const clone = JSON.parse(JSON.stringify(patch)) as Record<string, unknown>;
+  const cloneRaw: unknown = JSON.parse(JSON.stringify(patch));
+  if (!isPlainRecord(cloneRaw)) {
+    return patch;
+  }
+  const clone = cloneRaw;
   const agents = clone.agents;
   if (isPlainRecord(agents)) {
     const defaults = agents.defaults;
@@ -153,7 +157,7 @@ async function loadDisconnectImpacts(
     };
   }
   try {
-    const snapshot = (await state.client.request("config.get", {})) as ConfigSnapshot | undefined;
+    const snapshot = await state.client.request<ConfigSnapshot>("config.get", {});
     if (!snapshot?.valid || !isPlainRecord(snapshot.config)) {
       return {
         referencedByConfigAuthProfiles: false,
@@ -161,7 +165,7 @@ async function loadDisconnectImpacts(
         lockedImageAgents: [],
       };
     }
-    const cfg = snapshot.config as Record<string, unknown>;
+    const cfg = snapshot.config;
 
     const auth = cfg.auth;
     const referencedByConfigAuthProfiles = Boolean(
@@ -277,7 +281,7 @@ async function refreshWizardOwnership(
   if (!state.client || !state.connected) {
     return null;
   }
-  const res = (await state.client.request("wizard.current", {})) as WizardCurrentResult | undefined;
+  const res = await state.client.request<WizardCurrentResult>("wizard.current", {});
   if (!res?.running) {
     clearWizardState(state);
     return null;
@@ -299,9 +303,7 @@ async function refreshAuthFlowOwnership(
   if (!state.client || !state.connected) {
     return null;
   }
-  const res = (await state.client.request("auth.flow.current", {})) as
-    | AuthFlowCurrentResult
-    | undefined;
+  const res = await state.client.request<AuthFlowCurrentResult>("auth.flow.current", {});
   if (!res?.running) {
     clearAuthFlowState(state);
     return null;
@@ -321,9 +323,11 @@ async function fetchWizardStep(
   state: CredentialsState,
   sessionId: string,
 ): Promise<WizardStep | null> {
-  const res = (await state.client?.request("wizard.next", { sessionId })) as
-    | WizardNextResult
-    | undefined;
+  const client = state.client;
+  if (!client || !state.connected) {
+    return null;
+  }
+  const res = await client.request<WizardNextResult>("wizard.next", { sessionId });
   if (!res) {
     return null;
   }
@@ -341,9 +345,11 @@ async function fetchAuthFlowStep(
   state: CredentialsState,
   sessionId: string,
 ): Promise<AuthFlowStep | null> {
-  const res = (await state.client?.request("auth.flow.next", { sessionId })) as
-    | AuthFlowNextResult
-    | undefined;
+  const client = state.client;
+  if (!client || !state.connected) {
+    return null;
+  }
+  const res = await client.request<AuthFlowNextResult>("auth.flow.next", { sessionId });
   if (!res) {
     return null;
   }
@@ -352,7 +358,7 @@ async function fetchAuthFlowStep(
     state.credentialsAuthFlowResult = res.result ?? null;
     return null;
   }
-  const step = (res.step ?? null) as AuthFlowStep | null;
+  const step = res.step ?? null;
   state.credentialsAuthFlowStep = step;
   state.credentialsAuthFlowAnswer = resetAuthFlowAnswerForStep(step);
   return step;
@@ -386,15 +392,15 @@ export async function loadCredentials(state: CredentialsState) {
         state.credentialsAuthFlowError = null;
         try {
           const settled = await Promise.allSettled([
-            state.client!.request("auth.profiles.get", {}),
-            state.client!.request("auth.flow.list", {}),
+            state.client!.request<AuthProfilesGetResult>("auth.profiles.get", {}),
+            state.client!.request<AuthFlowListResult>("auth.flow.list", {}),
             refreshWizardOwnership(state),
             refreshAuthFlowOwnership(state),
           ]);
 
           const authRes = settled[0];
           if (authRes.status === "fulfilled") {
-            const auth = authRes.value as AuthProfilesGetResult | undefined;
+            const auth = authRes.value;
             state.credentialsProfiles = auth?.profiles ?? [];
             state.credentialsBaseHash = auth?.baseHash ?? null;
           } else {
@@ -403,7 +409,7 @@ export async function loadCredentials(state: CredentialsState) {
 
           const flowListRes = settled[1];
           if (flowListRes.status === "fulfilled") {
-            state.credentialsAuthFlowList = flowListRes.value as AuthFlowListResult;
+            state.credentialsAuthFlowList = flowListRes.value;
           } else {
             state.credentialsAuthFlowError = String(flowListRes.reason);
           }
@@ -457,7 +463,7 @@ async function applyAuthFlowConfigPatch(state: CredentialsState, patch: unknown)
   state.credentialsAuthFlowApplyError = null;
 
   const attempt = async () => {
-    const snap = (await state.client!.request("config.get", {})) as ConfigSnapshot | undefined;
+    const snap = await state.client!.request<ConfigSnapshot>("config.get", {});
     if (!snap?.exists) {
       throw new Error("config does not exist; run onboarding or create config before patching");
     }
@@ -510,13 +516,13 @@ export async function upsertCredentialsApiKeyProfile(state: CredentialsState) {
     }
 
     const attemptUpsert = async () => {
-      const res = (await state.client!.request("auth.profiles.upsertApiKey", {
+      const res = await state.client!.request<{ baseHash?: string }>("auth.profiles.upsertApiKey", {
         baseHash: state.credentialsBaseHash ?? undefined,
         profileId,
         provider,
         apiKey,
         ...(emailRaw ? { email: emailRaw } : {}),
-      })) as { baseHash?: string } | undefined;
+      });
       state.credentialsBaseHash = res?.baseHash ?? state.credentialsBaseHash;
     };
 
@@ -662,10 +668,10 @@ export async function confirmDeleteCredentialsProfile(state: CredentialsState, p
   state.credentialsError = null;
   try {
     const attemptDelete = async () => {
-      const res = (await state.client!.request("auth.profiles.delete", {
+      const res = await state.client!.request<{ baseHash?: string }>("auth.profiles.delete", {
         baseHash: state.credentialsBaseHash ?? undefined,
         profileId: trimmed,
-      })) as { baseHash?: string } | undefined;
+      });
       state.credentialsBaseHash = res?.baseHash ?? state.credentialsBaseHash;
     };
 
@@ -713,11 +719,11 @@ export async function startCredentialsAuthFlow(
     (p) => normalizeProviderId(p.provider) === normalizeProviderId(params.providerId),
   );
   try {
-    const res = (await state.client.request("auth.flow.start", {
+    const res = await state.client.request<AuthFlowStartResult>("auth.flow.start", {
       providerId: params.providerId,
       methodId: params.methodId,
       mode: params.mode,
-    })) as AuthFlowStartResult | undefined;
+    });
     if (!res?.sessionId) {
       state.credentialsAuthFlowError = "auth flow start failed";
       return;
@@ -746,7 +752,7 @@ export async function startCredentialsAuthFlow(
     state.credentialsAuthFlowRunning = true;
     state.credentialsAuthFlowOwned = true;
     state.credentialsAuthFlowSessionId = res.sessionId;
-    state.credentialsAuthFlowStep = (res.step ?? null) as AuthFlowStep | null;
+    state.credentialsAuthFlowStep = res.step ?? null;
     state.credentialsAuthFlowAnswer = resetAuthFlowAnswerForStep(state.credentialsAuthFlowStep);
   } catch (err) {
     state.credentialsAuthFlowError = String(err);
@@ -821,8 +827,7 @@ export async function advanceCredentialsAuthFlow(state: CredentialsState) {
     const hadProviderProfilesBefore = state.credentialsAuthFlowHadProviderProfilesBefore;
     const sessionId =
       state.credentialsAuthFlowSessionId ??
-      ((await state.client.request("auth.flow.current", {})) as AuthFlowCurrentResult | undefined)
-        ?.sessionId ??
+      (await state.client.request<AuthFlowCurrentResult>("auth.flow.current", {}))?.sessionId ??
       null;
     if (!sessionId) {
       state.credentialsAuthFlowError = "auth flow session id unavailable; reload and retry";
@@ -831,15 +836,10 @@ export async function advanceCredentialsAuthFlow(state: CredentialsState) {
 
     const step = submittedStep;
     const value = state.credentialsAuthFlowAnswer;
-    const res = (await state.client.request("auth.flow.next", {
+    const res = await state.client.request<AuthFlowNextResult>("auth.flow.next", {
       sessionId,
       answer: { stepId: step.id, value },
-    })) as AuthFlowNextResult | undefined;
-
-    if (!res) {
-      state.credentialsAuthFlowError = "auth flow step failed";
-      return;
-    }
+    });
     if (res.done || (res.status && res.status !== "running")) {
       clearAuthFlowState(state);
       if (res.status === "error") {
@@ -863,7 +863,7 @@ export async function advanceCredentialsAuthFlow(state: CredentialsState) {
     state.credentialsAuthFlowRunning = true;
     state.credentialsAuthFlowOwned = true;
     state.credentialsAuthFlowSessionId = sessionId;
-    state.credentialsAuthFlowStep = (res.step ?? null) as AuthFlowStep | null;
+    state.credentialsAuthFlowStep = res.step ?? null;
     state.credentialsAuthFlowAnswer = resetAuthFlowAnswerForStep(state.credentialsAuthFlowStep);
   } catch (err) {
     state.credentialsAuthFlowError = String(err);
@@ -919,9 +919,7 @@ export async function startCredentialsWizard(state: CredentialsState) {
   state.credentialsWizardBusy = true;
   state.credentialsWizardError = null;
   try {
-    const res = (await state.client.request("wizard.start", { mode: "local" })) as
-      | WizardStartResult
-      | undefined;
+    const res = await state.client.request<WizardStartResult>("wizard.start", { mode: "local" });
     if (!res?.sessionId) {
       state.credentialsWizardError = "wizard start failed";
       return;
@@ -1008,8 +1006,7 @@ export async function advanceCredentialsWizard(state: CredentialsState) {
   try {
     const sessionId =
       state.credentialsWizardSessionId ??
-      ((await state.client.request("wizard.current", {})) as WizardCurrentResult | undefined)
-        ?.sessionId ??
+      (await state.client.request<WizardCurrentResult>("wizard.current", {}))?.sessionId ??
       null;
     if (!sessionId) {
       state.credentialsWizardError = "wizard session id unavailable; reload and retry";
@@ -1018,15 +1015,10 @@ export async function advanceCredentialsWizard(state: CredentialsState) {
 
     const step = submittedStep;
     const value = state.credentialsWizardAnswer;
-    const res = (await state.client.request("wizard.next", {
+    const res = await state.client.request<WizardNextResult>("wizard.next", {
       sessionId,
       answer: { stepId: step.id, value },
-    })) as WizardNextResult | undefined;
-
-    if (!res) {
-      state.credentialsWizardError = "wizard step failed";
-      return;
-    }
+    });
     if (res.done || (res.status && res.status !== "running")) {
       clearWizardState(state);
       await loadCredentials(state);

@@ -918,8 +918,10 @@ function renderAddAgentForm(props: AgentsProps) {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
-    const name = String(formData.get("name") ?? "").trim();
-    const emoji = String(formData.get("emoji") ?? "").trim();
+    const nameRaw = formData.get("name");
+    const emojiRaw = formData.get("emoji");
+    const name = (typeof nameRaw === "string" ? nameRaw : "").trim();
+    const emoji = (typeof emojiRaw === "string" ? emojiRaw : "").trim();
     if (!name) {
       return;
     }
