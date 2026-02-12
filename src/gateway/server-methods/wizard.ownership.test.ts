@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { GatewayClient, GatewayRequestContext } from "./types.js";
 import { createWizardSessionTracker } from "../server-wizard-sessions.js";
 import { wizardHandlers } from "./wizard.js";
 
@@ -17,13 +18,17 @@ describe("wizard RPC ownership", () => {
       wizardSessions: tracker.wizardSessions,
       findRunningWizard: tracker.findRunningWizard,
       purgeWizardSession: tracker.purgeWizardSession,
-      wizardRunner: async (_opts: unknown, _runtime: unknown, prompter: any) => {
+      wizardRunner: async (
+        _opts: unknown,
+        _runtime: unknown,
+        prompter: { text: (params: { message: string; sensitive?: boolean }) => Promise<unknown> },
+      ) => {
         await prompter.text({ message: "Secret", sensitive: true });
       },
-    } as any;
+    } as unknown as GatewayRequestContext;
 
-    const ownerClient = { connect: { device: { id: "dev-owner" } } } as any;
-    const otherClient = { connect: { device: { id: "dev-other" } } } as any;
+    const ownerClient = { connect: { device: { id: "dev-owner" } } } as unknown as GatewayClient;
+    const otherClient = { connect: { device: { id: "dev-other" } } } as unknown as GatewayClient;
 
     {
       const { calls, respond } = createRespondCapture();

@@ -80,6 +80,7 @@ import {
   ErrorCodes,
   errorShape,
   formatValidationErrors,
+  type AuthFlowListResult,
   validateAuthFlowCancelCurrentParams,
   validateAuthFlowCurrentParams,
   validateAuthFlowListParams,
@@ -116,6 +117,9 @@ type BuiltinApiKeyProviderEntry = {
   /** Apply the full config (provider config + set default model). */
   applyConfig: (cfg: OpenClawConfig) => OpenClawConfig;
 };
+
+type AuthFlowMethodUi = AuthFlowListResult["providers"][number]["methods"][number];
+type AuthFlowProviderUi = AuthFlowListResult["providers"][number];
 
 const BUILTIN_API_KEY_PROVIDERS: BuiltinApiKeyProviderEntry[] = [
   {
@@ -816,7 +820,13 @@ async function runPluginProviderFlow(params: {
       agentDir: resolveOpenClawAgentDir(),
     });
     profiles.push(
-      toCompletionProfile({ profileId: entry.profileId, credential: entry.credential as any }),
+      toCompletionProfile({
+        profileId: entry.profileId,
+        credential: entry.credential as unknown as { type: string; provider: string } & Record<
+          string,
+          unknown
+        >,
+      }),
     );
   }
 
@@ -1016,7 +1026,7 @@ function diffConfigPatch(before: OpenClawConfig, after: OpenClawConfig): Record<
       patch[key] = after[key];
     }
   }
-  return stripSecretsFromPatch(patch);
+  return stripSecretsFromPatch(patch) as Record<string, unknown>;
 }
 
 /**
@@ -1025,7 +1035,7 @@ function diffConfigPatch(before: OpenClawConfig, after: OpenClawConfig): Record<
  * credential model is write-only; the patch should only carry structural
  * config (base URLs, model definitions, auth profile references, etc.).
  */
-function stripSecretsFromPatch(value: unknown): any {
+function stripSecretsFromPatch(value: unknown): unknown {
   if (!isPlainRecord(value)) {
     return value;
   }
@@ -1080,7 +1090,10 @@ export const authFlowHandlers: GatewayRequestHandlers = {
       },
     });
 
-    const providersById = new Map<string, { providerId: string; label: string; methods: any[] }>();
+    const providersById = new Map<
+      string,
+      { providerId: string; label: string; methods: AuthFlowMethodUi[] }
+    >();
     for (const entry of registry.providers) {
       const provider = entry.provider;
       const providerId = provider.id;
@@ -1237,16 +1250,12 @@ export const authFlowHandlers: GatewayRequestHandlers = {
         .filter((m) => m.kind === "oauth"),
     ];
 
-    const providers = Array.from(providersById.values())
-      .map((p) => ({
-        providerId: p.providerId,
-        label: p.label,
-        methods: p.methods,
-      }))
+    const providers: AuthFlowProviderUi[] = Array.from(providersById.values())
+      .map((p) => ({ providerId: p.providerId, label: p.label, methods: p.methods }))
       .toSorted((a, b) => a.label.localeCompare(b.label))
       .map((p) => ({
         ...p,
-        methods: p.methods.toSorted((a: any, b: any) => a.label.localeCompare(b.label)),
+        methods: p.methods.toSorted((a, b) => a.label.localeCompare(b.label)),
       }));
 
     respond(true, { quickConnect, providers }, undefined);

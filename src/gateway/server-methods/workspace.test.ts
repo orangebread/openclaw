@@ -7,6 +7,9 @@ import { workspaceHandlers } from "./workspace.js";
 
 const noop = () => false;
 
+type WorkspaceListHandlerArgs = Parameters<(typeof workspaceHandlers)["workspace.list"]>[0];
+type WorkspaceReadHandlerArgs = Parameters<(typeof workspaceHandlers)["workspace.read"]>[0];
+
 async function withTempWorkspace<T>(fn: (workspaceDir: string) => Promise<T>) {
   const prev = {
     home: process.env.HOME,
@@ -62,7 +65,7 @@ describe("workspace.*", () => {
       await workspaceHandlers["workspace.list"]({
         params: { agentId: "main", dir: "notes", maxDepth: 0, maxEntries: 1000, cursor: null },
         respond,
-        context: {} as any,
+        context: {} as unknown as WorkspaceListHandlerArgs["context"],
         client: null,
         req: { id: "req-1", type: "req", method: "workspace.list" },
         isWebchatConnect: noop,
@@ -85,7 +88,7 @@ describe("workspace.*", () => {
     await workspaceHandlers["workspace.list"]({
       params: { agentId: "main", dir: "secrets", maxDepth: 0, maxEntries: 10, cursor: null },
       respond,
-      context: {} as any,
+      context: {} as unknown as WorkspaceListHandlerArgs["context"],
       client: null,
       req: { id: "req-1", type: "req", method: "workspace.list" },
       isWebchatConnect: noop,
@@ -103,7 +106,7 @@ describe("workspace.*", () => {
     await workspaceHandlers["workspace.read"]({
       params: { agentId: "main", path: "notes/../links/x.md", maxBytes: 10 },
       respond,
-      context: {} as any,
+      context: {} as unknown as WorkspaceReadHandlerArgs["context"],
       client: null,
       req: { id: "req-1", type: "req", method: "workspace.read" },
       isWebchatConnect: noop,
@@ -121,7 +124,7 @@ describe("workspace.*", () => {
     await workspaceHandlers["workspace.read"]({
       params: { agentId: "main", path: "notes/image.png", maxBytes: 10 },
       respond,
-      context: {} as any,
+      context: {} as unknown as WorkspaceReadHandlerArgs["context"],
       client: null,
       req: { id: "req-1", type: "req", method: "workspace.read" },
       isWebchatConnect: noop,
@@ -145,7 +148,7 @@ describe("workspace.*", () => {
       await workspaceHandlers["workspace.list"]({
         params: { agentId: "main", dir: "notes", maxDepth: 0, maxEntries: 50, cursor: null },
         respond: respondList,
-        context: {} as any,
+        context: {} as unknown as WorkspaceListHandlerArgs["context"],
         client: null,
         req: { id: "req-1", type: "req", method: "workspace.list" },
         isWebchatConnect: noop,
@@ -157,7 +160,7 @@ describe("workspace.*", () => {
       await workspaceHandlers["workspace.read"]({
         params: { agentId: "main", path: "notes/evil.txt", maxBytes: 50 },
         respond: respondRead,
-        context: {} as any,
+        context: {} as unknown as WorkspaceReadHandlerArgs["context"],
         client: null,
         req: { id: "req-1", type: "req", method: "workspace.read" },
         isWebchatConnect: noop,
@@ -176,7 +179,7 @@ describe("workspace.*", () => {
       await workspaceHandlers["workspace.read"]({
         params: { agentId: "main", path: "notes/big.txt", maxBytes: 10 },
         respond: respondSmall,
-        context: {} as any,
+        context: {} as unknown as WorkspaceReadHandlerArgs["context"],
         client: null,
         req: { id: "req-1", type: "req", method: "workspace.read" },
         isWebchatConnect: noop,
@@ -193,7 +196,7 @@ describe("workspace.*", () => {
       await workspaceHandlers["workspace.read"]({
         params: { agentId: "main", path: "notes/big.txt", maxBytes: 9_999_999 },
         respond: respondClamped,
-        context: {} as any,
+        context: {} as unknown as WorkspaceReadHandlerArgs["context"],
         client: null,
         req: { id: "req-2", type: "req", method: "workspace.read" },
         isWebchatConnect: noop,
@@ -213,9 +216,11 @@ describe("workspace.*", () => {
         params: { agentId: "main", dir: "notes", maxDepth: 0, maxEntries: 10, cursor: null },
       },
       respond,
-      client: { connect: { role: "operator", scopes: [] } } as any,
+      client: { connect: { role: "operator", scopes: [] } } as unknown as Parameters<
+        typeof handleGatewayRequest
+      >[0]["client"],
       isWebchatConnect: noop,
-      context: {} as any,
+      context: {} as unknown as Parameters<typeof handleGatewayRequest>[0]["context"],
       extraHandlers: workspaceHandlers,
     });
 

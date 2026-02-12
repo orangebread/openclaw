@@ -6,6 +6,12 @@ import { QWEN_CLI_PROFILE_ID } from "../../agents/auth-profiles/constants.js";
 import { resetCliCredentialCachesForTest } from "../../agents/cli-credentials.js";
 import { authProfilesHandlers } from "./auth-profiles.js";
 
+type AuthProfilesHandlerKey = keyof typeof authProfilesHandlers;
+type AuthProfilesHandler<K extends AuthProfilesHandlerKey> = (typeof authProfilesHandlers)[K];
+type AuthProfilesHandlerArgs<K extends AuthProfilesHandlerKey> = Parameters<
+  AuthProfilesHandler<K>
+>[0];
+
 function createRespondCapture() {
   const calls: Array<{ ok: boolean; payload?: unknown; error?: unknown }> = [];
   const respond = (ok: boolean, payload?: unknown, error?: unknown) => {
@@ -24,7 +30,10 @@ describe("auth.profiles RPC", () => {
     try {
       {
         const { calls, respond } = createRespondCapture();
-        await authProfilesHandlers["auth.profiles.get"]({ params: {}, respond } as any);
+        await authProfilesHandlers["auth.profiles.get"]({
+          params: {},
+          respond,
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.get">);
         expect(calls[0]?.ok).toBe(true);
         const payload = calls[0]?.payload as {
           exists?: boolean;
@@ -46,7 +55,7 @@ describe("auth.profiles RPC", () => {
             apiKey: "sk-1234567890abcdef1234567890abcdef",
           },
           respond,
-        } as any);
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.upsertApiKey">);
         expect(calls[0]?.ok).toBe(true);
         const payload = calls[0]?.payload as { baseHash?: string };
         expect(typeof payload.baseHash).toBe("string");
@@ -56,7 +65,10 @@ describe("auth.profiles RPC", () => {
       let baseHash: string;
       {
         const { calls, respond } = createRespondCapture();
-        await authProfilesHandlers["auth.profiles.get"]({ params: {}, respond } as any);
+        await authProfilesHandlers["auth.profiles.get"]({
+          params: {},
+          respond,
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.get">);
         expect(calls[0]?.ok).toBe(true);
         const payload = calls[0]?.payload as {
           exists?: boolean;
@@ -80,7 +92,7 @@ describe("auth.profiles RPC", () => {
         await authProfilesHandlers["auth.profiles.delete"]({
           params: { baseHash, profileId: "anthropic:default" },
           respond,
-        } as any);
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.delete">);
         expect(calls[0]?.ok).toBe(true);
       }
     } finally {
@@ -115,7 +127,10 @@ describe("auth.profiles RPC", () => {
       let baseHash: string;
       {
         const { calls, respond } = createRespondCapture();
-        await authProfilesHandlers["auth.profiles.get"]({ params: {}, respond } as any);
+        await authProfilesHandlers["auth.profiles.get"]({
+          params: {},
+          respond,
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.get">);
         expect(calls[0]?.ok).toBe(true);
         const payload = calls[0]?.payload as {
           baseHash?: string;
@@ -131,14 +146,17 @@ describe("auth.profiles RPC", () => {
         await authProfilesHandlers["auth.profiles.delete"]({
           params: { baseHash, profileId: QWEN_CLI_PROFILE_ID },
           respond,
-        } as any);
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.delete">);
         expect(calls[0]?.ok).toBe(true);
       }
 
       resetCliCredentialCachesForTest();
       {
         const { calls, respond } = createRespondCapture();
-        await authProfilesHandlers["auth.profiles.get"]({ params: {}, respond } as any);
+        await authProfilesHandlers["auth.profiles.get"]({
+          params: {},
+          respond,
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.get">);
         expect(calls[0]?.ok).toBe(true);
         const payload = calls[0]?.payload as { profiles?: Array<{ id?: string }> };
         expect(payload.profiles?.some((p) => p.id === QWEN_CLI_PROFILE_ID)).toBe(false);
@@ -168,12 +186,15 @@ describe("auth.profiles RPC", () => {
             apiKey: "sk-test",
           },
           respond,
-        } as any);
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.upsertApiKey">);
         expect(calls[0]?.ok).toBe(true);
       }
       {
         const { calls, respond } = createRespondCapture();
-        await authProfilesHandlers["auth.profiles.get"]({ params: {}, respond } as any);
+        await authProfilesHandlers["auth.profiles.get"]({
+          params: {},
+          respond,
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.get">);
         expect(calls[0]?.ok).toBe(true);
         baseHash = String((calls[0]?.payload as { baseHash?: string })?.baseHash ?? "");
         expect(baseHash).toBeTruthy();
@@ -188,7 +209,7 @@ describe("auth.profiles RPC", () => {
             apiKey: "sk-test",
           },
           respond,
-        } as any);
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.upsertApiKey">);
         expect(calls[0]?.ok).toBe(false);
         const err = calls[0]?.error as { message?: string } | undefined;
         expect(String(err?.message ?? "")).toContain("auth base hash required");
@@ -204,7 +225,7 @@ describe("auth.profiles RPC", () => {
             apiKey: "sk-test",
           },
           respond,
-        } as any);
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.upsertApiKey">);
         expect(calls[0]?.ok).toBe(false);
         const err = calls[0]?.error as { message?: string } | undefined;
         expect(String(err?.message ?? "")).toContain("auth store changed since last load");
@@ -221,7 +242,7 @@ describe("auth.profiles RPC", () => {
             apiKey: "sk-test",
           },
           respond,
-        } as any);
+        } as unknown as AuthProfilesHandlerArgs<"auth.profiles.upsertApiKey">);
         expect(calls[0]?.ok).toBe(true);
       }
     } finally {
@@ -254,7 +275,10 @@ describe("auth.profiles RPC", () => {
       );
 
       const { calls, respond } = createRespondCapture();
-      await authProfilesHandlers["auth.profiles.get"]({ params: {}, respond } as any);
+      await authProfilesHandlers["auth.profiles.get"]({
+        params: {},
+        respond,
+      } as unknown as AuthProfilesHandlerArgs<"auth.profiles.get">);
       expect(calls[0]?.ok).toBe(true);
       const payload = calls[0]?.payload as {
         exists?: boolean;

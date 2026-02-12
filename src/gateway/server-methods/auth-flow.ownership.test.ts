@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { AuthFlowSessionApi } from "../auth-flow-session.js";
+import type { GatewayClient, GatewayRequestContext } from "./types.js";
 import { createAuthFlowSessionTracker } from "../server-auth-flow-sessions.js";
 import { authFlowHandlers } from "./auth-flow.js";
 
@@ -18,15 +20,15 @@ describe("auth.flow RPC ownership", () => {
       findRunningAuthFlow: tracker.findRunningAuthFlow,
       purgeAuthFlowSession: tracker.purgeAuthFlowSession,
       authFlowResolver: async () => {
-        return async (api: any) => {
+        return async (api: AuthFlowSessionApi) => {
           await api.text({ message: "Secret", sensitive: true });
           return { profiles: [] };
         };
       },
-    } as any;
+    } as unknown as GatewayRequestContext;
 
-    const ownerClient = { connect: { device: { id: "dev-owner" } } } as any;
-    const otherClient = { connect: { device: { id: "dev-other" } } } as any;
+    const ownerClient = { connect: { device: { id: "dev-owner" } } } as unknown as GatewayClient;
+    const otherClient = { connect: { device: { id: "dev-other" } } } as unknown as GatewayClient;
 
     {
       const { calls, respond } = createRespondCapture();
