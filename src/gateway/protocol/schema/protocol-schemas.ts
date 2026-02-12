@@ -165,6 +165,16 @@ import {
   WizardStepSchema,
 } from "./wizard.js";
 import {
+  WorkflowApprovalRequestParamsSchema,
+  WorkflowApprovalRequestResultSchema,
+  WorkflowApprovalCreateParamsSchema,
+  WorkflowApprovalWaitParamsSchema,
+  WorkflowApprovalResolveParamsSchema,
+  WorkflowApprovalRecordSchema,
+  WorkflowApprovalsListParamsSchema,
+  WorkflowApprovalsListResultSchema,
+} from "./workflow-approvals.js";
+import {
   WorkspaceEntrySchema,
   WorkspaceListParamsSchema,
   WorkspaceListResultSchema,
@@ -297,6 +307,14 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   ExecApprovalsSnapshot: ExecApprovalsSnapshotSchema,
   ExecApprovalRequestParams: ExecApprovalRequestParamsSchema,
   ExecApprovalResolveParams: ExecApprovalResolveParamsSchema,
+  WorkflowApprovalRequestParams: WorkflowApprovalRequestParamsSchema,
+  WorkflowApprovalRequestResult: WorkflowApprovalRequestResultSchema,
+  WorkflowApprovalCreateParams: WorkflowApprovalCreateParamsSchema,
+  WorkflowApprovalWaitParams: WorkflowApprovalWaitParamsSchema,
+  WorkflowApprovalResolveParams: WorkflowApprovalResolveParamsSchema,
+  WorkflowApprovalRecord: WorkflowApprovalRecordSchema,
+  WorkflowApprovalsListParams: WorkflowApprovalsListParamsSchema,
+  WorkflowApprovalsListResult: WorkflowApprovalsListResultSchema,
   DevicePairListParams: DevicePairListParamsSchema,
   DevicePairApproveParams: DevicePairApproveParamsSchema,
   DevicePairRejectParams: DevicePairRejectParamsSchema,

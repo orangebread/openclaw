@@ -57,6 +57,7 @@ import { GATEWAY_EVENTS, listGatewayMethods } from "./server-methods-list.js";
 import { coreGatewayHandlers } from "./server-methods.js";
 import { createExecApprovalHandlers } from "./server-methods/exec-approval.js";
 import { safeParseJson } from "./server-methods/nodes.helpers.js";
+import { createWorkflowApprovalHandlers } from "./server-methods/workflow-approval.js";
 import { hasConnectedMobileNode } from "./server-mobile-nodes.js";
 import { loadGatewayModelCatalog } from "./server-model-catalog.js";
 import { createNodeSubscriptionManager } from "./server-node-subscriptions.js";
@@ -78,6 +79,7 @@ import {
   refreshGatewayHealthSnapshot,
 } from "./server/health-state.js";
 import { loadGatewayTlsRuntime } from "./server/tls.js";
+import { WorkflowApprovalManager } from "./workflow-approval-manager.js";
 
 export { __resetModelCatalogCacheForTest } from "./server-model-catalog.js";
 
@@ -470,6 +472,9 @@ export async function startGatewayServer(
     forwarder: execApprovalForwarder,
   });
 
+  const workflowApprovalManager = new WorkflowApprovalManager();
+  const workflowApprovalHandlers = createWorkflowApprovalHandlers(workflowApprovalManager);
+
   const canvasHostServerPort = (canvasHostServer as CanvasHostServer | null)?.port;
 
   attachGatewayWsHandlers({
@@ -488,6 +493,7 @@ export async function startGatewayServer(
     extraHandlers: {
       ...pluginRegistry.gatewayHandlers,
       ...execApprovalHandlers,
+      ...workflowApprovalHandlers,
     },
     broadcast,
     context: {

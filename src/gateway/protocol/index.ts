@@ -152,6 +152,19 @@ import {
   ExecApprovalRequestParamsSchema,
   type ExecApprovalResolveParams,
   ExecApprovalResolveParamsSchema,
+  type WorkflowApprovalsListParams,
+  WorkflowApprovalsListParamsSchema,
+  type WorkflowApprovalsListResult,
+  type WorkflowApprovalRecord,
+  type WorkflowApprovalRequestParams,
+  WorkflowApprovalRequestParamsSchema,
+  type WorkflowApprovalRequestResult,
+  type WorkflowApprovalCreateParams,
+  WorkflowApprovalCreateParamsSchema,
+  type WorkflowApprovalWaitParams,
+  WorkflowApprovalWaitParamsSchema,
+  type WorkflowApprovalResolveParams,
+  WorkflowApprovalResolveParamsSchema,
   ErrorCodes,
   type ErrorShape,
   ErrorShapeSchema,
@@ -432,6 +445,21 @@ export const validateExecApprovalRequestParams = ajv.compile<ExecApprovalRequest
 );
 export const validateExecApprovalResolveParams = ajv.compile<ExecApprovalResolveParams>(
   ExecApprovalResolveParamsSchema,
+);
+export const validateWorkflowApprovalsListParams = ajv.compile<WorkflowApprovalsListParams>(
+  WorkflowApprovalsListParamsSchema,
+);
+export const validateWorkflowApprovalCreateParams = ajv.compile<WorkflowApprovalCreateParams>(
+  WorkflowApprovalCreateParamsSchema,
+);
+export const validateWorkflowApprovalRequestParams = ajv.compile<WorkflowApprovalRequestParams>(
+  WorkflowApprovalRequestParamsSchema,
+);
+export const validateWorkflowApprovalWaitParams = ajv.compile<WorkflowApprovalWaitParams>(
+  WorkflowApprovalWaitParamsSchema,
+);
+export const validateWorkflowApprovalResolveParams = ajv.compile<WorkflowApprovalResolveParams>(
+  WorkflowApprovalResolveParamsSchema,
 );
 export const validateExecApprovalsNodeGetParams = ajv.compile<ExecApprovalsNodeGetParams>(
   ExecApprovalsNodeGetParamsSchema,
@@ -723,6 +751,14 @@ export type {
   ExecApprovalsGetParams,
   ExecApprovalsSetParams,
   ExecApprovalsSnapshot,
+  WorkflowApprovalRecord,
+  WorkflowApprovalsListParams,
+  WorkflowApprovalsListResult,
+  WorkflowApprovalCreateParams,
+  WorkflowApprovalRequestParams,
+  WorkflowApprovalRequestResult,
+  WorkflowApprovalWaitParams,
+  WorkflowApprovalResolveParams,
   LogsTailParams,
   LogsTailResult,
   PollParams,

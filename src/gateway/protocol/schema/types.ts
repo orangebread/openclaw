@@ -160,6 +160,16 @@ import type {
   WizardStepSchema,
 } from "./wizard.js";
 import type {
+  WorkflowApprovalRecordSchema,
+  WorkflowApprovalCreateParamsSchema,
+  WorkflowApprovalRequestParamsSchema,
+  WorkflowApprovalRequestResultSchema,
+  WorkflowApprovalResolveParamsSchema,
+  WorkflowApprovalWaitParamsSchema,
+  WorkflowApprovalsListParamsSchema,
+  WorkflowApprovalsListResultSchema,
+} from "./workflow-approvals.js";
+import type {
   WorkspaceEntrySchema,
   WorkspaceListParamsSchema,
   WorkspaceListResultSchema,
@@ -295,6 +305,14 @@ export type ExecApprovalsNodeSetParams = Static<typeof ExecApprovalsNodeSetParam
 export type ExecApprovalsSnapshot = Static<typeof ExecApprovalsSnapshotSchema>;
 export type ExecApprovalRequestParams = Static<typeof ExecApprovalRequestParamsSchema>;
 export type ExecApprovalResolveParams = Static<typeof ExecApprovalResolveParamsSchema>;
+export type WorkflowApprovalRecord = Static<typeof WorkflowApprovalRecordSchema>;
+export type WorkflowApprovalsListParams = Static<typeof WorkflowApprovalsListParamsSchema>;
+export type WorkflowApprovalsListResult = Static<typeof WorkflowApprovalsListResultSchema>;
+export type WorkflowApprovalCreateParams = Static<typeof WorkflowApprovalCreateParamsSchema>;
+export type WorkflowApprovalRequestParams = Static<typeof WorkflowApprovalRequestParamsSchema>;
+export type WorkflowApprovalRequestResult = Static<typeof WorkflowApprovalRequestResultSchema>;
+export type WorkflowApprovalWaitParams = Static<typeof WorkflowApprovalWaitParamsSchema>;
+export type WorkflowApprovalResolveParams = Static<typeof WorkflowApprovalResolveParamsSchema>;
 export type DevicePairListParams = Static<typeof DevicePairListParamsSchema>;
 export type DevicePairApproveParams = Static<typeof DevicePairApproveParamsSchema>;
 export type DevicePairRejectParams = Static<typeof DevicePairRejectParamsSchema>;

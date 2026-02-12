@@ -312,6 +312,15 @@ export const DiscordAccountSchema = z
       })
       .strict()
       .optional(),
+    workflowApprovals: z
+      .object({
+        enabled: z.boolean().optional(),
+        approvers: z.array(z.union([z.string(), z.number()])).optional(),
+        kindFilter: z.array(z.string()).optional(),
+        cleanupAfterResolve: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
     intents: z
       .object({
         presence: z.boolean().optional(),

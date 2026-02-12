@@ -36,6 +36,11 @@ const BASE_METHODS = [
   "exec.approvals.node.set",
   "exec.approval.request",
   "exec.approval.resolve",
+  "workflow.approvals.list",
+  "workflow.approval.create",
+  "workflow.approval.request",
+  "workflow.approval.wait",
+  "workflow.approval.resolve",
   "wizard.start",
   "wizard.current",
   "wizard.next",
@@ -130,4 +135,6 @@ export const GATEWAY_EVENTS = [
   "voicewake.changed",
   "exec.approval.requested",
   "exec.approval.resolved",
+  "workflow.approval.requested",
+  "workflow.approval.resolved",
 ];

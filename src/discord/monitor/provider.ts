@@ -41,6 +41,10 @@ import {
   createDiscordCommandArgFallbackButton,
   createDiscordNativeCommand,
 } from "./native-command.js";
+import {
+  createWorkflowApprovalButton,
+  DiscordWorkflowApprovalHandler,
+} from "./workflow-approvals.js";
 
 export type MonitorDiscordOpts = {
   token?: string;
@@ -475,6 +479,17 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       })
     : null;
 
+  const workflowApprovalsConfig = discordCfg.workflowApprovals ?? {};
+  const workflowApprovalsHandler = workflowApprovalsConfig.enabled
+    ? new DiscordWorkflowApprovalHandler({
+        token,
+        accountId: account.accountId,
+        config: workflowApprovalsConfig,
+        cfg,
+        runtime,
+      })
+    : null;
+
   const agentComponentsConfig = discordCfg.agentComponents ?? {};
   const agentComponentsEnabled = agentComponentsConfig.enabled ?? true;
 
@@ -489,6 +504,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
 
   if (execApprovalsHandler) {
     components.push(createExecApprovalButton({ handler: execApprovalsHandler }));
+  }
+  if (workflowApprovalsHandler) {
+    components.push(createWorkflowApprovalButton({ handler: workflowApprovalsHandler }));
   }
 
   if (agentComponentsEnabled) {
@@ -615,6 +633,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   if (execApprovalsHandler) {
     await execApprovalsHandler.start();
   }
+  if (workflowApprovalsHandler) {
+    await workflowApprovalsHandler.start();
+  }
 
   const gateway = client.getPlugin<GatewayPlugin>("gateway");
   if (gateway) {
@@ -695,6 +716,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     abortSignal?.removeEventListener("abort", onAbort);
     if (execApprovalsHandler) {
       await execApprovalsHandler.stop();
+    }
+    if (workflowApprovalsHandler) {
+      await workflowApprovalsHandler.stop();
     }
   }
 }

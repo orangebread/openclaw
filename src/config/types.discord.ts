@@ -99,6 +99,17 @@ export type DiscordExecApprovalConfig = {
   cleanupAfterResolve?: boolean;
 };
 
+export type DiscordWorkflowApprovalConfig = {
+  /** Enable workflow approval forwarding to Discord DMs. Default: false. */
+  enabled?: boolean;
+  /** Discord user IDs to receive approval prompts. Required if enabled. */
+  approvers?: Array<string | number>;
+  /** Only forward workflow approvals with these kind patterns (substring or regex). */
+  kindFilter?: string[];
+  /** Delete approval DMs after approval, denial, or timeout. Default: false. */
+  cleanupAfterResolve?: boolean;
+};
+
 export type DiscordAgentComponentsConfig = {
   /** Enable agent-controlled interactive components (buttons, select menus). Default: true. */
   enabled?: boolean;
@@ -160,6 +171,8 @@ export type DiscordAccountConfig = {
   heartbeat?: ChannelHeartbeatVisibilityConfig;
   /** Exec approval forwarding configuration. */
   execApprovals?: DiscordExecApprovalConfig;
+  /** Workflow approval forwarding configuration. */
+  workflowApprovals?: DiscordWorkflowApprovalConfig;
   /** Agent-controlled interactive components (buttons, select menus). */
   agentComponents?: DiscordAgentComponentsConfig;
   /** Privileged Gateway Intents (must also be enabled in Discord Developer Portal). */
