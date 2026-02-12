@@ -17,7 +17,6 @@ import {
   buildModelAliasIndex,
   modelKey,
   normalizeProviderId,
-  parseModelRef,
   resolveConfiguredModelRef,
   resolveModelRefFromString,
 } from "./model-selection.js";
