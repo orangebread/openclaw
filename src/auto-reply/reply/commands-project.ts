@@ -1,10 +1,11 @@
-import type { APIChannel } from "discord-api-types/v10";
+import { ChannelType, type APIChannel } from "discord-api-types/v10";
 import fs from "node:fs";
 import path from "node:path";
 import lockfile from "proper-lockfile";
 import type { CommandHandler } from "./commands-types.js";
 import { resolveAgentWorkspaceDir } from "../../agents/agent-scope.js";
 import { createExecTool } from "../../agents/bash-tools.js";
+import { callGatewayTool } from "../../agents/tools/gateway.js";
 import {
   readConfigFileSnapshot,
   validateConfigObjectWithPlugins,
@@ -12,9 +13,17 @@ import {
 } from "../../config/config.js";
 import { createChannelDiscord } from "../../discord/send.channels.js";
 import { listGuildChannelsDiscord } from "../../discord/send.guild.js";
+import { sendMessageDiscord } from "../../discord/send.outbound.js";
 import { logVerbose } from "../../globals.js";
+import { resolveDigitalOceanAccessToken, sha256Hex } from "../../infra/digitalocean.js";
 import { loadJsonFile, saveJsonFile } from "../../infra/json-file.js";
 import { normalizeAgentId } from "../../routing/session-key.js";
+import {
+  inferDoAppSpecTemplateFromRepo,
+  parseDoctlProposeCosts,
+  resolveDoAppName,
+  resolveDoAppSpecPath,
+} from "./project-deploy-digitalocean.js";
 
 const COMMAND = "/project";
 const DEFAULT_CATEGORY_NAME = "coding-projects";
@@ -32,7 +41,7 @@ const PROJECT_LOCK_OPTIONS = {
     maxTimeout: 10_000,
     randomize: true,
   },
-  stale: 60_000,
+  stale: 2 * 60 * 60_000,
 } as const;
 
 type ProjectStateV1 = {
@@ -47,6 +56,25 @@ type ProjectStateV1 = {
     categoryName: string;
     channelId: string;
     channelName: string;
+  };
+  deploy?: {
+    digitalocean?: {
+      region?: string;
+      apps?: Record<string, { appId: string; appName: string; ingress?: string | null }>;
+      lastPlan?: Record<
+        string,
+        {
+          createdAtMs: number;
+          gitSha: string;
+          appName: string;
+          region: string;
+          specHash: string;
+          proposedMonthlyUsd?: number;
+          proposedUpgradeMonthlyUsd?: number;
+          existingAppId?: string | null;
+        }
+      >;
+    };
   };
   createdAt: string;
   updatedAt: string;
@@ -72,7 +100,13 @@ type ParsedProjectCommand =
       clone: boolean;
     }
   | { ok: true; action: "ship"; title?: string }
-  | { ok: true; action: "merge" };
+  | { ok: true; action: "merge" }
+  | {
+      ok: true;
+      action: "deploy";
+      subaction: "init" | "plan" | "apply" | "status";
+      env: "staging" | "prod";
+    };
 
 function parseProjectCommand(raw: string): ParsedProjectCommand | null {
   const trimmed = raw.trim();
@@ -161,7 +195,35 @@ function parseProjectCommand(raw: string): ParsedProjectCommand | null {
     return { ok: true, action: "merge" };
   }
 
-  return { ok: false, error: "Usage: /project help|bootstrap|ship|merge" };
+  if (action === "deploy") {
+    const sub = args[0]?.toLowerCase();
+    const subaction =
+      sub === "init" || sub === "plan" || sub === "apply" || sub === "status" ? sub : null;
+    if (!subaction) {
+      return {
+        ok: false,
+        error: "Usage: /project deploy init|plan|apply|status [--env staging|prod]",
+      };
+    }
+    let env: "staging" | "prod" = "staging";
+    for (let i = 1; i < args.length; i += 1) {
+      const tok = args[i];
+      if (tok === "--env") {
+        const value = (args[i + 1] ?? "").trim().toLowerCase();
+        if (value !== "staging" && value !== "prod") {
+          return {
+            ok: false,
+            error: "Usage: /project deploy init|plan|apply|status [--env staging|prod]",
+          };
+        }
+        env = value;
+        i += 1;
+      }
+    }
+    return { ok: true, action: "deploy", subaction, env };
+  }
+
+  return { ok: false, error: "Usage: /project help|bootstrap|ship|merge|deploy" };
 }
 
 function slugify(raw: string): string {
@@ -201,7 +263,9 @@ function isDiscordGuildContext(
 
 function findCategory(channels: APIChannel[], name: string): APIChannel | undefined {
   const lowered = name.trim().toLowerCase();
-  return channels.find((ch) => ch.type === 4 && (ch.name ?? "").toLowerCase() === lowered);
+  return channels.find(
+    (ch) => ch.type === ChannelType.GuildCategory && (ch.name ?? "").toLowerCase() === lowered,
+  );
 }
 
 function findTextChannelInCategory(
@@ -212,7 +276,7 @@ function findTextChannelInCategory(
   const lowered = name.trim().toLowerCase();
   return channels.find(
     (ch) =>
-      (ch.type === 0 || ch.type === 5) &&
+      (ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement) &&
       (ch.name ?? "").toLowerCase() === lowered &&
       // Discord APIChannel uses parent_id for category.
       // oxlint-disable-next-line typescript/no-explicit-any
@@ -286,12 +350,23 @@ function buildUsage(): string {
     "- /project bootstrap <owner>/<repo> [--category coding-projects] [--agent <id>] [--channel <name>] [--no-clone]",
     "- /project ship [title]",
     "- /project merge",
+    "- /project deploy init [--env staging|prod]",
+    "- /project deploy plan [--env staging|prod]",
+    "- /project deploy apply [--env staging|prod]",
+    "- /project deploy status [--env staging|prod]",
   ].join("\n");
 }
 
 async function runShell(
   params: Parameters<CommandHandler>[0],
-  opts: { workdir: string; command: string; yieldMs?: number },
+  opts: {
+    workdir: string;
+    command: string;
+    env?: Record<string, string>;
+    yieldMs?: number;
+    timeoutSec?: number;
+    elevatedLevel?: "on" | "full";
+  },
 ) {
   const execTool = createExecTool({
     scopeKey: "chat:project",
@@ -302,14 +377,16 @@ async function runShell(
     elevated: {
       enabled: params.elevated.enabled,
       allowed: params.elevated.allowed,
-      defaultLevel: "on",
+      defaultLevel: opts.elevatedLevel === "full" ? "full" : "on",
     },
   });
 
   const result = await execTool.execute("chat-project", {
     command: opts.command,
     workdir: opts.workdir,
+    ...(opts.env ? { env: opts.env } : {}),
     yieldMs: opts.yieldMs,
+    ...(opts.timeoutSec ? { timeout: opts.timeoutSec } : {}),
     elevated: true,
   });
   const text =
@@ -317,6 +394,21 @@ async function runShell(
       ? (result.details.aggregated ?? "")
       : result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
   return { result, text };
+}
+
+function isCompletedOk(result: { details?: { status?: string; exitCode?: number | null } }) {
+  const details = result.details;
+  if (!details) {
+    return true;
+  }
+  if (details.status === "failed") {
+    return false;
+  }
+  if (details.status === "completed") {
+    const code = typeof details.exitCode === "number" ? details.exitCode : 0;
+    return code === 0;
+  }
+  return false;
 }
 
 function requireElevated(
@@ -413,6 +505,26 @@ async function tryWritePreviewLink(workspaceDir: string, prUrl: string, previewU
     );
   } catch {
     // best-effort
+  }
+}
+
+async function listDoAppsByName(params: Parameters<CommandHandler>[0], token: string) {
+  const { text } = await runShell(params, {
+    workdir: params.workspaceDir,
+    command: "doctl apps list --output json",
+    env: { DIGITALOCEAN_ACCESS_TOKEN: token },
+    yieldMs: 60_000,
+    timeoutSec: 120,
+    elevatedLevel: "full",
+  });
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((v) => v && typeof v === "object") as Array<Record<string, unknown>>;
+  } catch {
+    return [];
   }
 }
 
@@ -568,7 +680,7 @@ export const handleProjectCommand: CommandHandler = async (params, allowTextComm
         channelEntry.requireMention = false;
       }
       const users = Array.isArray(channelEntry.users)
-        ? ((channelEntry.users as unknown[]).filter((u) => typeof u === "string") as string[])
+        ? channelEntry.users.filter((u): u is string => typeof u === "string")
         : [];
       if (!users.includes(senderId)) {
         users.push(senderId);
@@ -870,28 +982,645 @@ export const handleProjectCommand: CommandHandler = async (params, allowTextComm
         return { shouldContinue: false, reply: { text: elevatedCheck.error } };
       }
 
-      return await withProjectLock(params.workspaceDir, async () => {
-        const repoDir = resolveProjectRepoDir(params.workspaceDir);
-        if (!fs.existsSync(path.join(repoDir, ".git"))) {
-          return {
-            shouldContinue: false,
-            reply: { text: `⚠️ Repo not found at ${repoDir}.` },
-          };
+      const repoDir = resolveProjectRepoDir(params.workspaceDir);
+      if (!fs.existsSync(path.join(repoDir, ".git"))) {
+        return {
+          shouldContinue: false,
+          reply: { text: `⚠️ Repo not found at ${repoDir}.` },
+        };
+      }
+
+      const state = loadProjectState(params.workspaceDir);
+      const prUrl = state?.lastShip?.prUrl?.trim() ?? "";
+      if (!prUrl) {
+        return {
+          shouldContinue: false,
+          reply: { text: "⚠️ No PR recorded for this project yet. Run /project ship first." },
+        };
+      }
+
+      const approvalTimeoutMs = 10 * 60_000;
+      const approvalKey = `project.merge:${prUrl}`;
+      const approvalRes = await callGatewayTool<{
+        id: string;
+        decision: string | null;
+        createdAtMs: number;
+        expiresAtMs: number;
+      }>(
+        "workflow.approval.create",
+        { timeoutMs: 30_000 },
+        {
+          idempotencyKey: approvalKey,
+          kind: "project.merge",
+          title: "Enable auto-merge (merge commit)",
+          summary: `PR: ${prUrl}`,
+          details: {
+            prUrl,
+            mode: "merge-commit",
+            auto: "true",
+            deleteBranch: "true",
+          },
+          agentId: state?.agentId ?? params.agentId ?? null,
+          sessionKey: params.sessionKey ?? null,
+          timeoutMs: approvalTimeoutMs,
+        },
+      );
+      const approvalId = typeof approvalRes?.id === "string" ? approvalRes.id : "";
+      if (!approvalId) {
+        return {
+          shouldContinue: false,
+          reply: { text: "⚠️ Failed to create workflow approval request." },
+        };
+      }
+
+      const replyTarget = typeof params.ctx.To === "string" ? params.ctx.To.trim() : "";
+      const accountId =
+        typeof params.ctx.AccountId === "string" ? params.ctx.AccountId.trim() : undefined;
+
+      void (async () => {
+        const waitRes = await callGatewayTool<{
+          id: string;
+          decision: string | null;
+          createdAtMs: number;
+          expiresAtMs: number;
+        }>(
+          "workflow.approval.wait",
+          { timeoutMs: approvalTimeoutMs + 60_000 },
+          { id: approvalId },
+        ).catch(() => null);
+        const decision =
+          waitRes && typeof waitRes === "object" && "decision" in waitRes
+            ? (waitRes as { decision?: unknown }).decision
+            : null;
+
+        const sendToChannel = async (text: string) => {
+          if (!replyTarget) {
+            return;
+          }
+          await sendMessageDiscord(replyTarget, text, { accountId });
+        };
+
+        if (decision !== "approve") {
+          const status = decision === "deny" ? "denied" : "expired";
+          await sendToChannel(`❌ Auto-merge ${status}.\nPR: ${prUrl}`).catch(() => {});
+          return;
         }
 
-        // Enable auto-merge with merge commit; GitHub will merge only when mergeable + checks pass.
-        const { text } = await runShell(params, {
-          workdir: repoDir,
-          command: "gh pr merge --merge --auto --delete-branch",
-          yieldMs: 10_000,
-        });
-        const msg = text.trim() || "Auto-merge requested.";
-        return { shouldContinue: false, reply: { text: `✅ ${msg}` } };
-      });
+        try {
+          await withProjectLock(params.workspaceDir, async () => {
+            // Enable auto-merge with merge commit; GitHub will merge only when mergeable + checks pass.
+            const mergeRes = await runShell(params, {
+              workdir: repoDir,
+              command: `gh pr merge ${JSON.stringify(prUrl)} --merge --auto --delete-branch`,
+              yieldMs: 10_000,
+              elevatedLevel: "full",
+            });
+            if (!isCompletedOk(mergeRes.result)) {
+              throw new Error(
+                mergeRes.text.trim().slice(0, 2000) || "gh pr merge returned a non-zero exit code",
+              );
+            }
+          });
+          const previewUrl = state?.lastShip?.previewUrl?.trim() || "";
+          await sendToChannel(
+            `✅ Auto-merge enabled.\nPR: ${prUrl}${previewUrl ? `\nPreview: ${previewUrl}` : ""}`,
+          ).catch(() => {});
+        } catch (err) {
+          await sendToChannel(`⚠️ Auto-merge failed: ${String(err)}\nPR: ${prUrl}`).catch(() => {});
+        }
+      })();
+
+      return {
+        shouldContinue: false,
+        reply: {
+          text:
+            `🟧 Merge approval requested in DMs (id ${approvalId.slice(0, 8)}…). ` +
+            "Approve to enable GitHub auto-merge; I’ll post the result here.",
+        },
+      };
     } catch (err) {
       return {
         shouldContinue: false,
         reply: { text: `⚠️ /project merge failed: ${String(err)}` },
+      };
+    }
+  }
+
+  if (parsed.action === "deploy") {
+    try {
+      const elevatedCheck = requireElevated(params);
+      if (!elevatedCheck.ok) {
+        return { shouldContinue: false, reply: { text: elevatedCheck.error } };
+      }
+
+      const repoDir = resolveProjectRepoDir(params.workspaceDir);
+      if (!fs.existsSync(path.join(repoDir, ".git"))) {
+        return {
+          shouldContinue: false,
+          reply: { text: `⚠️ Repo not found at ${repoDir}.` },
+        };
+      }
+
+      const state = loadProjectState(params.workspaceDir);
+      const repoSlug = state?.repo?.slug ?? "";
+      if (!repoSlug) {
+        return {
+          shouldContinue: false,
+          reply: { text: "⚠️ Project repo metadata missing; re-run /project bootstrap." },
+        };
+      }
+
+      const resolvedToken = await resolveDigitalOceanAccessToken(params.cfg);
+      if (!resolvedToken) {
+        return {
+          shouldContinue: false,
+          reply: {
+            text: [
+              "⚠️ DigitalOcean is not configured (missing DIGITALOCEAN_ACCESS_TOKEN).",
+              "",
+              "Recommended setup (Control UI):",
+              "- Go to Skills → DigitalOcean → set API key (stored in config with 0600 perms).",
+              "",
+              "Alternative:",
+              "- Export DIGITALOCEAN_ACCESS_TOKEN in the gateway environment.",
+            ].join("\n"),
+          },
+        };
+      }
+
+      const env = parsed.env;
+      const region = state?.deploy?.digitalocean?.region?.trim() || "nyc1";
+
+      const gitSha = (
+        await runShell(params, {
+          workdir: repoDir,
+          command: "git rev-parse HEAD",
+          yieldMs: 10_000,
+          elevatedLevel: "full",
+        })
+      ).text.trim();
+      if (!/^[a-f0-9]{7,40}$/i.test(gitSha)) {
+        return {
+          shouldContinue: false,
+          reply: { text: "⚠️ Failed to read git HEAD SHA for this repo." },
+        };
+      }
+
+      const appName = resolveDoAppName(repoSlug, env);
+      const specPath = resolveDoAppSpecPath(repoDir, env);
+
+      if (parsed.subaction === "init") {
+        const doDir = path.dirname(specPath);
+        ensureDir(doDir);
+        const created: string[] = [];
+
+        const writeIfMissing = (targetEnv: "staging" | "prod") => {
+          const targetPath = resolveDoAppSpecPath(repoDir, targetEnv);
+          if (fs.existsSync(targetPath)) {
+            return;
+          }
+          const template = inferDoAppSpecTemplateFromRepo({
+            repoDir,
+            repoSlug,
+            env: targetEnv,
+            region,
+          });
+          fs.writeFileSync(targetPath, `${JSON.stringify(template, null, 2)}\n`, {
+            encoding: "utf8",
+            mode: 0o600,
+          });
+          created.push(targetPath);
+        };
+
+        if (env === "staging") {
+          writeIfMissing("staging");
+        } else {
+          writeIfMissing("prod");
+        }
+
+        if (created.length === 0) {
+          return {
+            shouldContinue: false,
+            reply: {
+              text: [
+                "✅ DigitalOcean spec already exists.",
+                `Env: ${env}`,
+                `Spec: ${specPath}`,
+                "",
+                `Next: /project deploy plan --env ${env}`,
+              ].join("\n"),
+            },
+          };
+        }
+
+        return {
+          shouldContinue: false,
+          reply: {
+            text: [
+              "✅ DigitalOcean App Platform spec template created.",
+              `Env: ${env}`,
+              ...created.map((p) => `- ${p}`),
+              "",
+              "Next:",
+              `- Review/edit the spec file(s) for your repo layout and build/run commands.`,
+              `- /project deploy plan --env ${env}`,
+            ].join("\n"),
+          },
+        };
+      }
+
+      if (parsed.subaction === "status") {
+        const existing = state?.deploy?.digitalocean?.apps?.[env] ?? null;
+        const lines: string[] = [];
+        lines.push("📦 DigitalOcean deploy status");
+        lines.push(`Env: ${env}`);
+        lines.push(`Region: ${region}`);
+        lines.push(`App name: ${appName}`);
+        if (existing?.appId) {
+          lines.push(`App: ${existing.appId}`);
+        } else {
+          lines.push("App: (not created yet)");
+        }
+        if (existing?.ingress) {
+          lines.push(`Ingress: ${existing.ingress}`);
+        }
+        lines.push("");
+        lines.push(`Spec: ${specPath}`);
+        return { shouldContinue: false, reply: { text: lines.join("\n") } };
+      }
+
+      if (!fs.existsSync(specPath)) {
+        return {
+          shouldContinue: false,
+          reply: {
+            text: [
+              "⚠️ Missing DigitalOcean App Platform spec for this repo/env.",
+              "",
+              `Create: ${specPath}`,
+              "",
+              "Recommended workflow:",
+              `- Run: /project deploy init --env ${env}`,
+              "- Edit the generated spec to match your repo layout and build/run commands.",
+              "- Keep deploy_on_push=false for deterministic approval-gated deploys (defaults to false).",
+              "",
+              "Then run:",
+              `- /project deploy plan --env ${env}`,
+            ].join("\n"),
+          },
+        };
+      }
+
+      const rawSpec = fs.readFileSync(specPath, "utf8").trim();
+      let renderedSpec: Record<string, unknown>;
+      try {
+        const parsedSpec = JSON.parse(rawSpec) as unknown;
+        if (!parsedSpec || typeof parsedSpec !== "object" || Array.isArray(parsedSpec)) {
+          throw new Error("spec must be a JSON object");
+        }
+        renderedSpec = { ...(parsedSpec as Record<string, unknown>) };
+      } catch (err) {
+        return {
+          shouldContinue: false,
+          reply: { text: `⚠️ Invalid JSON in spec (${specPath}): ${String(err)}` },
+        };
+      }
+
+      // Enforce deterministic name/region defaults.
+      renderedSpec.name = appName;
+      renderedSpec.region = region;
+
+      const renderedSpecJson = JSON.stringify(renderedSpec, null, 2);
+      const specHash = sha256Hex(renderedSpecJson);
+
+      const token = resolvedToken.token;
+      const doctlEnv = { DIGITALOCEAN_ACCESS_TOKEN: token };
+
+      // Fast validation (won't create anything).
+      const validateCmd = [
+        "cat <<'EOF' | doctl apps spec validate --spec -",
+        renderedSpecJson,
+        "EOF",
+      ].join("\n");
+      const validateRes = await runShell(params, {
+        workdir: repoDir,
+        command: validateCmd,
+        env: doctlEnv,
+        yieldMs: 60_000,
+        timeoutSec: 120,
+        elevatedLevel: "full",
+      });
+      if (!isCompletedOk(validateRes.result)) {
+        return {
+          shouldContinue: false,
+          reply: {
+            text: [
+              "⚠️ Spec validation failed (doctl apps spec validate).",
+              "",
+              validateRes.text.trim().slice(0, 4000),
+            ].join("\n"),
+          },
+        };
+      }
+
+      // Discover existing app (best-effort).
+      const apps = await listDoAppsByName(params, token);
+      const existingApp = apps.find((a) => {
+        const spec = a.spec as Record<string, unknown> | undefined;
+        const name = spec && typeof spec.name === "string" ? spec.name : "";
+        return name === appName;
+      });
+      const existingAppId =
+        existingApp && typeof existingApp.id === "string" ? existingApp.id : null;
+
+      if (parsed.subaction === "plan") {
+        const proposeCmd = [
+          `cat <<'EOF' | doctl apps propose --spec - --output json${existingAppId ? ` --app ${existingAppId}` : ""}`,
+          renderedSpecJson,
+          "EOF",
+        ].join("\n");
+        const proposeRes = await runShell(params, {
+          workdir: repoDir,
+          command: proposeCmd,
+          env: doctlEnv,
+          yieldMs: 90_000,
+          timeoutSec: 180,
+          elevatedLevel: "full",
+        });
+        if (!isCompletedOk(proposeRes.result)) {
+          return {
+            shouldContinue: false,
+            reply: {
+              text: [
+                "⚠️ Cost proposal failed (doctl apps propose).",
+                "",
+                proposeRes.text.trim().slice(0, 4000),
+              ].join("\n"),
+            },
+          };
+        }
+
+        const costs = parseDoctlProposeCosts(proposeRes.text);
+
+        await withProjectLock(params.workspaceDir, async () => {
+          const current = loadProjectState(params.workspaceDir);
+          if (!current) {
+            return;
+          }
+          const next: ProjectStateV1 = {
+            ...current,
+            updatedAt: nowIso(),
+            deploy: {
+              ...(current.deploy ?? undefined),
+              digitalocean: {
+                ...(current.deploy?.digitalocean ?? undefined),
+                region,
+                lastPlan: {
+                  ...(current.deploy?.digitalocean?.lastPlan ?? undefined),
+                  [env]: {
+                    createdAtMs: Date.now(),
+                    gitSha,
+                    appName,
+                    region,
+                    specHash,
+                    existingAppId,
+                    ...costs,
+                  },
+                },
+              },
+            },
+          };
+          saveProjectState(params.workspaceDir, next);
+        });
+
+        const lines: string[] = [];
+        lines.push("🧾 DigitalOcean deploy plan ready.");
+        lines.push(`Env: ${env}`);
+        lines.push(`Region: ${region}`);
+        lines.push(`App: ${appName}${existingAppId ? ` (update ${existingAppId})` : " (create)"}`);
+        if (costs.proposedMonthlyUsd !== undefined) {
+          lines.push(`Estimated monthly: $${costs.proposedMonthlyUsd.toFixed(2)}`);
+        }
+        if (costs.proposedUpgradeMonthlyUsd !== undefined) {
+          lines.push(`Upgrade delta (monthly): $${costs.proposedUpgradeMonthlyUsd.toFixed(2)}`);
+        }
+        lines.push(`Commit: ${gitSha.slice(0, 12)}`);
+        lines.push("");
+        lines.push("Next:");
+        lines.push(`- /project deploy apply --env ${env}`);
+        return { shouldContinue: false, reply: { text: lines.join("\n") } };
+      }
+
+      if (parsed.subaction === "apply") {
+        const plan = state?.deploy?.digitalocean?.lastPlan?.[env] ?? null;
+        if (!plan) {
+          return {
+            shouldContinue: false,
+            reply: { text: `⚠️ No plan found for ${env}. Run: /project deploy plan --env ${env}` },
+          };
+        }
+        const planAgeMs = Date.now() - plan.createdAtMs;
+        if (planAgeMs > 60 * 60_000) {
+          return {
+            shouldContinue: false,
+            reply: {
+              text: `⚠️ Plan is older than 60 minutes. Re-run: /project deploy plan --env ${env}`,
+            },
+          };
+        }
+        if (plan.specHash !== specHash || plan.gitSha !== gitSha) {
+          return {
+            shouldContinue: false,
+            reply: {
+              text: [
+                "⚠️ Deploy inputs changed since plan.",
+                `Expected commit: ${plan.gitSha.slice(0, 12)}; current: ${gitSha.slice(0, 12)}`,
+                `Expected spec hash: ${plan.specHash.slice(0, 10)}…; current: ${specHash.slice(0, 10)}…`,
+                "",
+                `Re-run: /project deploy plan --env ${env}`,
+              ].join("\n"),
+            },
+          };
+        }
+
+        const approvalTimeoutMs = 15 * 60_000;
+        const approvalKey = `project.deploy.digitalocean:${repoSlug}:${env}:${plan.specHash}:${plan.gitSha}`;
+        const approvalRes = await callGatewayTool<{
+          id: string;
+          decision: string | null;
+          createdAtMs: number;
+          expiresAtMs: number;
+        }>(
+          "workflow.approval.create",
+          { timeoutMs: 30_000 },
+          {
+            idempotencyKey: approvalKey,
+            kind: "digitalocean.deploy",
+            title: `Deploy to DigitalOcean (${env})`,
+            summary: `App: ${appName} (${region}) @ ${gitSha.slice(0, 12)}`,
+            details: {
+              env,
+              region,
+              appName,
+              gitSha,
+              specPath,
+              ...(plan.proposedMonthlyUsd !== undefined
+                ? { proposedMonthlyUsd: plan.proposedMonthlyUsd.toFixed(2) }
+                : {}),
+              ...(plan.proposedUpgradeMonthlyUsd !== undefined
+                ? { proposedUpgradeMonthlyUsd: plan.proposedUpgradeMonthlyUsd.toFixed(2) }
+                : {}),
+            },
+            agentId: state?.agentId ?? params.agentId ?? null,
+            sessionKey: params.sessionKey ?? null,
+            timeoutMs: approvalTimeoutMs,
+          },
+        );
+        const approvalId = typeof approvalRes?.id === "string" ? approvalRes.id : "";
+        if (!approvalId) {
+          return {
+            shouldContinue: false,
+            reply: { text: "⚠️ Failed to create workflow approval request." },
+          };
+        }
+
+        const replyTarget = typeof params.ctx.To === "string" ? params.ctx.To.trim() : "";
+        const accountId =
+          typeof params.ctx.AccountId === "string" ? params.ctx.AccountId.trim() : undefined;
+
+        void (async () => {
+          const sendToChannel = async (text: string) => {
+            if (!replyTarget) {
+              return;
+            }
+            await sendMessageDiscord(replyTarget, text, { accountId });
+          };
+
+          const waitRes = await callGatewayTool<{
+            id: string;
+            decision: string | null;
+            createdAtMs: number;
+            expiresAtMs: number;
+          }>(
+            "workflow.approval.wait",
+            { timeoutMs: approvalTimeoutMs + 60_000 },
+            { id: approvalId },
+          ).catch(() => null);
+          const decision =
+            waitRes && typeof waitRes === "object" && "decision" in waitRes
+              ? (waitRes as { decision?: unknown }).decision
+              : null;
+
+          if (decision !== "approve") {
+            const status = decision === "deny" ? "denied" : "expired";
+            await sendToChannel(`❌ Deploy ${status}.\nEnv: ${env}\nApp: ${appName}`).catch(
+              () => {},
+            );
+            return;
+          }
+
+          try {
+            await withProjectLock(params.workspaceDir, async () => {
+              const applyCmd = [
+                "cat <<'EOF' | doctl apps create --spec - --upsert --update-sources --wait --output json",
+                renderedSpecJson,
+                "EOF",
+              ].join("\n");
+              const applyRes = await runShell(params, {
+                workdir: repoDir,
+                command: applyCmd,
+                env: doctlEnv,
+                yieldMs: 240_000,
+                timeoutSec: 900,
+                elevatedLevel: "full",
+              });
+              if (!isCompletedOk(applyRes.result)) {
+                throw new Error(
+                  `doctl apps create failed: ${applyRes.text.trim().slice(0, 2000) || "(no output)"}`,
+                );
+              }
+              const outRaw = applyRes.text.trim();
+              let appId: string | null = null;
+              let ingress: string | null = null;
+              try {
+                const parsedOut = JSON.parse(outRaw) as unknown;
+                if (parsedOut && typeof parsedOut === "object") {
+                  const obj = parsedOut as Record<string, unknown>;
+                  if (typeof obj.id === "string") {
+                    appId = obj.id;
+                  }
+                  if (typeof obj.default_ingress === "string") {
+                    ingress = obj.default_ingress;
+                  }
+                }
+              } catch {
+                // ignore
+              }
+              if (!appId) {
+                // Fall back: refresh list and look up by name.
+                const refreshed = await listDoAppsByName(params, token);
+                const match = refreshed.find((a) => {
+                  const spec = a.spec as Record<string, unknown> | undefined;
+                  const name = spec && typeof spec.name === "string" ? spec.name : "";
+                  return name === appName;
+                });
+                if (match && typeof match.id === "string") {
+                  appId = match.id;
+                  const di = match.default_ingress;
+                  ingress = typeof di === "string" ? di : ingress;
+                }
+              }
+
+              const current = loadProjectState(params.workspaceDir);
+              if (current) {
+                const next: ProjectStateV1 = {
+                  ...current,
+                  updatedAt: nowIso(),
+                  deploy: {
+                    ...(current.deploy ?? undefined),
+                    digitalocean: {
+                      ...(current.deploy?.digitalocean ?? undefined),
+                      region,
+                      apps: {
+                        ...(current.deploy?.digitalocean?.apps ?? undefined),
+                        [env]: {
+                          appId: appId ?? existingAppId ?? "(unknown)",
+                          appName,
+                          ingress,
+                        },
+                      },
+                    },
+                  },
+                };
+                saveProjectState(params.workspaceDir, next);
+              }
+
+              const urlLine = ingress ? `\nIngress: ${ingress}` : "";
+              await sendToChannel(
+                `✅ Deploy applied.\nEnv: ${env}\nApp: ${appName}${urlLine}`,
+              ).catch(() => {});
+            });
+          } catch (err) {
+            await sendToChannel(
+              `⚠️ Deploy failed: ${String(err)}\nEnv: ${env}\nApp: ${appName}`,
+            ).catch(() => {});
+          }
+        })();
+
+        return {
+          shouldContinue: false,
+          reply: {
+            text:
+              `🟧 Deploy approval requested in DMs (id ${approvalId.slice(0, 8)}…). ` +
+              "Approve to provision/update the DigitalOcean app; I’ll post the result here.",
+          },
+        };
+      }
+
+      return { shouldContinue: false, reply: { text: buildUsage() } };
+    } catch (err) {
+      return {
+        shouldContinue: false,
+        reply: { text: `⚠️ /project deploy failed: ${String(err)}` },
       };
     }
   }
@@ -906,4 +1635,6 @@ export const _testOnly = {
   parseProjectCommand,
   defaultAgentIdForRepo,
   defaultChannelNameForRepo,
+  inferDoAppSpecTemplateFromRepo,
+  resolveDoAppName,
 };

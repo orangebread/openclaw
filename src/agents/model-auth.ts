@@ -275,6 +275,7 @@ const SPECIAL_PROVIDER_ENV_ENTRIES: ReadonlyArray<readonly [string, string]> = [
   ["COPILOT_GITHUB_TOKEN", "github-copilot"],
   ["GH_TOKEN", "github-copilot"],
   ["GITHUB_TOKEN", "github-copilot"],
+  ["DIGITALOCEAN_ACCESS_TOKEN", "digitalocean"],
   ["CHUTES_OAUTH_TOKEN", "chutes"],
   ["CHUTES_API_KEY", "chutes"],
   ["ZAI_API_KEY", "zai"],

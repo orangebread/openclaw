@@ -7,7 +7,8 @@ metadata:
     "openclaw":
       {
         "emoji": "🌊",
-        "requires": { "bins": ["doctl"] },
+        "requires": { "bins": ["doctl"], "env": ["DIGITALOCEAN_ACCESS_TOKEN"] },
+        "primaryEnv": "DIGITALOCEAN_ACCESS_TOKEN",
         "install":
           [
             {
