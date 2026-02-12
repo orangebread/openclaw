@@ -749,6 +749,56 @@ const FIELD_HELP: Record<string, string> = {
     'Direct message access control ("pairing" recommended). "open" requires channels.slack.dm.allowFrom=["*"].',
 };
 
+// ── Channel field ordering ──────────────────────────────────────────────────
+// Negative order values surface high-priority setup fields (credentials,
+// connection details) above the default (0) in the config form.
+
+const CHANNEL_FIELD_ORDER: Record<string, number> = {
+  // Credentials / tokens — must be first
+  "channels.*.token": -100,
+  "channels.*.botToken": -100,
+  "channels.*.appToken": -99,
+  "channels.*.userToken": -98,
+  "channels.*.password": -97,
+  "channels.*.signingSecret": -96,
+  "channels.*.appId": -100,
+  "channels.*.appPassword": -99,
+  "channels.*.tenantId": -98,
+  "channels.*.serviceAccount": -100,
+  "channels.*.serviceAccountFile": -99,
+  "channels.*.tokenFile": -95,
+
+  // Connection settings
+  "channels.*.serverUrl": -90,
+  "channels.*.baseUrl": -90,
+  "channels.*.httpUrl": -90,
+  "channels.*.httpHost": -89,
+  "channels.*.httpPort": -88,
+  "channels.*.account": -90,
+  "channels.*.cliPath": -87,
+  "channels.*.dbPath": -86,
+  "channels.*.remoteHost": -85,
+  "channels.*.webhookUrl": -84,
+  "channels.*.webhookPath": -83,
+  "channels.*.webhookSecret": -82,
+
+  // Core identity / lifecycle
+  "channels.*.enabled": -70,
+  "channels.*.name": -69,
+  "channels.*.mode": -68,
+
+  // Access policy
+  "channels.*.dmPolicy": -60,
+  "channels.*.allowFrom": -59,
+  "channels.*.groupPolicy": -58,
+  "channels.*.groupAllowFrom": -57,
+
+  // Audience (Google Chat)
+  "channels.*.audienceType": -93,
+  "channels.*.audience": -92,
+  "channels.*.botUser": -91,
+};
+
 const FIELD_PLACEHOLDERS: Record<string, string> = {
   "gateway.remote.url": "ws://host:18789",
   "gateway.remote.tlsFingerprint": "sha256:ab12cd34…",
@@ -786,6 +836,25 @@ export function buildBaseHints(): ConfigUiHints {
   for (const [path, placeholder] of Object.entries(FIELD_PLACEHOLDERS)) {
     const current = hints[path];
     hints[path] = current ? { ...current, placeholder } : { placeholder };
+  }
+  // Expand wildcard channel field order hints into explicit per-channel entries
+  // so they merge with existing direct hints (hintForPath returns direct matches first).
+  const knownChannelIds = Object.keys(FIELD_LABELS)
+    .filter((k) => k.startsWith("channels.") && k.split(".").length === 2)
+    .map((k) => k.split(".")[1]);
+  for (const [pattern, order] of Object.entries(CHANNEL_FIELD_ORDER)) {
+    // Always keep the wildcard entry for plugin/unknown channels
+    const current = hints[pattern];
+    hints[pattern] = current ? { ...current, order } : { order };
+    // Also expand into explicit per-channel entries so they merge with
+    // existing direct hints (hintForPath returns direct matches first).
+    if (pattern.includes("*")) {
+      for (const channelId of knownChannelIds) {
+        const expanded = pattern.replace("*", channelId);
+        const cur = hints[expanded];
+        hints[expanded] = cur ? { ...cur, order } : { order };
+      }
+    }
   }
   return hints;
 }

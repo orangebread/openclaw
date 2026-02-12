@@ -36,6 +36,15 @@ export type ConfigState = {
   lastError: string | null;
 };
 
+function isConfigSetConflict(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("config changed since last load") ||
+    normalized.includes("config base hash required") ||
+    normalized.includes("config base hash unavailable")
+  );
+}
+
 export async function loadConfig(state: ConfigState) {
   if (!state.client || !state.connected) {
     return;
@@ -144,7 +153,27 @@ export async function saveConfig(state: ConfigState) {
     state.configFormDirty = false;
     await loadConfig(state);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    let msg = err instanceof Error ? err.message : String(err);
+    if (isConfigSetConflict(msg)) {
+      await loadConfig(state);
+      const refreshedHash = state.configSnapshot?.hash;
+      if (refreshedHash) {
+        try {
+          await state.client.request("config.set", {
+            raw: serializeFormForSubmit(state),
+            baseHash: refreshedHash,
+          });
+          state.configFormDirty = false;
+          state.lastError = null;
+          await loadConfig(state);
+          return;
+        } catch (retryErr) {
+          msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        }
+      } else {
+        msg = "Config changed while saving; reload and retry.";
+      }
+    }
     // The gateway typically restarts after config.set, dropping the WebSocket
     // (close code 1012). The save succeeded server-side; mark clean so the
     // automatic reconnect + loadConfig picks up the persisted state.

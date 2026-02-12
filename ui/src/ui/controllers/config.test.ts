@@ -276,6 +276,52 @@ describe("saveConfig", () => {
     expect(parsed.gateway.port).toBe("18789");
     expect(params.baseHash).toBe("hash-save-2");
   });
+
+  it("reloads and retries once on base-hash conflicts", async () => {
+    const request = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        throw new Error("config changed since last load; re-run config.get and retry");
+      })
+      .mockImplementationOnce(async () => ({
+        config: { channels: { discord: { enabled: true } } },
+        valid: true,
+        issues: [],
+        raw: '{ "channels": { "discord": { "enabled": true } } }',
+        hash: "hash-save-retry-2",
+      }))
+      .mockImplementationOnce(async () => ({}))
+      .mockImplementationOnce(async () => ({
+        config: { channels: { discord: { enabled: true } } },
+        valid: true,
+        issues: [],
+        raw: '{ "channels": { "discord": { "enabled": true } } }',
+        hash: "hash-save-retry-2",
+      }));
+
+    const state = createState();
+    state.connected = true;
+    state.client = { request } as unknown as ConfigState["client"];
+    state.configFormMode = "raw";
+    state.configRaw = '{ "channels": { "discord": { "enabled": true } } }';
+    state.configSnapshot = { hash: "hash-save-retry-1" };
+
+    await saveConfig(state);
+
+    expect(request.mock.calls[0]?.[0]).toBe("config.set");
+    expect(request.mock.calls[0]?.[1]).toEqual({
+      raw: '{ "channels": { "discord": { "enabled": true } } }',
+      baseHash: "hash-save-retry-1",
+    });
+    expect(request.mock.calls[1]?.[0]).toBe("config.get");
+    expect(request.mock.calls[2]?.[0]).toBe("config.set");
+    expect(request.mock.calls[2]?.[1]).toEqual({
+      raw: '{ "channels": { "discord": { "enabled": true } } }',
+      baseHash: "hash-save-retry-2",
+    });
+    expect(state.lastError).toBeNull();
+    expect(state.configFormDirty).toBe(false);
+  });
 });
 
 describe("runUpdate", () => {
