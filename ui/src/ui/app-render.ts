@@ -64,9 +64,13 @@ import {
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
 import {
+  applyKnowledgeBaseLocalEmbeddingPreset,
   loadKnowledgeBase,
+  loadKnowledgeBaseEmbeddingSettings,
   openReviewQueue,
+  saveKnowledgeBaseEmbeddingSettings,
   selectKnowledgeBaseFile,
+  updateKnowledgeBaseEmbeddingSettings,
 } from "./controllers/knowledge-base.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
@@ -293,7 +297,7 @@ export function renderApp(state: AppViewState) {
                 },
                 onChannelToggle: (channelId, enabled) => {
                   updateConfigFormValue(state, ["channels", channelId, "enabled"], enabled);
-                  state.handleChannelConfigSave();
+                  void state.handleChannelConfigSave();
                 },
                 installBusy: state.channelInstallBusy,
                 installError: state.channelInstallError,
@@ -441,9 +445,23 @@ export function renderApp(state: AppViewState) {
                 selectedPath: state.kbSelectedPath,
                 activeView: state.kbActiveView,
                 reviewQueueList: state.kbReviewQueueList,
+                embeddingSettingsLoading: state.kbEmbeddingSettingsLoading,
+                embeddingSettingsSaving: state.kbEmbeddingSettingsSaving,
+                embeddingSettingsError: state.kbEmbeddingSettingsError,
+                embeddingSettingsNotice: state.kbEmbeddingSettingsNotice,
+                embeddingSettings: state.kbEmbeddingSettings,
                 onRefresh: () => loadKnowledgeBase(state),
                 onSelectFile: (path) => selectKnowledgeBaseFile(state, path),
                 onOpenReviewQueue: () => openReviewQueue(state),
+                onRefreshEmbeddingSettings: () => loadKnowledgeBaseEmbeddingSettings(state),
+                onProviderChange: (provider) =>
+                  updateKnowledgeBaseEmbeddingSettings(state, { provider }),
+                onFallbackChange: (fallback) =>
+                  updateKnowledgeBaseEmbeddingSettings(state, { fallback }),
+                onLocalModelPathChange: (localModelPath) =>
+                  updateKnowledgeBaseEmbeddingSettings(state, { localModelPath }),
+                onUseLocalPreset: () => applyKnowledgeBaseLocalEmbeddingPreset(state),
+                onSaveEmbeddingSettings: () => saveKnowledgeBaseEmbeddingSettings(state),
               })
             : nothing
         }

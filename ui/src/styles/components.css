@@ -58,6 +58,29 @@
   flex-wrap: wrap;
 }
 
+.kb-embeddings {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: inset 0 1px 0 var(--card-highlight);
+  padding: 12px;
+}
+
+.kb-embeddings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.kb-embeddings-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+  margin-bottom: 2px;
+}
+
 .kb-layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);

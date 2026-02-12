@@ -374,6 +374,19 @@ export class OpenClawApp extends LitElement {
   @state() kbSelectedPath: string | null = null;
   @state() kbActiveView: "browse" | "review-queue" = "browse";
   @state() kbReviewQueueList: string[] = [];
+  @state() kbEmbeddingSettingsLoading = false;
+  @state() kbEmbeddingSettingsSaving = false;
+  @state() kbEmbeddingSettingsError: string | null = null;
+  @state() kbEmbeddingSettingsNotice: string | null = null;
+  @state() kbEmbeddingSettings: {
+    provider: "auto" | "local" | "openai" | "gemini" | "voyage";
+    fallback: "none" | "local" | "openai" | "gemini" | "voyage";
+    localModelPath: string;
+  } = {
+    provider: "auto",
+    fallback: "none",
+    localModelPath: "",
+  };
 
   @state() skillsLoading = false;
   @state() skillsReport: SkillStatusReport | null = null;

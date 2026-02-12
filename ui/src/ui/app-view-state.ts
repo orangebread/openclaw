@@ -8,6 +8,7 @@ import type {
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
+import type { KnowledgeBaseEmbeddingSettings } from "./controllers/knowledge-base.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
@@ -285,6 +286,11 @@ export type AppViewState = {
   kbSelectedPath: string | null;
   kbActiveView: "browse" | "review-queue";
   kbReviewQueueList: string[];
+  kbEmbeddingSettingsLoading: boolean;
+  kbEmbeddingSettingsSaving: boolean;
+  kbEmbeddingSettingsError: string | null;
+  kbEmbeddingSettingsNotice: string | null;
+  kbEmbeddingSettings: KnowledgeBaseEmbeddingSettings;
   client: GatewayBrowserClient | null;
   refreshSessionsAfterChat: Set<string>;
   connect: () => void;

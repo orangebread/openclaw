@@ -18,7 +18,10 @@ import { loadCronJobs, loadCronStatus } from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import { loadExecApprovals } from "./controllers/exec-approvals.ts";
-import { loadKnowledgeBase } from "./controllers/knowledge-base.ts";
+import {
+  loadKnowledgeBase,
+  loadKnowledgeBaseEmbeddingSettings,
+} from "./controllers/knowledge-base.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
@@ -204,6 +207,7 @@ export async function refreshActiveTab(host: SettingsHost) {
   }
   if (host.tab === "knowledge-base") {
     await loadKnowledgeBase(host as unknown as OpenClawApp);
+    await loadKnowledgeBaseEmbeddingSettings(host as unknown as OpenClawApp);
   }
   if (host.tab === "skills") {
     await loadSkills(host as unknown as OpenClawApp);
