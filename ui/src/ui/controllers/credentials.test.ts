@@ -399,11 +399,13 @@ describe("credentials controller", () => {
 
   it("opens oauth URL in pre-opened popup and closes it after completion", async () => {
     vi.useFakeTimers();
+    const popupClose = vi.fn();
+    const popupAssign = vi.fn();
     const popup = {
       closed: false,
       focus: vi.fn(),
-      close: vi.fn(),
-      location: { assign: vi.fn() },
+      close: popupClose,
+      location: { assign: popupAssign },
       document: {
         title: "",
         body: { innerHTML: "" },
@@ -456,8 +458,8 @@ describe("credentials controller", () => {
       expect(state.credentialsAuthFlowStep?.id).toBe("open-1");
 
       await vi.runAllTimersAsync();
-      expect(popup.location.assign).toHaveBeenCalledWith("https://example.com/oauth");
-      expect(popup.close).toHaveBeenCalled();
+      expect(popupAssign).toHaveBeenCalledWith("https://example.com/oauth");
+      expect(popupClose).toHaveBeenCalled();
       expect(state.credentialsAuthFlowRunning).toBe(false);
     } finally {
       openSpy.mockRestore();

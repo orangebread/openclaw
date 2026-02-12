@@ -314,8 +314,19 @@ export function handleControlUiHttpRequest(
     return true;
   }
 
+  const rootIndexPath = path.join(root, "index.html");
+  if (!fs.existsSync(rootIndexPath)) {
+    res.statusCode = 503;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.end(
+      `Control UI assets not found at ${root}. Build them with \`pnpm ui:build\` (auto-installs UI deps), or run \`pnpm ui:dev\` during development.`,
+    );
+    return true;
+  }
+
   const uiPath =
     basePath && pathname.startsWith(`${basePath}/`) ? pathname.slice(basePath.length) : pathname;
+  const isAssetRequest = uiPath.includes("/assets/");
   const rel = (() => {
     if (uiPath === ROOT_PREFIX) {
       return "";
@@ -349,6 +360,11 @@ export function handleControlUiHttpRequest(
       return true;
     }
     serveFile(res, filePath);
+    return true;
+  }
+
+  if (isAssetRequest) {
+    respondNotFound(res);
     return true;
   }
 

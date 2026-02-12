@@ -2,7 +2,11 @@ import fs from "node:fs";
 import type { OpenClawConfig } from "../config/config.js";
 import type { PluginConfigUiHint, PluginDiagnostic, PluginKind, PluginOrigin } from "./types.js";
 import { resolveUserPath } from "../utils.js";
-import { normalizePluginsConfig, type NormalizedPluginsConfig } from "./config-state.js";
+import {
+  normalizePluginsConfig,
+  resolveEnableState,
+  type NormalizedPluginsConfig,
+} from "./config-state.js";
 import { discoverOpenClawPlugins, type PluginCandidate } from "./discovery.js";
 import { loadPluginManifest, type PluginManifest } from "./manifest.js";
 
@@ -162,12 +166,15 @@ export function loadPluginManifestRegistry(params: {
     }
 
     if (seenIds.has(manifest.id)) {
-      diagnostics.push({
-        level: "warn",
-        pluginId: manifest.id,
-        source: candidate.source,
-        message: `duplicate plugin id detected; first match wins (later candidate ignored: ${candidate.source})`,
-      });
+      const enableState = resolveEnableState(manifest.id, candidate.origin, normalized);
+      if (enableState.enabled) {
+        diagnostics.push({
+          level: "warn",
+          pluginId: manifest.id,
+          source: candidate.source,
+          message: `duplicate plugin id detected; first match wins (later candidate ignored: ${candidate.source})`,
+        });
+      }
     } else {
       seenIds.add(manifest.id);
     }

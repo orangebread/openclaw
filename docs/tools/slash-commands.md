@@ -103,6 +103,7 @@ Text + native (when enabled):
 Text-only:
 
 - `/compact [instructions]` (see [/concepts/compaction](/concepts/compaction))
+- `/project help|bootstrap|ship|merge|deploy` (project workflow; Discord server channels only)
 - `! <command>` (host-only; one at a time; use `!poll` + `!stop` for long-running jobs)
 - `!poll` (check output / status; accepts optional `sessionId`; `/bash poll` also works)
 - `!stop` (stop the running bash job; accepts optional `sessionId`; `/bash stop` also works)

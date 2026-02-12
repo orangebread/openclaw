@@ -2077,6 +2077,141 @@
   font-size: 12px;
 }
 
+/* Agent Identity Section */
+
+.agent-identity-section {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-accent);
+}
+
+.agent-identity-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.agent-identity-emoji-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.agent-identity-emoji-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
+}
+
+.agent-identity-emoji-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.agent-identity-emoji-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.agent-identity-emoji-display {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.agent-identity-emoji-hint {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.agent-emoji-picker {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: 320px;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-lg);
+}
+
+.agent-emoji-picker.open {
+  display: block;
+}
+
+.agent-emoji-picker-header {
+  margin-bottom: 10px;
+}
+
+.agent-emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+.agent-emoji-option {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  font-size: 1.2em;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.agent-emoji-option:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.agent-emoji-option.active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.agent-emoji-option:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.agent-identity-fields {
+  flex: 1;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  align-self: center;
+}
+
+.agent-emoji-details summary {
+  cursor: pointer;
+  width: fit-content;
+}
+
+.agent-emoji-details summary::-webkit-details-marker {
+  display: none;
+}
+
 .agent-model-select {
   display: grid;
   gap: 12px;

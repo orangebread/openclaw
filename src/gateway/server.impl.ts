@@ -21,6 +21,7 @@ import {
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
 import { clearAgentRunContext, onAgentEvent } from "../infra/agent-events.js";
 import {
+  checkControlUiRootHealthSync,
   ensureControlUiAssetsBuilt,
   resolveControlUiRootOverrideSync,
   resolveControlUiRootSync,
@@ -276,11 +277,17 @@ export async function startGatewayServer(
   if (controlUiRootOverride) {
     const resolvedOverride = resolveControlUiRootOverrideSync(controlUiRootOverride);
     const resolvedOverridePath = path.resolve(controlUiRootOverride);
-    controlUiRootState = resolvedOverride
-      ? { kind: "resolved", path: resolvedOverride }
-      : { kind: "invalid", path: resolvedOverridePath };
+    const overrideHealth = resolvedOverride ? checkControlUiRootHealthSync(resolvedOverride) : null;
+    controlUiRootState =
+      resolvedOverride && overrideHealth?.ok
+        ? { kind: "resolved", path: resolvedOverride }
+        : { kind: "invalid", path: resolvedOverridePath };
     if (!resolvedOverride) {
       log.warn(`gateway: controlUi.root not found at ${resolvedOverridePath}`);
+    } else if (!overrideHealth?.ok) {
+      log.warn(
+        `gateway: controlUi.root invalid at ${resolvedOverridePath} (${overrideHealth?.reason ?? "unhealthy"})`,
+      );
     }
   } else if (controlUiEnabled) {
     let resolvedRoot = resolveControlUiRootSync({
@@ -288,6 +295,15 @@ export async function startGatewayServer(
       argv1: process.argv[1],
       cwd: process.cwd(),
     });
+    if (resolvedRoot) {
+      const health = checkControlUiRootHealthSync(resolvedRoot);
+      if (!health.ok) {
+        log.warn(
+          `gateway: control UI assets incomplete at ${resolvedRoot} (${health.reason ?? "unhealthy"}); rebuilding`,
+        );
+        resolvedRoot = null;
+      }
+    }
     if (!resolvedRoot) {
       const ensureResult = await ensureControlUiAssetsBuilt(gatewayRuntime);
       if (!ensureResult.ok && ensureResult.message) {
@@ -298,6 +314,15 @@ export async function startGatewayServer(
         argv1: process.argv[1],
         cwd: process.cwd(),
       });
+    }
+    if (resolvedRoot) {
+      const health = checkControlUiRootHealthSync(resolvedRoot);
+      if (!health.ok) {
+        log.warn(
+          `gateway: control UI assets still incomplete at ${resolvedRoot} (${health.reason ?? "unhealthy"})`,
+        );
+        resolvedRoot = null;
+      }
     }
     controlUiRootState = resolvedRoot
       ? { kind: "resolved", path: resolvedRoot }

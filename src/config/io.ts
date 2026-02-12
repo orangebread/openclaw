@@ -59,6 +59,7 @@ const SHELL_ENV_EXPECTED_KEYS = [
 
 const CONFIG_BACKUP_COUNT = 5;
 const loggedInvalidConfigs = new Set<string>();
+const loggedConfigWarnings = new Map<string, string>();
 
 export type ParseConfigJson5Result = { ok: true; parsed: unknown } | { ok: false; error: string };
 
@@ -281,9 +282,20 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
       if (validated.warnings.length > 0) {
         const details = validated.warnings
-          .map((iss) => `- ${iss.path || "<root>"}: ${iss.message}`)
+          .map((iss) => ({
+            path: iss.path || "<root>",
+            message: iss.message,
+          }))
+          .toSorted((a, b) => a.path.localeCompare(b.path) || a.message.localeCompare(b.message))
+          .map((iss) => `- ${iss.path}: ${iss.message}`)
           .join("\n");
-        deps.logger.warn(`Config warnings:\\n${details}`);
+        const last = loggedConfigWarnings.get(configPath);
+        if (last !== details) {
+          loggedConfigWarnings.set(configPath, details);
+          deps.logger.warn(`Config warnings:\n${details}`);
+        }
+      } else {
+        loggedConfigWarnings.delete(configPath);
       }
       warnIfConfigFromFuture(validated.config, deps.logger);
       const cfg = applyModelDefaults(

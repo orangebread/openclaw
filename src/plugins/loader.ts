@@ -71,7 +71,7 @@ function formatPluginLoadError(err: unknown, pluginRootDir: string): string {
     return base;
   }
 
-  return `${base} (missing "${missingModule}" in "${pluginRootDir}/node_modules"; run: cd "${pluginRootDir}" && npm install --omit=dev)`;
+  return `${base} (missing "${missingModule}" in "${pluginRootDir}/node_modules"; run: cd "${pluginRootDir}" && npm install --omit=dev --silent --ignore-scripts)`;
 }
 
 const resolvePluginSdkAlias = (): string | null => {

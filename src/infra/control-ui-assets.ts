@@ -11,6 +11,47 @@ export function resolveControlUiDistIndexPathForRoot(root: string): string {
   return path.join(root, ...CONTROL_UI_DIST_PATH_SEGMENTS);
 }
 
+export type ControlUiRootHealth = {
+  ok: boolean;
+  reason?: string;
+};
+
+function listDirEntriesSafe(dirPath: string): string[] {
+  try {
+    return fs.readdirSync(dirPath);
+  } catch {
+    return [];
+  }
+}
+
+export function checkControlUiRootHealthSync(root: string): ControlUiRootHealth {
+  const indexPath = path.join(root, "index.html");
+  try {
+    if (!fs.existsSync(indexPath) || !fs.statSync(indexPath).isFile()) {
+      return { ok: false, reason: "missing index.html" };
+    }
+  } catch {
+    return { ok: false, reason: "missing index.html" };
+  }
+
+  const assetsDir = path.join(root, "assets");
+  try {
+    if (!fs.existsSync(assetsDir) || !fs.statSync(assetsDir).isDirectory()) {
+      return { ok: false, reason: "missing assets directory" };
+    }
+  } catch {
+    return { ok: false, reason: "missing assets directory" };
+  }
+
+  const entries = listDirEntriesSafe(assetsDir);
+  const hasJs = entries.some((name) => name.endsWith(".js"));
+  if (!hasJs) {
+    return { ok: false, reason: "assets directory missing .js bundles" };
+  }
+
+  return { ok: true };
+}
+
 export type ControlUiDistIndexHealth = {
   indexPath: string | null;
   exists: boolean;
