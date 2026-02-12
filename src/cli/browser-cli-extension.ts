@@ -1,9 +1,9 @@
 import type { Command } from "commander";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { movePathToTrash } from "../browser/trash.js";
-import { STATE_DIR } from "../config/paths.js";
+import {
+  installChromeExtension,
+  resolveBundledChromeExtensionRootDir,
+  resolveChromeExtensionInstallStatus,
+} from "../browser/chrome-extension-install.js";
 import { danger, info } from "../globals.js";
 import { copyToClipboard } from "../infra/clipboard.js";
 import { defaultRuntime } from "../runtime.js";
@@ -12,60 +12,11 @@ import { theme } from "../terminal/theme.js";
 import { shortenHomePath } from "../utils.js";
 import { formatCliCommand } from "./command-format.js";
 
-export function resolveBundledExtensionRootDir(
-  here = path.dirname(fileURLToPath(import.meta.url)),
-) {
-  let current = here;
-  while (true) {
-    const candidate = path.join(current, "assets", "chrome-extension");
-    if (hasManifest(candidate)) {
-      return candidate;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      break;
-    }
-    current = parent;
-  }
-
-  return path.resolve(here, "../../assets/chrome-extension");
+export function resolveBundledExtensionRootDir(here?: string) {
+  return resolveBundledChromeExtensionRootDir(here);
 }
 
-function installedExtensionRootDir() {
-  return path.join(STATE_DIR, "browser", "chrome-extension");
-}
-
-function hasManifest(dir: string) {
-  return fs.existsSync(path.join(dir, "manifest.json"));
-}
-
-export async function installChromeExtension(opts?: {
-  stateDir?: string;
-  sourceDir?: string;
-}): Promise<{ path: string }> {
-  const src = opts?.sourceDir ?? resolveBundledExtensionRootDir();
-  if (!hasManifest(src)) {
-    throw new Error("Bundled Chrome extension is missing. Reinstall OpenClaw and try again.");
-  }
-
-  const stateDir = opts?.stateDir ?? STATE_DIR;
-  const dest = path.join(stateDir, "browser", "chrome-extension");
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-
-  if (fs.existsSync(dest)) {
-    await movePathToTrash(dest).catch(() => {
-      const backup = `${dest}.old-${Date.now()}`;
-      fs.renameSync(dest, backup);
-    });
-  }
-
-  await fs.promises.cp(src, dest, { recursive: true });
-  if (!hasManifest(dest)) {
-    throw new Error("Chrome extension install failed (manifest.json missing). Try again.");
-  }
-
-  return { path: dest };
-}
+export { installChromeExtension };
 
 export function registerBrowserExtensionCommands(
   browser: Command,
@@ -113,8 +64,8 @@ export function registerBrowserExtensionCommands(
     .description("Print the path to the installed Chrome extension (load unpacked)")
     .action(async (_opts, cmd) => {
       const parent = parentOpts(cmd);
-      const dir = installedExtensionRootDir();
-      if (!hasManifest(dir)) {
+      const status = resolveChromeExtensionInstallStatus();
+      if (!status.installed) {
         defaultRuntime.error(
           danger(
             [
@@ -126,12 +77,12 @@ export function registerBrowserExtensionCommands(
         defaultRuntime.exit(1);
       }
       if (parent?.json) {
-        defaultRuntime.log(JSON.stringify({ path: dir }, null, 2));
+        defaultRuntime.log(JSON.stringify({ path: status.path }, null, 2));
         return;
       }
-      const displayPath = shortenHomePath(dir);
+      const displayPath = shortenHomePath(status.path);
       defaultRuntime.log(displayPath);
-      const copied = await copyToClipboard(dir).catch(() => false);
+      const copied = await copyToClipboard(status.path).catch(() => false);
       if (copied) {
         defaultRuntime.error(info("Copied to clipboard."));
       }

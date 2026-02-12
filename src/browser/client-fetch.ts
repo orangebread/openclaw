@@ -149,6 +149,11 @@ export async function fetchBrowserJson<T>(
     }
     return result.body as T;
   } catch (err) {
-    throw enhanceBrowserFetchError(url, err, timeoutMs);
+    // Only treat absolute HTTP requests as "reachability" errors.
+    // Relative URLs dispatch in-process and should surface the underlying error message.
+    if (isAbsoluteHttp(url)) {
+      throw enhanceBrowserFetchError(url, err, timeoutMs);
+    }
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }

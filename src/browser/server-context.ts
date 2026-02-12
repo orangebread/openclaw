@@ -300,9 +300,20 @@ function createProfileContext(
       if (await isReachable(600)) {
         return;
       }
-      // Relay server is up, but no attached tab yet. Prompt user to attach.
+      // Relay server is up, but the extension hasn't connected yet (so /json/version won't advertise a WS URL).
+      const status = await fetchJson<{ connected?: boolean }>(
+        appendCdpPath(profile.cdpUrl, "/extension/status"),
+        400,
+      ).catch(() => null);
+      if (status && status.connected === false) {
+        throw new Error(
+          `Chrome extension relay is running, but the OpenClaw Browser Relay extension is not connected. ` +
+            `Open Chrome and click the OpenClaw Browser Relay toolbar icon to connect (OpenClaw browser profile "${profile.name}").`,
+        );
+      }
       throw new Error(
-        `Chrome extension relay is running, but no tab is connected. Click the OpenClaw Chrome extension icon on a tab to attach it (profile "${profile.name}").`,
+        `Chrome extension relay is running, but the browser CDP websocket is not available yet. ` +
+          `Open Chrome and click the OpenClaw Browser Relay toolbar icon to connect (OpenClaw browser profile "${profile.name}").`,
       );
     }
 
@@ -618,6 +629,7 @@ export function createBrowserRouteContext(opts: ContextOptions): BrowserRouteCon
 
       result.push({
         name,
+        driver: profile.driver,
         cdpPort: profile.cdpPort,
         cdpUrl: profile.cdpUrl,
         color: profile.color,

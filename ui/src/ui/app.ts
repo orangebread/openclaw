@@ -3,6 +3,12 @@ import { customElement, state } from "lit/decorators.js";
 import type { EventLogEntry } from "./app-events.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import type {
+  BrowserProfileStatus,
+  BrowserStatus,
+  BrowserTabsResult,
+  ChromeExtensionStatus,
+} from "./controllers/browser.ts";
+import type {
   CredentialsApiKeyFormState,
   CredentialsDisconnectDialogState,
   CredentialsSuccessState,
@@ -158,6 +164,17 @@ export class OpenClawApp extends LitElement {
 
   @state() nodesLoading = false;
   @state() nodes: Array<Record<string, unknown>> = [];
+
+  @state() browserLoading = false;
+  @state() browserError: string | null = null;
+  @state() browserProfiles: BrowserProfileStatus[] | null = null;
+  @state() browserSelectedProfile: string | null = null;
+  @state() browserStatus: BrowserStatus | null = null;
+  @state() browserTabs: BrowserTabsResult | null = null;
+  @state() browserChromeExtensionStatus: ChromeExtensionStatus | null = null;
+  @state() browserChromeExtensionInstalling = false;
+  @state() browserNewTabUrl = "";
+  @state() browserTabActionBusy = false;
   @state() devicesLoading = false;
   @state() devicesError: string | null = null;
   @state() devicesList: DevicePairingList | null = null;

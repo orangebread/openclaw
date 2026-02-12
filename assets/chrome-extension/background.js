@@ -1,4 +1,5 @@
 const DEFAULT_PORT = 18792
+const AUTO_CONNECT_MIN_INTERVAL_MS = 30_000
 
 const BADGE = {
   on: { text: 'ON', color: '#FF5A36' },
@@ -15,6 +16,8 @@ let relayConnectPromise = null
 let debuggerListenersInstalled = false
 
 let nextSession = 1
+
+let lastAutoConnectAttemptAt = 0
 
 /** @type {Map<number, {state:'connecting'|'connected', sessionId?:string, targetId?:string, attachOrder?:number}>} */
 const tabs = new Map()
@@ -99,6 +102,19 @@ async function ensureRelayConnection() {
     await relayConnectPromise
   } finally {
     relayConnectPromise = null
+  }
+}
+
+async function maybeAutoConnect(reason) {
+  // Chrome MV3 service workers can spin down; rely on lightweight event-driven reconnect.
+  if (relayWs && relayWs.readyState === WebSocket.OPEN) return
+  const now = Date.now()
+  if (now - lastAutoConnectAttemptAt < AUTO_CONNECT_MIN_INTERVAL_MS) return
+  lastAutoConnectAttemptAt = now
+  try {
+    await ensureRelayConnection()
+  } catch {
+    // Quiet: user-initiated attach handles surfacing errors.
   }
 }
 
@@ -322,6 +338,17 @@ async function handleForwardCdpCommand(msg) {
   const params = msg?.params?.params || undefined
   const sessionId = typeof msg?.params?.sessionId === 'string' ? msg.params.sessionId : undefined
 
+  // Allow OpenClaw to bootstrap without a pre-attached tab.
+  // CDP clients often start by creating a new target; we can create+attach here.
+  if (method === 'Target.createTarget') {
+    const url = typeof params?.url === 'string' ? params.url : 'about:blank'
+    const tab = await chrome.tabs.create({ url, active: false })
+    if (!tab.id) throw new Error('Failed to create tab')
+    await new Promise((r) => setTimeout(r, 100))
+    const attached = await attachTab(tab.id)
+    return { targetId: attached.targetId }
+  }
+
   // Map command to tab
   const bySession = sessionId ? getTabBySessionId(sessionId) : null
   const targetId = typeof params?.targetId === 'string' ? params.targetId : undefined
@@ -349,15 +376,6 @@ async function handleForwardCdpCommand(msg) {
       // ignore
     }
     return await chrome.debugger.sendCommand(debuggee, 'Runtime.enable', params)
-  }
-
-  if (method === 'Target.createTarget') {
-    const url = typeof params?.url === 'string' ? params.url : 'about:blank'
-    const tab = await chrome.tabs.create({ url, active: false })
-    if (!tab.id) throw new Error('Failed to create tab')
-    await new Promise((r) => setTimeout(r, 100))
-    const attached = await attachTab(tab.id)
-    return { targetId: attached.targetId }
   }
 
   if (method === 'Target.closeTarget') {
@@ -436,3 +454,10 @@ chrome.runtime.onInstalled.addListener(() => {
   // Useful: first-time instructions.
   void chrome.runtime.openOptionsPage()
 })
+
+chrome.runtime.onStartup.addListener(() => void maybeAutoConnect('startup'))
+chrome.tabs.onActivated.addListener(() => void maybeAutoConnect('activated'))
+chrome.windows.onFocusChanged.addListener(() => void maybeAutoConnect('focus'))
+
+// Best-effort: when the service worker starts for any reason, attempt to connect.
+void maybeAutoConnect('init')

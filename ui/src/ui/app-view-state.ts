@@ -1,6 +1,12 @@
 import type { EventLogEntry } from "./app-events.ts";
 import type { CompactionStatus } from "./app-tool-stream.ts";
 import type {
+  BrowserProfileStatus,
+  BrowserStatus,
+  BrowserTabsResult,
+  ChromeExtensionStatus,
+} from "./controllers/browser.ts";
+import type {
   CredentialsApiKeyFormState,
   CredentialsDisconnectDialogState,
   CredentialsSuccessState,
@@ -79,6 +85,16 @@ export type AppViewState = {
   chatManualRefreshInFlight: boolean;
   nodesLoading: boolean;
   nodes: Array<Record<string, unknown>>;
+  browserLoading: boolean;
+  browserError: string | null;
+  browserProfiles: BrowserProfileStatus[] | null;
+  browserSelectedProfile: string | null;
+  browserStatus: BrowserStatus | null;
+  browserTabs: BrowserTabsResult | null;
+  browserChromeExtensionStatus: ChromeExtensionStatus | null;
+  browserChromeExtensionInstalling: boolean;
+  browserNewTabUrl: string;
+  browserTabActionBusy: boolean;
   chatNewMessagesBelow: boolean;
   sidebarOpen: boolean;
   sidebarContent: string | null;

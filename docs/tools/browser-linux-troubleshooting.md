@@ -121,10 +121,11 @@ curl -s http://127.0.0.1:18791/tabs
 | `browser.attachOnly`     | Don't launch browser, only attach to existing                        | `false`                                                     |
 | `browser.cdpPort`        | Chrome DevTools Protocol port                                        | `18800`                                                     |
 
-### Problem: "Chrome extension relay is running, but no tab is connected"
+### Problem: "Chrome extension relay is running, but the OpenClaw Browser Relay extension is not connected"
 
 You’re using the `chrome` profile (extension relay). It expects the OpenClaw
-browser extension to be attached to a live tab.
+Browser Relay extension to be connected to the local relay server. If needed,
+open a tab and click the toolbar icon (badge ON).
 
 Fix options:
 

@@ -234,7 +234,7 @@ Common signatures:
 
 - `Failed to start Chrome CDP on port` → browser process failed to launch.
 - `browser.executablePath not found` → configured path is invalid.
-- `Chrome extension relay is running, but no tab is connected` → extension relay not attached.
+- `Chrome extension relay is running, but the OpenClaw Browser Relay extension is not connected` → extension relay not connected (open Chrome and click the toolbar icon).
 - `Browser attachOnly is enabled ... not reachable` → attach-only profile has no reachable target.
 
 Related:

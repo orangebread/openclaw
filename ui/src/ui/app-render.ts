@@ -11,6 +11,16 @@ import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-iden
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents, loadModelCatalog, createAgent, deleteAgent } from "./controllers/agents.ts";
 import {
+  closeBrowserTab,
+  focusBrowserTab,
+  installBrowserChromeExtension,
+  loadBrowser,
+  openBrowserTab,
+  resetBrowserProfile,
+  startBrowserProfile,
+  stopBrowserProfile,
+} from "./controllers/browser.ts";
+import {
   enableChannel,
   installChannel,
   loadChannelsAndCatalog,
@@ -99,6 +109,7 @@ const debouncedLoadUsage = (state: UsageState) => {
   usageDateDebounceTimeout = window.setTimeout(() => void loadUsage(state), 400);
 };
 import { renderAgents } from "./views/agents.ts";
+import { renderBrowser } from "./views/browser.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
 import { renderConfig } from "./views/config.ts";
@@ -518,6 +529,74 @@ export function renderApp(state: AppViewState) {
                 onRefresh: () => loadSessions(state),
                 onPatch: (key, patch) => patchSession(state, key, patch),
                 onDelete: (key) => deleteSession(state, key),
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "browser"
+            ? renderBrowser({
+                loading: state.browserLoading,
+                error: state.browserError,
+                profiles: state.browserProfiles,
+                selectedProfile: state.browserSelectedProfile,
+                status: state.browserStatus,
+                tabs: state.browserTabs,
+                chromeExtensionStatus: state.browserChromeExtensionStatus,
+                chromeExtensionInstalling: state.browserChromeExtensionInstalling,
+                newTabUrl: state.browserNewTabUrl,
+                tabActionBusy: state.browserTabActionBusy,
+                onRefresh: () => loadBrowser(state),
+                onSelectProfile: (profile) => {
+                  state.browserSelectedProfile = profile;
+                  void loadBrowser(state, { profile });
+                },
+                onStart: () => {
+                  const profile = state.browserSelectedProfile;
+                  if (!profile) {
+                    return;
+                  }
+                  void startBrowserProfile(state, profile);
+                },
+                onStop: () => {
+                  const profile = state.browserSelectedProfile;
+                  if (!profile) {
+                    return;
+                  }
+                  void stopBrowserProfile(state, profile);
+                },
+                onResetProfile: () => {
+                  const profile = state.browserSelectedProfile;
+                  if (!profile) {
+                    return;
+                  }
+                  void resetBrowserProfile(state, profile);
+                },
+                onInstallChromeExtension: () => void installBrowserChromeExtension(state),
+                onNewTabUrlChange: (next) => {
+                  state.browserNewTabUrl = next;
+                },
+                onOpenTab: () => {
+                  const profile = state.browserSelectedProfile;
+                  if (!profile) {
+                    return;
+                  }
+                  void openBrowserTab(state, profile, state.browserNewTabUrl);
+                },
+                onFocusTab: (targetId) => {
+                  const profile = state.browserSelectedProfile;
+                  if (!profile) {
+                    return;
+                  }
+                  void focusBrowserTab(state, profile, targetId);
+                },
+                onCloseTab: (targetId) => {
+                  const profile = state.browserSelectedProfile;
+                  if (!profile) {
+                    return;
+                  }
+                  void closeBrowserTab(state, profile, targetId);
+                },
               })
             : nothing
         }

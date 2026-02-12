@@ -10,6 +10,7 @@ export const TAB_GROUPS = [
       "credentials",
       "instances",
       "sessions",
+      "browser",
       "usage",
       "cron",
       "knowledge-base",
@@ -26,6 +27,7 @@ export type Tab =
   | "credentials"
   | "instances"
   | "sessions"
+  | "browser"
   | "usage"
   | "cron"
   | "knowledge-base"
@@ -43,6 +45,7 @@ const TAB_PATHS: Record<Tab, string> = {
   credentials: "/credentials",
   instances: "/instances",
   sessions: "/sessions",
+  browser: "/browser",
   usage: "/usage",
   cron: "/cron",
   "knowledge-base": "/knowledge-base",
@@ -151,6 +154,8 @@ export function iconForTab(tab: Tab): IconName {
       return "radio";
     case "sessions":
       return "fileText";
+    case "browser":
+      return "globe";
     case "usage":
       return "barChart";
     case "cron":
@@ -186,6 +191,8 @@ export function titleForTab(tab: Tab) {
       return "Instances";
     case "sessions":
       return "Sessions";
+    case "browser":
+      return "Browser";
     case "usage":
       return "Usage";
     case "cron":
@@ -223,6 +230,8 @@ export function subtitleForTab(tab: Tab) {
       return "Presence beacons from connected clients and nodes.";
     case "sessions":
       return "Inspect active sessions and adjust per-session defaults.";
+    case "browser":
+      return "Inspect browser profiles, Chrome relay status, and tabs.";
     case "usage":
       return "";
     case "cron":

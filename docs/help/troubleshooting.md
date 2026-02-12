@@ -252,7 +252,7 @@ flowchart TD
 
     - `Failed to start Chrome CDP on port` → local browser launch failed.
     - `browser.executablePath not found` → configured binary path is wrong.
-    - `Chrome extension relay is running, but no tab is connected` → extension not attached.
+    - `Chrome extension relay is running, but the OpenClaw Browser Relay extension is not connected` → extension relay not connected (open Chrome and click the toolbar icon).
     - `Browser attachOnly is enabled ... not reachable` → attach-only profile has no live CDP target.
 
     Deep pages:

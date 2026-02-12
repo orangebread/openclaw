@@ -23,6 +23,7 @@ export type BrowserStatus = {
 
 export type ProfileStatus = {
   name: string;
+  driver: "openclaw" | "extension";
   cdpPort: number;
   cdpUrl: string;
   color: string;
