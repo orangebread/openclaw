@@ -27,6 +27,8 @@ describe("createGatewayPluginRequestHandler", () => {
     const handler = createGatewayPluginRequestHandler({
       registry: createTestRegistry(),
       log,
+      auth: { mode: "token", token: "test-token", allowTailscale: false },
+      getTrustedProxies: () => [],
     });
     const { res } = makeResponse();
     const handled = await handler({} as IncomingMessage, res);
@@ -39,13 +41,15 @@ describe("createGatewayPluginRequestHandler", () => {
     const handler = createGatewayPluginRequestHandler({
       registry: createTestRegistry({
         httpHandlers: [
-          { pluginId: "first", handler: first, source: "first" },
-          { pluginId: "second", handler: second, source: "second" },
+          { pluginId: "first", handler: first, auth: "none", source: "first" },
+          { pluginId: "second", handler: second, auth: "none", source: "second" },
         ],
       }),
       log: { warn: vi.fn() } as unknown as Parameters<
         typeof createGatewayPluginRequestHandler
       >[0]["log"],
+      auth: { mode: "token", token: "test-token", allowTailscale: false },
+      getTrustedProxies: () => [],
     });
 
     const { res } = makeResponse();
@@ -67,14 +71,19 @@ describe("createGatewayPluginRequestHandler", () => {
             pluginId: "route",
             path: "/demo",
             handler: routeHandler,
+            auth: "none",
             source: "route",
           },
         ],
-        httpHandlers: [{ pluginId: "fallback", handler: fallback, source: "fallback" }],
+        httpHandlers: [
+          { pluginId: "fallback", handler: fallback, auth: "none", source: "fallback" },
+        ],
       }),
       log: { warn: vi.fn() } as unknown as Parameters<
         typeof createGatewayPluginRequestHandler
       >[0]["log"],
+      auth: { mode: "token", token: "test-token", allowTailscale: false },
+      getTrustedProxies: () => [],
     });
 
     const { res } = makeResponse();
@@ -82,6 +91,56 @@ describe("createGatewayPluginRequestHandler", () => {
     expect(handled).toBe(true);
     expect(routeHandler).toHaveBeenCalledTimes(1);
     expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it("requires gateway auth for routes unless auth=none", async () => {
+    const routeHandler = vi.fn(async (_req, res: ServerResponse) => {
+      res.statusCode = 200;
+      res.end("ok");
+    });
+    const handler = createGatewayPluginRequestHandler({
+      registry: createTestRegistry({
+        httpRoutes: [
+          {
+            pluginId: "route",
+            path: "/demo",
+            handler: routeHandler,
+            auth: "gateway",
+            source: "route",
+          },
+        ],
+      }),
+      log: { warn: vi.fn() } as unknown as Parameters<
+        typeof createGatewayPluginRequestHandler
+      >[0]["log"],
+      auth: { mode: "token", token: "test-token", allowTailscale: false },
+      getTrustedProxies: () => [],
+    });
+
+    {
+      const { res } = makeResponse();
+      const handled = await handler(
+        { method: "GET", url: "/demo", headers: {} } as IncomingMessage,
+        res,
+      );
+      expect(handled).toBe(true);
+      expect(res.statusCode).toBe(401);
+    }
+
+    {
+      const { res } = makeResponse();
+      const handled = await handler(
+        {
+          method: "GET",
+          url: "/demo",
+          headers: { authorization: "Bearer test-token" },
+        } as IncomingMessage,
+        res,
+      );
+      expect(handled).toBe(true);
+      expect(res.statusCode).toBe(200);
+      expect(routeHandler).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("logs and responds with 500 when a handler throws", async () => {
@@ -93,6 +152,7 @@ describe("createGatewayPluginRequestHandler", () => {
         httpHandlers: [
           {
             pluginId: "boom",
+            auth: "none",
             handler: async () => {
               throw new Error("boom");
             },
@@ -101,6 +161,8 @@ describe("createGatewayPluginRequestHandler", () => {
         ],
       }),
       log,
+      auth: { mode: "token", token: "test-token", allowTailscale: false },
+      getTrustedProxies: () => [],
     });
 
     const { res, setHeader, end } = makeResponse();
@@ -110,5 +172,152 @@ describe("createGatewayPluginRequestHandler", () => {
     expect(res.statusCode).toBe(500);
     expect(setHeader).toHaveBeenCalledWith("Content-Type", "text/plain; charset=utf-8");
     expect(end).toHaveBeenCalledWith("Internal Server Error");
+  });
+
+  it("requires gateway auth for matched handlers when auth=gateway", async () => {
+    const handlerFn = vi.fn(async () => true);
+    const handler = createGatewayPluginRequestHandler({
+      registry: createTestRegistry({
+        httpHandlers: [
+          {
+            pluginId: "nostr",
+            auth: "gateway",
+            match: (req) => {
+              const url = new URL(req.url ?? "/", "http://localhost");
+              return Boolean(
+                url.pathname.match(/^\/api\/channels\/nostr\/[^/]+\/profile(\/import)?$/),
+              );
+            },
+            handler: handlerFn,
+            source: "nostr",
+          },
+        ],
+      }),
+      log: { warn: vi.fn() } as unknown as Parameters<
+        typeof createGatewayPluginRequestHandler
+      >[0]["log"],
+      auth: { mode: "token", token: "test-token", allowTailscale: false },
+      getTrustedProxies: () => [],
+    });
+
+    const { res } = makeResponse();
+    const handled = await handler(
+      { method: "GET", url: "/api/channels/nostr/main/profile", headers: {} } as IncomingMessage,
+      res,
+    );
+    expect(handled).toBe(true);
+    expect(res.statusCode).toBe(401);
+    expect(handlerFn).not.toHaveBeenCalled();
+  });
+
+  it("requires gateway auth for matched routes across methods", async () => {
+    const handlerFn = vi.fn(async () => true);
+    const handler = createGatewayPluginRequestHandler({
+      registry: createTestRegistry({
+        httpHandlers: [
+          {
+            pluginId: "nostr",
+            auth: "gateway",
+            match: (req) => {
+              const url = new URL(req.url ?? "/", "http://localhost");
+              return Boolean(
+                url.pathname.match(/^\/api\/channels\/nostr\/[^/]+\/profile(\/import)?$/),
+              );
+            },
+            handler: handlerFn,
+            source: "nostr",
+          },
+        ],
+      }),
+      log: { warn: vi.fn() } as unknown as Parameters<
+        typeof createGatewayPluginRequestHandler
+      >[0]["log"],
+      auth: { mode: "token", token: "test-token", allowTailscale: false },
+      getTrustedProxies: () => [],
+    });
+
+    for (const req of [
+      { method: "GET", url: "/api/channels/nostr/main/profile" },
+      { method: "PUT", url: "/api/channels/nostr/main/profile" },
+      { method: "POST", url: "/api/channels/nostr/main/profile/import" },
+    ]) {
+      const { res } = makeResponse();
+      const handled = await handler({ ...req, headers: {} } as IncomingMessage, res);
+      expect(handled).toBe(true);
+      expect(res.statusCode).toBe(401);
+    }
+    expect(handlerFn).not.toHaveBeenCalled();
+  });
+
+  it("calls the handler when gateway auth succeeds", async () => {
+    const handlerFn = vi.fn(async (_req: IncomingMessage, res: ServerResponse) => {
+      res.statusCode = 200;
+      res.end("ok");
+      return true;
+    });
+    const handler = createGatewayPluginRequestHandler({
+      registry: createTestRegistry({
+        httpHandlers: [
+          {
+            pluginId: "nostr",
+            auth: "gateway",
+            match: (req) => {
+              const url = new URL(req.url ?? "/", "http://localhost");
+              return Boolean(
+                url.pathname.match(/^\/api\/channels\/nostr\/[^/]+\/profile(\/import)?$/),
+              );
+            },
+            handler: handlerFn,
+            source: "nostr",
+          },
+        ],
+      }),
+      log: { warn: vi.fn() } as unknown as Parameters<
+        typeof createGatewayPluginRequestHandler
+      >[0]["log"],
+      auth: { mode: "token", token: "test-token", allowTailscale: false },
+      getTrustedProxies: () => [],
+    });
+
+    const { res } = makeResponse();
+    const handled = await handler(
+      {
+        method: "GET",
+        url: "/api/channels/nostr/main/profile",
+        headers: { authorization: "Bearer test-token" },
+      } as IncomingMessage,
+      res,
+    );
+    expect(handled).toBe(true);
+    expect(handlerFn).toHaveBeenCalledTimes(1);
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("does not enforce gateway auth when match() is false", async () => {
+    const handlerFn = vi.fn(async () => true);
+    const handler = createGatewayPluginRequestHandler({
+      registry: createTestRegistry({
+        httpHandlers: [
+          {
+            pluginId: "nostr",
+            auth: "gateway",
+            match: () => false,
+            handler: handlerFn,
+            source: "nostr",
+          },
+        ],
+      }),
+      log: { warn: vi.fn() } as unknown as Parameters<
+        typeof createGatewayPluginRequestHandler
+      >[0]["log"],
+      auth: { mode: "token", token: "test-token", allowTailscale: false },
+      getTrustedProxies: () => [],
+    });
+
+    const { res } = makeResponse();
+    const handled = await handler({ url: "/anything", headers: {} } as IncomingMessage, res);
+    expect(handled).toBe(false);
+    expect(handlerFn).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
   });
 });

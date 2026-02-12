@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PluginHttpRouteRegistration, PluginRegistry } from "./registry.js";
+import type { PluginHttpAuthMode } from "./types.js";
 import { normalizePluginHttpPath } from "./http-path.js";
 import { requireActivePluginRegistry } from "./runtime.js";
 
@@ -12,6 +13,7 @@ export function registerPluginHttpRoute(params: {
   path?: string | null;
   fallbackPath?: string | null;
   handler: PluginHttpRouteHandler;
+  auth?: PluginHttpAuthMode;
   pluginId?: string;
   source?: string;
   accountId?: string;
@@ -38,6 +40,7 @@ export function registerPluginHttpRoute(params: {
   const entry: PluginHttpRouteRegistration = {
     path: normalizedPath,
     handler: params.handler,
+    auth: params.auth ?? "gateway",
     pluginId: params.pluginId,
     source: params.source,
   };

@@ -1,3 +1,4 @@
+import type { IncomingMessage } from "node:http";
 import path from "node:path";
 import type { AnyAgentTool } from "../agents/tools/common.js";
 import type { ChannelDock } from "../channels/dock.js";
@@ -13,9 +14,11 @@ import type {
   OpenClawPluginChannelRegistration,
   OpenClawPluginCliRegistrar,
   OpenClawPluginCommandDefinition,
+  OpenClawPluginHttpHandlerOptions,
   OpenClawPluginHttpHandler,
   OpenClawPluginHttpRouteHandler,
   OpenClawPluginHookOptions,
+  PluginHttpAuthMode,
   ProviderPlugin,
   OpenClawPluginService,
   OpenClawPluginToolContext,
@@ -52,6 +55,8 @@ export type PluginCliRegistration = {
 export type PluginHttpRegistration = {
   pluginId: string;
   handler: OpenClawPluginHttpHandler;
+  auth: PluginHttpAuthMode;
+  match?: (req: IncomingMessage) => boolean;
   source: string;
 };
 
@@ -59,6 +64,7 @@ export type PluginHttpRouteRegistration = {
   pluginId?: string;
   path: string;
   handler: OpenClawPluginHttpRouteHandler;
+  auth: PluginHttpAuthMode;
   source?: string;
 };
 
@@ -284,18 +290,35 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     record.gatewayMethods.push(trimmed);
   };
 
-  const registerHttpHandler = (record: PluginRecord, handler: OpenClawPluginHttpHandler) => {
+  const registerHttpHandler = (
+    record: PluginRecord,
+    handler: OpenClawPluginHttpHandler,
+    opts?: OpenClawPluginHttpHandlerOptions,
+  ) => {
+    const auth: PluginHttpAuthMode = opts?.auth ?? "gateway";
+    if (auth === "gateway" && !opts?.match) {
+      pushDiagnostic({
+        level: "error",
+        pluginId: record.id,
+        source: record.source,
+        message:
+          "http handler registered with auth=gateway but no match() was provided (refuse to register to avoid blocking unrelated endpoints)",
+      });
+      return;
+    }
     record.httpHandlers += 1;
     registry.httpHandlers.push({
       pluginId: record.id,
       handler,
+      auth,
+      match: opts?.match,
       source: record.source,
     });
   };
 
   const registerHttpRoute = (
     record: PluginRecord,
-    params: { path: string; handler: OpenClawPluginHttpRouteHandler },
+    params: { path: string; handler: OpenClawPluginHttpRouteHandler; auth?: PluginHttpAuthMode },
   ) => {
     const normalizedPath = normalizePluginHttpPath(params.path);
     if (!normalizedPath) {
@@ -321,6 +344,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       pluginId: record.id,
       path: normalizedPath,
       handler: params.handler,
+      auth: params.auth ?? "gateway",
       source: record.source,
     });
   };
@@ -485,7 +509,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       registerTool: (tool, opts) => registerTool(record, tool, opts),
       registerHook: (events, handler, opts) =>
         registerHook(record, events, handler, opts, params.config),
-      registerHttpHandler: (handler) => registerHttpHandler(record, handler),
+      registerHttpHandler: (handler, opts) => registerHttpHandler(record, handler, opts),
       registerHttpRoute: (params) => registerHttpRoute(record, params),
       registerChannel: (registration) => registerChannel(record, registration),
       registerProvider: (provider) => registerProvider(record, provider),

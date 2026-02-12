@@ -194,6 +194,25 @@ export type OpenClawPluginHttpHandler = (
   res: ServerResponse,
 ) => Promise<boolean> | boolean;
 
+export type PluginHttpAuthMode = "gateway" | "none";
+
+export type OpenClawPluginHttpHandlerOptions = {
+  /**
+   * Whether the Gateway must authorize the request before calling the handler.
+   * - "gateway": require Gateway auth (token/password/tailscale)
+   * - "none": handler is responsible for its own auth (e.g. webhook signature)
+   *
+   * Defaults to "gateway".
+   */
+  auth?: PluginHttpAuthMode;
+  /**
+   * Fast path matcher used to decide whether this handler applies to the request
+   * before enforcing auth. Required when auth="gateway" to avoid blocking
+   * unrelated endpoints.
+   */
+  match?: (req: IncomingMessage) => boolean;
+};
+
 export type OpenClawPluginHttpRouteHandler = (
   req: IncomingMessage,
   res: ServerResponse,
@@ -260,8 +279,15 @@ export type OpenClawPluginApi = {
     handler: InternalHookHandler,
     opts?: OpenClawPluginHookOptions,
   ) => void;
-  registerHttpHandler: (handler: OpenClawPluginHttpHandler) => void;
-  registerHttpRoute: (params: { path: string; handler: OpenClawPluginHttpRouteHandler }) => void;
+  registerHttpHandler: (
+    handler: OpenClawPluginHttpHandler,
+    opts?: OpenClawPluginHttpHandlerOptions,
+  ) => void;
+  registerHttpRoute: (params: {
+    path: string;
+    handler: OpenClawPluginHttpRouteHandler;
+    auth?: PluginHttpAuthMode;
+  }) => void;
   registerChannel: (registration: OpenClawPluginChannelRegistration | ChannelPlugin) => void;
   registerGatewayMethod: (method: string, handler: GatewayRequestHandler) => void;
   registerCli: (registrar: OpenClawPluginCliRegistrar, opts?: { commands?: string[] }) => void;

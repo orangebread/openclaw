@@ -42,6 +42,38 @@ const registryCache = new Map<string, PluginRegistry>();
 
 const defaultLogger = () => createSubsystemLogger("plugins");
 
+function formatPluginLoadError(err: unknown, pluginRootDir: string): string {
+  const base = String(err);
+  const match = base.match(/Cannot find module '([^']+)'/);
+  if (!match) {
+    return base;
+  }
+
+  const missingModule = match[1] ?? "";
+  if (!missingModule) {
+    return base;
+  }
+
+  // Plugins often live outside the OpenClaw install tree (ex: `~/.openclaw/extensions/...`).
+  // When that directory doesn't have a `node_modules/` install, Node resolution won't find deps
+  // from the host runtime. Provide a concrete fix instead of a bare "Cannot find module".
+  const packageJsonPath = path.join(pluginRootDir, "package.json");
+  if (!fs.existsSync(packageJsonPath)) {
+    return base;
+  }
+
+  const nodeModulesPath = path.join(
+    pluginRootDir,
+    "node_modules",
+    ...missingModule.split("/").filter(Boolean),
+  );
+  if (fs.existsSync(nodeModulesPath)) {
+    return base;
+  }
+
+  return `${base} (missing "${missingModule}" in "${pluginRootDir}/node_modules"; run: cd "${pluginRootDir}" && npm install --omit=dev)`;
+}
+
 const resolvePluginSdkAlias = (): string | null => {
   try {
     const modulePath = fileURLToPath(import.meta.url);
@@ -222,7 +254,10 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
     manifestRegistry.plugins.map((record) => [record.rootDir, record]),
   );
 
-  const seenIds = new Map<string, PluginRecord["origin"]>();
+  // Tracks plugin ids that have been successfully claimed (loaded or explicitly disabled by
+  // config/slots). Unlike discovery-time diagnostics, runtime loading should fall back to lower
+  // precedence copies if a higher precedence plugin fails to load.
+  const claimedIds = new Map<string, PluginRecord["origin"]>();
   const memorySlot = normalized.slots.memory;
   let selectedMemoryPluginId: string | null = null;
   let memorySlotMatched = false;
@@ -233,7 +268,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       continue;
     }
     const pluginId = manifestRecord.id;
-    const existingOrigin = seenIds.get(pluginId);
+    const existingOrigin = claimedIds.get(pluginId);
     if (existingOrigin) {
       const record = createPluginRecord({
         id: pluginId,
@@ -273,7 +308,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       record.status = "disabled";
       record.error = enableState.reason;
       registry.plugins.push(record);
-      seenIds.set(pluginId, candidate.origin);
+      claimedIds.set(pluginId, candidate.origin);
       continue;
     }
 
@@ -281,7 +316,6 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       record.status = "error";
       record.error = "missing config schema";
       registry.plugins.push(record);
-      seenIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({
         level: "error",
         pluginId: record.id,
@@ -295,16 +329,16 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
     try {
       mod = jiti(candidate.source) as OpenClawPluginModule;
     } catch (err) {
-      logger.error(`[plugins] ${record.id} failed to load from ${record.source}: ${String(err)}`);
+      const formatted = formatPluginLoadError(err, candidate.rootDir);
+      logger.error(`[plugins] ${record.id} failed to load from ${record.source}: ${formatted}`);
       record.status = "error";
-      record.error = String(err);
+      record.error = formatted;
       registry.plugins.push(record);
-      seenIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({
         level: "error",
         pluginId: record.id,
         source: record.source,
-        message: `failed to load plugin: ${String(err)}`,
+        message: `failed to load plugin: ${formatted}`,
       });
       continue;
     }
@@ -353,7 +387,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       record.status = "disabled";
       record.error = memoryDecision.reason;
       registry.plugins.push(record);
-      seenIds.set(pluginId, candidate.origin);
+      claimedIds.set(pluginId, candidate.origin);
       continue;
     }
 
@@ -372,7 +406,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       record.status = "error";
       record.error = `invalid config: ${validatedConfig.errors?.join(", ")}`;
       registry.plugins.push(record);
-      seenIds.set(pluginId, candidate.origin);
+      claimedIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({
         level: "error",
         pluginId: record.id,
@@ -384,7 +418,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
 
     if (validateOnly) {
       registry.plugins.push(record);
-      seenIds.set(pluginId, candidate.origin);
+      claimedIds.set(pluginId, candidate.origin);
       continue;
     }
 
@@ -393,7 +427,6 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       record.status = "error";
       record.error = "plugin export missing register/activate";
       registry.plugins.push(record);
-      seenIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({
         level: "error",
         pluginId: record.id,
@@ -419,7 +452,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
         });
       }
       registry.plugins.push(record);
-      seenIds.set(pluginId, candidate.origin);
+      claimedIds.set(pluginId, candidate.origin);
     } catch (err) {
       logger.error(
         `[plugins] ${record.id} failed during register from ${record.source}: ${String(err)}`,
@@ -427,7 +460,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       record.status = "error";
       record.error = String(err);
       registry.plugins.push(record);
-      seenIds.set(pluginId, candidate.origin);
+      claimedIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({
         level: "error",
         pluginId: record.id,

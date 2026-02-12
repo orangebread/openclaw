@@ -328,7 +328,7 @@ describe("loadOpenClawPlugins", () => {
     const plugin = writePlugin({
       id: "http-demo",
       body: `export default { id: "http-demo", register(api) {
-  api.registerHttpHandler(async () => false);
+  api.registerHttpHandler(async () => false, { auth: "none" });
 } };`,
     });
 
@@ -354,7 +354,7 @@ describe("loadOpenClawPlugins", () => {
     const plugin = writePlugin({
       id: "http-route-demo",
       body: `export default { id: "http-route-demo", register(api) {
-  api.registerHttpRoute({ path: "/demo", handler: async (_req, res) => { res.statusCode = 200; res.end("ok"); } });
+  api.registerHttpRoute({ path: "/demo", auth: "none", handler: async (_req, res) => { res.statusCode = 200; res.end("ok"); } });
 } };`,
     });
 
@@ -479,5 +479,40 @@ describe("loadOpenClawPlugins", () => {
     const overridden = entries.find((entry) => entry.status === "disabled");
     expect(loaded?.origin).toBe("config");
     expect(overridden?.origin).toBe("bundled");
+  });
+
+  it("falls back to lower-precedence plugins when a higher-precedence copy fails to load", () => {
+    const bundledDir = makeTempDir();
+    writePlugin({
+      id: "shadow",
+      body: `export default { id: "shadow", register() {} };`,
+      dir: bundledDir,
+      filename: "shadow.js",
+    });
+    process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = bundledDir;
+
+    const broken = writePlugin({
+      id: "shadow",
+      body: `import "missing-dep-for-test";\nexport default { id: "shadow", register() {} };`,
+    });
+
+    const registry = loadOpenClawPlugins({
+      cache: false,
+      config: {
+        plugins: {
+          load: { paths: [broken.file] },
+          allow: ["shadow"],
+          entries: {
+            shadow: { enabled: true },
+          },
+        },
+      },
+    });
+
+    const entries = registry.plugins.filter((entry) => entry.id === "shadow");
+    const loaded = entries.find((entry) => entry.status === "loaded");
+    const errored = entries.find((entry) => entry.status === "error");
+    expect(loaded?.origin).toBe("bundled");
+    expect(errored?.origin).toBe("config");
   });
 });

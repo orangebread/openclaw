@@ -166,7 +166,7 @@ export function loadPluginManifestRegistry(params: {
         level: "warn",
         pluginId: manifest.id,
         source: candidate.source,
-        message: `duplicate plugin id detected; later plugin may be overridden (${candidate.source})`,
+        message: `duplicate plugin id detected; first match wins (later candidate ignored: ${candidate.source})`,
       });
     } else {
       seenIds.add(manifest.id);
