@@ -1467,22 +1467,36 @@ export async function handleBlueBubblesWebhookRequest(
     return true;
   }
 
-  const authHeader = String(req.headers.authorization ?? "");
-  const bearer = authHeader.toLowerCase().startsWith("bearer ")
+  const headerValue = (value: string | string[] | undefined): string =>
+    (Array.isArray(value) ? value[0] : (value ?? "")).trim();
+
+  const authHeader = headerValue(req.headers.authorization);
+  const authToken = authHeader.toLowerCase().startsWith("bearer ")
     ? authHeader.slice("bearer ".length).trim()
-    : "";
-  const querySecret = (
-    url.searchParams.get("password") ??
-    url.searchParams.get("guid") ??
-    ""
-  ).trim();
-  if (bearer && querySecret && bearer !== querySecret) {
+    : authHeader;
+
+  const queryPassword = (url.searchParams.get("password") ?? "").trim();
+  const queryGuid = (url.searchParams.get("guid") ?? "").trim();
+  const headerPassword = headerValue(req.headers["x-password"]);
+  const headerGuid = headerValue(req.headers["x-guid"]);
+  const headerBlueBubblesGuid = headerValue(req.headers["x-bluebubbles-guid"]);
+
+  const providedTokens = [
+    authToken,
+    headerPassword,
+    headerGuid,
+    headerBlueBubblesGuid,
+    queryPassword,
+    queryGuid,
+  ].filter((token) => token.length > 0);
+  const uniqueTokens = [...new Set(providedTokens)];
+  if (uniqueTokens.length > 1) {
     res.statusCode = 401;
     res.end("unauthorized");
     console.warn("[bluebubbles] webhook rejected: conflicting auth credentials provided");
     return true;
   }
-  const providedSecret = bearer || querySecret;
+  const providedSecret = uniqueTokens[0] ?? "";
   if (!providedSecret) {
     res.statusCode = 401;
     res.end("unauthorized");
