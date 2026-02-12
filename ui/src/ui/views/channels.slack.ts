@@ -1,7 +1,13 @@
 import { html, nothing } from "lit";
 import type { SlackStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
-import { channelIcon, renderChannelStatusPill, renderChannelToggle } from "./channels.shared.ts";
+import {
+  channelHealthClass,
+  channelIcon,
+  renderCardStatusSummary,
+  renderChannelStatusPill,
+  renderChannelToggle,
+} from "./channels.shared.ts";
 
 export function renderSlackCard(params: {
   props: ChannelsProps;
@@ -9,26 +15,25 @@ export function renderSlackCard(params: {
   accountCountLabel: unknown;
 }) {
   const { props, slack, accountCountLabel } = params;
+  const configured = !!slack?.configured;
+  const running = !!slack?.running;
+  const hasError = !!slack?.lastError;
 
   return html`
-    <div class="card">
+    <div class="card ${channelHealthClass(configured, running, hasError)}">
       <div class="row" style="justify-content: space-between; align-items: center;">
         <div class="card-title">${channelIcon("slack")} Slack</div>
         ${renderChannelToggle({ channelId: "slack", props })}
       </div>
       <div class="card-sub">
-        ${renderChannelStatusPill(!!slack?.configured, !!slack?.lastError)}
-        Socket mode status and channel configuration.
+        ${renderChannelStatusPill(configured, hasError)}
       </div>
       ${accountCountLabel}
-
-      <div class="channel-tile-status">
-        <div><span class="label">Running</span> <span>${slack?.running ? "Yes" : "No"}</span></div>
-      </div>
+      ${renderCardStatusSummary({ configured, running, hasError, lastStartAt: slack?.lastStartAt, lastProbeAt: slack?.lastProbeAt })}
 
       ${
-        slack?.lastError
-          ? html`<div class="callout danger" style="margin-top: 12px;">${slack.lastError}</div>`
+        hasError
+          ? html`<div class="callout danger" style="margin-top: 8px;">${slack.lastError}</div>`
           : nothing
       }
 

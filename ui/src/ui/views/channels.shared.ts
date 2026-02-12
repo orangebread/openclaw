@@ -2,6 +2,7 @@ import { html, nothing } from "lit";
 import type { ChannelCatalogEntry } from "../controllers/channels.types.ts";
 import type { ChannelAccountSnapshot } from "../types.ts";
 import type { ChannelKey, ChannelsProps } from "./channels.types.ts";
+import { formatRelativeTimestamp } from "../format.ts";
 
 export function channelConfigured(key: ChannelKey, props: ChannelsProps): boolean {
   const snapshot = props.snapshot;
@@ -64,6 +65,52 @@ const DEFAULT_CHANNEL_EMOJI = "📡";
 
 export function channelIcon(channelId: string): string {
   return CHANNEL_EMOJI[channelId] ?? DEFAULT_CHANNEL_EMOJI;
+}
+
+export function channelHealthClass(
+  configured: boolean,
+  running: boolean,
+  hasError: boolean,
+): string {
+  if (hasError) {
+    return "channel-card health-error";
+  }
+  if (running) {
+    return "channel-card health-ok";
+  }
+  if (configured) {
+    return "channel-card health-warn";
+  }
+  return "channel-card";
+}
+
+/** Compact one-line status summary for channel cards. */
+export function renderCardStatusSummary(params: {
+  configured: boolean;
+  running: boolean;
+  hasError: boolean;
+  lastStartAt?: number | null;
+  lastProbeAt?: number | null;
+}) {
+  const { configured, running, hasError, lastStartAt, lastProbeAt } = params;
+
+  if (hasError) {
+    return nothing; // error callout shown separately
+  }
+  if (running) {
+    const timeInfo = lastProbeAt
+      ? `Last probe ${formatRelativeTimestamp(lastProbeAt)}`
+      : lastStartAt
+        ? `Started ${formatRelativeTimestamp(lastStartAt)}`
+        : null;
+    return html`<div class="channel-tile-summary">${timeInfo ?? "Active"}</div>`;
+  }
+  if (configured) {
+    return html`
+      <div class="channel-tile-summary muted">Stopped</div>
+    `;
+  }
+  return nothing;
 }
 
 export function getChannelAccountCount(

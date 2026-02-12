@@ -5,7 +5,13 @@ import type {
   NostrProfileFormCallbacks,
 } from "./channels.nostr-profile-form.ts";
 import type { ChannelsProps } from "./channels.types.ts";
-import { channelIcon, renderChannelStatusPill, renderChannelToggle } from "./channels.shared.ts";
+import {
+  channelHealthClass,
+  channelIcon,
+  renderCardStatusSummary,
+  renderChannelStatusPill,
+  renderChannelToggle,
+} from "./channels.shared.ts";
 
 function truncatePubkey(pubkey: string | null | undefined): string {
   if (!pubkey) {
@@ -33,27 +39,25 @@ export function renderNostrCard(params: {
   const summaryPublicKey =
     nostr?.publicKey ?? (primaryAccount as { publicKey?: string } | undefined)?.publicKey;
   const summaryLastError = nostr?.lastError ?? primaryAccount?.lastError ?? null;
+  const summaryLastStartAt = nostr?.lastStartAt ?? primaryAccount?.lastStartAt ?? null;
+  const hasError = !!summaryLastError;
 
   return html`
-    <div class="card">
+    <div class="card ${channelHealthClass(summaryConfigured, summaryRunning, hasError)}">
       <div class="row" style="justify-content: space-between; align-items: center;">
         <div class="card-title">${channelIcon("nostr")} Nostr</div>
         ${renderChannelToggle({ channelId: "nostr", props })}
       </div>
       <div class="card-sub">
-        ${renderChannelStatusPill(summaryConfigured, !!summaryLastError)}
-        Decentralized DMs via Nostr relays (NIP-04).
+        ${renderChannelStatusPill(summaryConfigured, hasError)}
+        ${summaryPublicKey ? html`<span class="monospace" style="font-size: 11px; margin-left: 4px;" title="${summaryPublicKey}">${truncatePubkey(summaryPublicKey)}</span>` : nothing}
       </div>
       ${accountCountLabel}
-
-      <div class="channel-tile-status">
-        <div><span class="label">Running</span> <span>${summaryRunning ? "Yes" : "No"}</span></div>
-        <div><span class="label">Public Key</span> <span class="monospace" title="${summaryPublicKey ?? ""}">${truncatePubkey(summaryPublicKey)}</span></div>
-      </div>
+      ${renderCardStatusSummary({ configured: summaryConfigured, running: summaryRunning, hasError, lastStartAt: summaryLastStartAt })}
 
       ${
-        summaryLastError
-          ? html`<div class="callout danger" style="margin-top: 12px;">${summaryLastError}</div>`
+        hasError
+          ? html`<div class="callout danger" style="margin-top: 8px;">${summaryLastError}</div>`
           : nothing
       }
 

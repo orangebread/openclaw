@@ -1,4 +1,4 @@
-import { html } from "lit";
+import { html, nothing } from "lit";
 import type { ConfigUiHints } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
 import { analyzeConfigSchema, renderNode, schemaType, type JsonSchema } from "./config-form.ts";
@@ -136,8 +136,13 @@ export function renderChannelConfigForm(props: ChannelConfigFormProps) {
   `;
 }
 
-export function renderChannelConfigSection(params: { channelId: string; props: ChannelsProps }) {
-  const { channelId, props } = params;
+export function renderChannelConfigSection(params: {
+  channelId: string;
+  props: ChannelsProps;
+  /** When true, omit inline Save/Reload buttons (used with sticky save bar). */
+  omitSaveButtons?: boolean;
+}) {
+  const { channelId, props, omitSaveButtons } = params;
   const disabled = props.configSaving || props.configSchemaLoading;
   return html`
     <div style="margin-top: 16px;">
@@ -155,22 +160,28 @@ export function renderChannelConfigSection(params: { channelId: string; props: C
               onPatch: props.onConfigPatch,
             })
       }
-      <div class="row" style="margin-top: 12px;">
-        <button
-          class="btn primary"
-          ?disabled=${disabled || !props.configFormDirty}
-          @click=${() => props.onConfigSave()}
-        >
-          ${props.configSaving ? "Saving…" : "Save"}
-        </button>
-        <button
-          class="btn"
-          ?disabled=${disabled}
-          @click=${() => props.onConfigReload()}
-        >
-          Reload
-        </button>
-      </div>
+      ${
+        omitSaveButtons
+          ? nothing
+          : html`
+              <div class="row" style="margin-top: 12px;">
+                <button
+                  class="btn primary"
+                  ?disabled=${disabled || !props.configFormDirty}
+                  @click=${() => props.onConfigSave()}
+                >
+                  ${props.configSaving ? "Saving…" : "Save"}
+                </button>
+                <button
+                  class="btn"
+                  ?disabled=${disabled}
+                  @click=${() => props.onConfigReload()}
+                >
+                  Reload
+                </button>
+              </div>
+            `
+      }
     </div>
   `;
 }

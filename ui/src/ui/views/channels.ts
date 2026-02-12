@@ -25,7 +25,9 @@ import { renderNostrCard } from "./channels.nostr.ts";
 import {
   channelConfigured,
   channelEnabled,
+  channelHealthClass,
   channelIcon,
+  renderCardStatusSummary,
   renderChannelAccountCount,
   renderChannelStatusPill,
   renderChannelToggle,
@@ -119,14 +121,16 @@ export function renderChannels(props: ChannelsProps) {
       })}
     </section>
 
-    <section class="card" style="margin-top: 18px;">
-      <div class="row" style="justify-content: space-between;">
-        <div>
-          <div class="card-title">Channel health</div>
-          <div class="card-sub">Channel status snapshots from the gateway.</div>
+    <details class="card" style="margin-top: 18px;">
+      <summary style="cursor: pointer; list-style: none;">
+        <div class="row" style="justify-content: space-between;">
+          <div>
+            <div class="card-title">Channel health</div>
+            <div class="card-sub">Channel status snapshots from the gateway.</div>
+          </div>
+          <div class="muted">${props.lastSuccessAt ? formatRelativeTimestamp(props.lastSuccessAt) : "n/a"}</div>
         </div>
-        <div class="muted">${props.lastSuccessAt ? formatRelativeTimestamp(props.lastSuccessAt) : "n/a"}</div>
-      </div>
+      </summary>
       ${
         props.lastError
           ? html`<div class="callout danger" style="margin-top: 12px;">
@@ -137,7 +141,7 @@ export function renderChannels(props: ChannelsProps) {
       <pre class="code-block" style="margin-top: 12px;">
 ${props.snapshot ? JSON.stringify(props.snapshot, null, 2) : "No snapshot yet."}
       </pre>
-    </section>
+    </details>
 
     ${props.activeDrawerChannelId ? renderDrawerForChannel(props, channelData) : nothing}
   `;
@@ -277,30 +281,29 @@ function renderGenericChannelCard(
 ) {
   const label = resolveChannelLabel(props.snapshot, key);
   const status = props.snapshot?.channels?.[key] as Record<string, unknown> | undefined;
-  const configured = typeof status?.configured === "boolean" ? status.configured : undefined;
-  const running = typeof status?.running === "boolean" ? status.running : undefined;
+  const configured = typeof status?.configured === "boolean" ? status.configured : false;
+  const running = typeof status?.running === "boolean" ? status.running : false;
   const lastError = typeof status?.lastError === "string" ? status.lastError : undefined;
+  const lastStartAt = typeof status?.lastStartAt === "number" ? status.lastStartAt : null;
+  const lastProbeAt = typeof status?.lastProbeAt === "number" ? status.lastProbeAt : null;
+  const hasError = !!lastError;
   const accountCountLabel = renderChannelAccountCount(key, channelAccounts);
 
   return html`
-    <div class="card">
+    <div class="card ${channelHealthClass(configured, running, hasError)}">
       <div class="row" style="justify-content: space-between; align-items: center;">
         <div class="card-title">${channelIcon(key)} ${label}</div>
         ${renderChannelToggle({ channelId: key, props })}
       </div>
       <div class="card-sub">
-        ${renderChannelStatusPill(!!configured, !!lastError)}
-        Channel status and configuration.
+        ${renderChannelStatusPill(configured, hasError)}
       </div>
       ${accountCountLabel}
-
-      <div class="channel-tile-status">
-        <div><span class="label">Running</span> <span>${running == null ? "n/a" : running ? "Yes" : "No"}</span></div>
-      </div>
+      ${renderCardStatusSummary({ configured, running, hasError, lastStartAt, lastProbeAt })}
 
       ${
-        lastError
-          ? html`<div class="callout danger" style="margin-top: 12px;">${lastError}</div>`
+        hasError
+          ? html`<div class="callout danger" style="margin-top: 8px;">${lastError}</div>`
           : nothing
       }
 

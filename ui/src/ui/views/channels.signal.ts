@@ -1,7 +1,13 @@
 import { html, nothing } from "lit";
 import type { SignalStatus } from "../types.ts";
 import type { ChannelsProps } from "./channels.types.ts";
-import { channelIcon, renderChannelStatusPill, renderChannelToggle } from "./channels.shared.ts";
+import {
+  channelHealthClass,
+  channelIcon,
+  renderCardStatusSummary,
+  renderChannelStatusPill,
+  renderChannelToggle,
+} from "./channels.shared.ts";
 
 export function renderSignalCard(params: {
   props: ChannelsProps;
@@ -9,26 +15,25 @@ export function renderSignalCard(params: {
   accountCountLabel: unknown;
 }) {
   const { props, signal, accountCountLabel } = params;
+  const configured = !!signal?.configured;
+  const running = !!signal?.running;
+  const hasError = !!signal?.lastError;
 
   return html`
-    <div class="card">
+    <div class="card ${channelHealthClass(configured, running, hasError)}">
       <div class="row" style="justify-content: space-between; align-items: center;">
         <div class="card-title">${channelIcon("signal")} Signal</div>
         ${renderChannelToggle({ channelId: "signal", props })}
       </div>
       <div class="card-sub">
-        ${renderChannelStatusPill(!!signal?.configured, !!signal?.lastError)}
-        signal-cli status and channel configuration.
+        ${renderChannelStatusPill(configured, hasError)}
       </div>
       ${accountCountLabel}
-
-      <div class="channel-tile-status">
-        <div><span class="label">Running</span> <span>${signal?.running ? "Yes" : "No"}</span></div>
-      </div>
+      ${renderCardStatusSummary({ configured, running, hasError, lastStartAt: signal?.lastStartAt, lastProbeAt: signal?.lastProbeAt })}
 
       ${
-        signal?.lastError
-          ? html`<div class="callout danger" style="margin-top: 12px;">${signal.lastError}</div>`
+        hasError
+          ? html`<div class="callout danger" style="margin-top: 8px;">${signal.lastError}</div>`
           : nothing
       }
 

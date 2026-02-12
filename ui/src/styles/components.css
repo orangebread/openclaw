@@ -2384,6 +2384,11 @@
   gap: 10px;
   min-width: 0;
 }
+.channel-drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .channel-drawer-title {
   font-size: 15px;
   font-weight: 600;
@@ -2417,6 +2422,86 @@
   margin-bottom: 10px;
 }
 
+/* ── Drawer hero status ── */
+.channel-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+}
+.channel-hero-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--muted);
+}
+.channel-hero-dot.ok {
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok-subtle);
+}
+.channel-hero-dot.error {
+  background: var(--danger);
+  box-shadow: 0 0 6px var(--danger-subtle);
+}
+.channel-hero-dot.warn {
+  background: var(--warn);
+  box-shadow: 0 0 6px var(--warn-subtle);
+}
+.channel-hero-info {
+  flex: 1;
+  min-width: 0;
+}
+.channel-hero-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.channel-hero-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ── Collapsible section (native details/summary) ── */
+details.channel-drawer-section {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+details.channel-drawer-section > summary {
+  list-style: none;
+}
+details.channel-drawer-section > summary::-webkit-details-marker {
+  display: none;
+}
+.channel-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  padding: 0;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+}
+.channel-section-toggle:hover .channel-drawer-section-title {
+  color: var(--text);
+}
+.channel-section-chevron {
+  font-size: 10px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+details.channel-drawer-section[open] .channel-section-chevron {
+  transform: rotate(90deg);
+}
+
 /* ── Channel status pill ── */
 .channel-status-pill {
   font-size: 11px;
@@ -2438,17 +2523,37 @@
   background: var(--danger-subtle);
 }
 
+/* ── Channel card health dot ── */
+.card.channel-card {
+  position: relative;
+  border-left: 3px solid var(--border);
+}
+.card.channel-card.health-ok {
+  border-left-color: var(--ok);
+}
+.card.channel-card.health-error {
+  border-left-color: var(--danger);
+}
+.card.channel-card.health-warn {
+  border-left-color: var(--warn);
+}
+
 /* ── Channel compact tiles ── */
 .channel-tile-status {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px 16px;
-  margin-top: 12px;
+  margin-top: 8px;
   font-size: 13px;
+}
+.channel-tile-summary {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
 }
 .channel-tile-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: 10px;
 }
