@@ -64,11 +64,17 @@ describe("formatValidationErrors", () => {
 });
 
 describe("ProtocolSchemas", () => {
-  it("includes channels catalog/install schemas", () => {
+  it("includes channels catalog/install/repair + doctor schemas", () => {
     expect(ProtocolSchemas.ChannelsCatalogParams).toBeDefined();
     expect(ProtocolSchemas.ChannelsCatalogResult).toBeDefined();
     expect(ProtocolSchemas.ChannelsInstallParams).toBeDefined();
     expect(ProtocolSchemas.ChannelsInstallResult).toBeDefined();
+    expect(ProtocolSchemas.ChannelsRepairParams).toBeDefined();
+    expect(ProtocolSchemas.ChannelsRepairResult).toBeDefined();
     expect(ProtocolSchemas.GatewayRestartParams).toBeDefined();
+    expect(ProtocolSchemas.DoctorPlanParams).toBeDefined();
+    expect(ProtocolSchemas.DoctorPlanResult).toBeDefined();
+    expect(ProtocolSchemas.DoctorFixParams).toBeDefined();
+    expect(ProtocolSchemas.DoctorFixResult).toBeDefined();
   });
 });

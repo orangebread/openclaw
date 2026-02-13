@@ -60,6 +60,8 @@ import {
   ChannelsCatalogResultSchema,
   ChannelsInstallParamsSchema,
   ChannelsInstallResultSchema,
+  ChannelsRepairParamsSchema,
+  ChannelsRepairResultSchema,
   ChannelsLogoutParamsSchema,
   ChannelsStatusParamsSchema,
   ChannelsStatusResultSchema,
@@ -97,6 +99,12 @@ import {
   DeviceTokenRevokeParamsSchema,
   DeviceTokenRotateParamsSchema,
 } from "./devices.js";
+import {
+  DoctorFixParamsSchema,
+  DoctorFixResultSchema,
+  DoctorPlanParamsSchema,
+  DoctorPlanResultSchema,
+} from "./doctor.js";
 import {
   ExecApprovalsGetParamsSchema,
   ExecApprovalsNodeGetParamsSchema,
@@ -244,6 +252,10 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   GatewayRestartParams: GatewayRestartParamsSchema,
   ConfigSchemaParams: ConfigSchemaParamsSchema,
   ConfigSchemaResponse: ConfigSchemaResponseSchema,
+  DoctorPlanParams: DoctorPlanParamsSchema,
+  DoctorPlanResult: DoctorPlanResultSchema,
+  DoctorFixParams: DoctorFixParamsSchema,
+  DoctorFixResult: DoctorFixResultSchema,
   WizardStartParams: WizardStartParamsSchema,
   WizardNextParams: WizardNextParamsSchema,
   WizardCancelParams: WizardCancelParamsSchema,
@@ -260,6 +272,8 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   ChannelsCatalogResult: ChannelsCatalogResultSchema,
   ChannelsInstallParams: ChannelsInstallParamsSchema,
   ChannelsInstallResult: ChannelsInstallResultSchema,
+  ChannelsRepairParams: ChannelsRepairParamsSchema,
+  ChannelsRepairResult: ChannelsRepairResultSchema,
   ChannelsStatusParams: ChannelsStatusParamsSchema,
   ChannelsStatusResult: ChannelsStatusResultSchema,
   ChannelsLogoutParams: ChannelsLogoutParamsSchema,

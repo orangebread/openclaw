@@ -82,6 +82,10 @@ import {
   ChannelsInstallParamsSchema,
   type ChannelsInstallResult,
   ChannelsInstallResultSchema,
+  type ChannelsRepairParams,
+  ChannelsRepairParamsSchema,
+  type ChannelsRepairResult,
+  ChannelsRepairResultSchema,
   type ChannelsLogoutParams,
   ChannelsLogoutParamsSchema,
   type ChannelsStatusParams,
@@ -102,6 +106,16 @@ import {
   ConfigGetParamsSchema,
   type GatewayRestartParams,
   GatewayRestartParamsSchema,
+  type DoctorPlanParams,
+  DoctorPlanParamsSchema,
+  type DoctorPlanResult,
+  DoctorPlanResultSchema,
+  type DoctorFixParams,
+  DoctorFixParamsSchema,
+  type DoctorFixResult,
+  DoctorFixResultSchema,
+  type DoctorIssue,
+  DoctorIssueSchema,
   type ConfigPatchParams,
   ConfigPatchParamsSchema,
   type ConfigSchemaParams,
@@ -384,6 +398,8 @@ export const validateGatewayRestartParams = ajv.compile<GatewayRestartParams>(
   GatewayRestartParamsSchema,
 );
 export const validateConfigSchemaParams = ajv.compile<ConfigSchemaParams>(ConfigSchemaParamsSchema);
+export const validateDoctorPlanParams = ajv.compile<DoctorPlanParams>(DoctorPlanParamsSchema);
+export const validateDoctorFixParams = ajv.compile<DoctorFixParams>(DoctorFixParamsSchema);
 export const validateWizardStartParams = ajv.compile<WizardStartParams>(WizardStartParamsSchema);
 export const validateWizardNextParams = ajv.compile<WizardNextParams>(WizardNextParamsSchema);
 export const validateWizardCancelParams = ajv.compile<WizardCancelParams>(WizardCancelParamsSchema);
@@ -405,6 +421,9 @@ export const validateChannelsEnableParams = ajv.compile<ChannelsEnableParams>(
 );
 export const validateChannelsInstallParams = ajv.compile<ChannelsInstallParams>(
   ChannelsInstallParamsSchema,
+);
+export const validateChannelsRepairParams = ajv.compile<ChannelsRepairParams>(
+  ChannelsRepairParamsSchema,
 );
 export const validateModelsListParams = ajv.compile<ModelsListParams>(ModelsListParamsSchema);
 export const validateSkillsStatusParams = ajv.compile<SkillsStatusParams>(SkillsStatusParamsSchema);
@@ -558,6 +577,11 @@ export {
   GatewayRestartParamsSchema,
   ConfigSchemaParamsSchema,
   ConfigSchemaResponseSchema,
+  DoctorPlanParamsSchema,
+  DoctorIssueSchema,
+  DoctorPlanResultSchema,
+  DoctorFixParamsSchema,
+  DoctorFixResultSchema,
   AuthFlowListParamsSchema,
   AuthFlowListResultSchema,
   AuthFlowStartParamsSchema,
@@ -583,6 +607,8 @@ export {
   ChannelsEnableResultSchema,
   ChannelsInstallParamsSchema,
   ChannelsInstallResultSchema,
+  ChannelsRepairParamsSchema,
+  ChannelsRepairResultSchema,
   ChannelsStatusParamsSchema,
   ChannelsStatusResultSchema,
   ChannelsLogoutParamsSchema,
@@ -667,6 +693,11 @@ export type {
   GatewayRestartParams,
   ConfigSchemaParams,
   ConfigSchemaResponse,
+  DoctorPlanParams,
+  DoctorIssue,
+  DoctorPlanResult,
+  DoctorFixParams,
+  DoctorFixResult,
   AuthFlowListParams,
   AuthFlowListResult,
   AuthFlowStartParams,
@@ -693,6 +724,8 @@ export type {
   ChannelsEnableResult,
   ChannelsInstallParams,
   ChannelsInstallResult,
+  ChannelsRepairParams,
+  ChannelsRepairResult,
   ChannelsStatusParams,
   ChannelsStatusResult,
   ChannelsLogoutParams,

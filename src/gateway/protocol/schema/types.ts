@@ -60,6 +60,8 @@ import type {
   ChannelsEnableResultSchema,
   ChannelsInstallParamsSchema,
   ChannelsInstallResultSchema,
+  ChannelsRepairParamsSchema,
+  ChannelsRepairResultSchema,
   ChannelsLogoutParamsSchema,
   ChannelsStatusParamsSchema,
   ChannelsStatusResultSchema,
@@ -95,6 +97,13 @@ import type {
   DeviceTokenRevokeParamsSchema,
   DeviceTokenRotateParamsSchema,
 } from "./devices.js";
+import type {
+  DoctorFixParamsSchema,
+  DoctorFixResultSchema,
+  DoctorIssueSchema,
+  DoctorPlanParamsSchema,
+  DoctorPlanResultSchema,
+} from "./doctor.js";
 import type {
   ExecApprovalsGetParamsSchema,
   ExecApprovalsNodeGetParamsSchema,
@@ -235,6 +244,11 @@ export type ConfigPatchParams = Static<typeof ConfigPatchParamsSchema>;
 export type GatewayRestartParams = Static<typeof GatewayRestartParamsSchema>;
 export type ConfigSchemaParams = Static<typeof ConfigSchemaParamsSchema>;
 export type ConfigSchemaResponse = Static<typeof ConfigSchemaResponseSchema>;
+export type DoctorPlanParams = Static<typeof DoctorPlanParamsSchema>;
+export type DoctorIssue = Static<typeof DoctorIssueSchema>;
+export type DoctorPlanResult = Static<typeof DoctorPlanResultSchema>;
+export type DoctorFixParams = Static<typeof DoctorFixParamsSchema>;
+export type DoctorFixResult = Static<typeof DoctorFixResultSchema>;
 export type WizardStartParams = Static<typeof WizardStartParamsSchema>;
 export type WizardNextParams = Static<typeof WizardNextParamsSchema>;
 export type WizardCancelParams = Static<typeof WizardCancelParamsSchema>;
@@ -256,6 +270,8 @@ export type ChannelsEnableParams = Static<typeof ChannelsEnableParamsSchema>;
 export type ChannelsEnableResult = Static<typeof ChannelsEnableResultSchema>;
 export type ChannelsInstallParams = Static<typeof ChannelsInstallParamsSchema>;
 export type ChannelsInstallResult = Static<typeof ChannelsInstallResultSchema>;
+export type ChannelsRepairParams = Static<typeof ChannelsRepairParamsSchema>;
+export type ChannelsRepairResult = Static<typeof ChannelsRepairResultSchema>;
 export type WebLoginStartParams = Static<typeof WebLoginStartParamsSchema>;
 export type WebLoginWaitParams = Static<typeof WebLoginWaitParamsSchema>;
 export type AgentSummary = Static<typeof AgentSummarySchema>;
