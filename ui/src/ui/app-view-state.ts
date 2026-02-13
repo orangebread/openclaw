@@ -148,8 +148,16 @@ export type AppViewState = {
   channelInstallBusy: string | null;
   channelInstallError: string | null;
   channelInstallSuccess: string | null;
+  channelInstallRunId: string | null;
+  channelInstallLog: string;
+  channelInstallLogTruncated: boolean;
   channelRestartBusy: boolean;
   channelRestartError: string | null;
+  doctorPlanLoading: boolean;
+  doctorPlanError: string | null;
+  doctorPlan: import("./controllers/channels.types.ts").DoctorPlanResult | null;
+  doctorFixBusy: boolean;
+  doctorFixError: string | null;
   whatsappLoginMessage: string | null;
   whatsappLoginQrDataUrl: string | null;
   whatsappLoginConnected: boolean | null;
@@ -293,6 +301,7 @@ export type AppViewState = {
   logsLimit: number;
   logsMaxBytes: number;
   logsAtBottom: boolean;
+  logsPaused: boolean;
   kbLoading: boolean;
   kbError: string | null;
   kbEntries: { notes: WorkspaceEntry[]; links: WorkspaceEntry[]; review: WorkspaceEntry[] };

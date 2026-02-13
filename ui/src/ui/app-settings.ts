@@ -51,6 +51,7 @@ type SettingsHost = {
   connected: boolean;
   chatHasAutoScrolled: boolean;
   logsAtBottom: boolean;
+  logsPaused?: boolean;
   eventLog: unknown[];
   eventLogBuffer: unknown[];
   basePath: string;
@@ -112,10 +113,6 @@ export function applySettingsFromUrl(host: SettingsHost) {
   }
 
   if (passwordRaw != null) {
-    const password = passwordRaw.trim();
-    if (password) {
-      (host as { password: string }).password = password;
-    }
     params.delete("password");
     hashParams.delete("password");
     shouldCleanUrl = true;
@@ -262,6 +259,7 @@ export async function refreshActiveTab(host: SettingsHost) {
   }
   if (host.tab === "logs") {
     host.logsAtBottom = true;
+    host.logsPaused = false;
     await loadLogs(host as unknown as OpenClawApp, { reset: true });
     scheduleLogsScroll(host as unknown as Parameters<typeof scheduleLogsScroll>[0], true);
   }

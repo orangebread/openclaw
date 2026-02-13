@@ -11,10 +11,12 @@ export type LogsProps = {
   filterText: string;
   levelFilters: Record<LogLevel, boolean>;
   autoFollow: boolean;
+  paused: boolean;
   truncated: boolean;
   onFilterTextChange: (next: string) => void;
   onLevelToggle: (level: LogLevel, enabled: boolean) => void;
   onToggleAutoFollow: (next: boolean) => void;
+  onResume: () => void;
   onRefresh: () => void;
   onExport: (lines: string[], label: string) => void;
   onScroll: (event: Event) => void;
@@ -129,6 +131,20 @@ export function renderLogs(props: LogsProps) {
       ${
         props.error
           ? html`<div class="callout danger" style="margin-top: 10px;">${props.error}</div>`
+          : nothing
+      }
+
+      ${
+        props.paused
+          ? html`
+              <div
+                class="callout info"
+                style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 12px;"
+              >
+                <div>Updates paused while you scroll. Scroll to the bottom to resume, or click Resume.</div>
+                <button class="btn btn--sm" @click=${props.onResume}>Resume</button>
+              </div>
+            `
           : nothing
       }
 

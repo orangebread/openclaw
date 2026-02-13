@@ -5,6 +5,10 @@ export type LogsState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
   logsLoading: boolean;
+  /** Non-reactive in-flight guard used to prevent overlapping fetches (polling can be quiet). */
+  logsFetchInFlight?: boolean;
+  /** When true, quiet polling should not mutate UI state (prevents scroll jumps while reading). */
+  logsPaused?: boolean;
   logsError: string | null;
   logsCursor: number | null;
   logsFile: string | null;
@@ -100,19 +104,32 @@ export async function loadLogs(state: LogsState, opts?: { reset?: boolean; quiet
   if (!state.client || !state.connected) {
     return;
   }
-  if (state.logsLoading && !opts?.quiet) {
+  const quiet = Boolean(opts?.quiet);
+  if (quiet && state.logsPaused) {
     return;
   }
-  if (!opts?.quiet) {
+  if (state.logsFetchInFlight) {
+    return;
+  }
+  if (state.logsLoading && !quiet) {
+    return;
+  }
+  state.logsFetchInFlight = true;
+  if (!quiet) {
     state.logsLoading = true;
   }
-  state.logsError = null;
   try {
     const res = await state.client.request("logs.tail", {
       cursor: opts?.reset ? undefined : (state.logsCursor ?? undefined),
       limit: state.logsLimit,
       maxBytes: state.logsMaxBytes,
     });
+
+    // If the user scrolled away while this fetch was in-flight, don't mutate UI state.
+    if (quiet && state.logsPaused) {
+      return;
+    }
+
     const payload = res as {
       file?: string;
       cursor?: number;
@@ -121,14 +138,18 @@ export async function loadLogs(state: LogsState, opts?: { reset?: boolean; quiet
       truncated?: boolean;
       reset?: boolean;
     };
+    state.logsError = null;
     const lines = Array.isArray(payload.lines)
       ? payload.lines.filter((line) => typeof line === "string")
       : [];
     const entries = lines.map(parseLogLine);
     const shouldReset = Boolean(opts?.reset || payload.reset || state.logsCursor == null);
-    state.logsEntries = shouldReset
-      ? entries
-      : [...state.logsEntries, ...entries].slice(-LOG_BUFFER_LIMIT);
+    const hasNewEntries = shouldReset || entries.length > 0;
+    if (shouldReset) {
+      state.logsEntries = entries;
+    } else if (entries.length > 0) {
+      state.logsEntries = [...state.logsEntries, ...entries].slice(-LOG_BUFFER_LIMIT);
+    }
     if (typeof payload.cursor === "number") {
       state.logsCursor = payload.cursor;
     }
@@ -136,11 +157,16 @@ export async function loadLogs(state: LogsState, opts?: { reset?: boolean; quiet
       state.logsFile = payload.file;
     }
     state.logsTruncated = Boolean(payload.truncated);
-    state.logsLastFetchAt = Date.now();
+    if (hasNewEntries) {
+      state.logsLastFetchAt = Date.now();
+    }
   } catch (err) {
-    state.logsError = String(err);
+    if (!(quiet && state.logsPaused)) {
+      state.logsError = String(err);
+    }
   } finally {
-    if (!opts?.quiet) {
+    state.logsFetchInFlight = false;
+    if (!quiet) {
       state.logsLoading = false;
     }
   }

@@ -97,6 +97,7 @@ import {
 } from "./app-tool-stream.ts";
 import { resolveInjectedAssistantIdentity } from "./assistant-identity.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
+import { loadLogs } from "./controllers/logs.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
 
@@ -226,8 +227,16 @@ export class OpenClawApp extends LitElement {
   @state() channelInstallBusy: string | null = null;
   @state() channelInstallError: string | null = null;
   @state() channelInstallSuccess: string | null = null;
+  @state() channelInstallRunId: string | null = null;
+  @state() channelInstallLog = "";
+  @state() channelInstallLogTruncated = false;
   @state() channelRestartBusy = false;
   @state() channelRestartError: string | null = null;
+  @state() doctorPlanLoading = false;
+  @state() doctorPlanError: string | null = null;
+  @state() doctorPlan: import("./controllers/channels.types.ts").DoctorPlanResult | null = null;
+  @state() doctorFixBusy = false;
+  @state() doctorFixError: string | null = null;
   @state() whatsappLoginMessage: string | null = null;
   @state() whatsappLoginQrDataUrl: string | null = null;
   @state() whatsappLoginConnected: boolean | null = null;
@@ -438,6 +447,7 @@ export class OpenClawApp extends LitElement {
   @state() logsLimit = 500;
   @state() logsMaxBytes = 250_000;
   @state() logsAtBottom = true;
+  @state() logsPaused = false;
 
   client: GatewayBrowserClient | null = null;
   private chatScrollFrame: number | null = null;
@@ -449,6 +459,8 @@ export class OpenClawApp extends LitElement {
   private logsPollInterval: number | null = null;
   private debugPollInterval: number | null = null;
   private logsScrollFrame: number | null = null;
+  // Non-reactive in-flight guard used by controllers/logs.ts.
+  logsFetchInFlight = false;
   private toolStreamById = new Map<string, ToolStreamEntry>();
   private toolStreamOrder: string[] = [];
   refreshSessionsAfterChat = new Set<string>();
@@ -497,6 +509,20 @@ export class OpenClawApp extends LitElement {
       this as unknown as Parameters<typeof handleLogsScrollInternal>[0],
       event,
     );
+
+    const container = event.currentTarget as HTMLElement | null;
+    if (!container) {
+      return;
+    }
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const nextPaused = distanceFromBottom > 1;
+    const wasPaused = this.logsPaused;
+    this.logsPaused = nextPaused;
+    if (wasPaused && !nextPaused) {
+      // User returned to bottom; catch up once immediately (polling may have been paused).
+      void loadLogs(this, { quiet: true });
+    }
   }
 
   exportLogs(lines: string[], label: string) {

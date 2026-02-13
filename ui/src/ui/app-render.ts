@@ -6,6 +6,7 @@ import type { KnowledgeBaseProps } from "./views/knowledge-base.ts";
 import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 import { refreshChatAvatar } from "./app-chat.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
+import { scheduleLogsScroll } from "./app-scroll.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
@@ -22,6 +23,7 @@ import {
 } from "./controllers/browser.ts";
 import {
   enableChannel,
+  fixDoctor,
   installChannel,
   loadChannelsAndCatalog,
   restartGateway,
@@ -99,6 +101,7 @@ import {
 import { loadUsage, loadSessionTimeSeries, loadSessionLogs } from "./controllers/usage.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
+import { generateUUID } from "./uuid.ts";
 
 // Module-scope debounce for usage date changes (avoids type-unsafe hacks on state object)
 let usageDateDebounceTimeout: number | null = null;
@@ -108,26 +111,77 @@ const debouncedLoadUsage = (state: UsageState) => {
   }
   usageDateDebounceTimeout = window.setTimeout(() => void loadUsage(state), 400);
 };
-import { renderAgents } from "./views/agents.ts";
-import { renderBrowser } from "./views/browser.ts";
-import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
-import { renderConfig } from "./views/config.ts";
-import { renderCredentials } from "./views/credentials.ts";
-import { renderCron } from "./views/cron.ts";
-import { renderDebug } from "./views/debug.ts";
-import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
-import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
-import { renderInstances } from "./views/instances.ts";
-import { renderLogs } from "./views/logs.ts";
-import { renderNodes } from "./views/nodes.ts";
-import { renderOverview } from "./views/overview.ts";
-import { renderSessions } from "./views/sessions.ts";
-import { renderSkills } from "./views/skills.ts";
-import { renderUsage } from "./views/usage.ts";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
+
+const DEFAULT_VIEW_FALLBACK = html`
+  <section class="card"><div class="muted">Loading…</div></section>
+`;
+
+function renderLazyView<TModule>(
+  loader: () => Promise<TModule>,
+  render: (mod: TModule) => unknown,
+  fallback = DEFAULT_VIEW_FALLBACK,
+) {
+  if (lazyViewResolvedCache.has(loader)) {
+    const resolved = lazyViewResolvedCache.get(loader) as TModule;
+    return render(resolved);
+  }
+  let pending = lazyViewPendingCache.get(loader) as Promise<TModule> | undefined;
+  if (!pending) {
+    pending = loader()
+      .then((mod) => {
+        lazyViewResolvedCache.set(loader, mod);
+        return mod;
+      })
+      .finally(() => {
+        lazyViewPendingCache.delete(loader);
+      });
+    lazyViewPendingCache.set(loader, pending);
+  }
+  return until(pending.then(render), fallback);
+}
+
+// Keep loaded view modules hot so polling-driven rerenders don't remount tab content.
+const lazyViewResolvedCache = new WeakMap<() => Promise<unknown>, unknown>();
+const lazyViewPendingCache = new WeakMap<() => Promise<unknown>, Promise<unknown>>();
+
+let overviewViewPromise: Promise<typeof import("./views/overview.ts")> | null = null;
+const loadOverviewView = () => (overviewViewPromise ??= import("./views/overview.ts"));
+let channelsViewPromise: Promise<typeof import("./views/channels.ts")> | null = null;
+const loadChannelsView = () => (channelsViewPromise ??= import("./views/channels.ts"));
+let credentialsViewPromise: Promise<typeof import("./views/credentials.ts")> | null = null;
+const loadCredentialsView = () => (credentialsViewPromise ??= import("./views/credentials.ts"));
+let instancesViewPromise: Promise<typeof import("./views/instances.ts")> | null = null;
+const loadInstancesView = () => (instancesViewPromise ??= import("./views/instances.ts"));
+let sessionsViewPromise: Promise<typeof import("./views/sessions.ts")> | null = null;
+const loadSessionsView = () => (sessionsViewPromise ??= import("./views/sessions.ts"));
+let browserViewPromise: Promise<typeof import("./views/browser.ts")> | null = null;
+const loadBrowserView = () => (browserViewPromise ??= import("./views/browser.ts"));
+let usageViewPromise: Promise<typeof import("./views/usage.ts")> | null = null;
+const loadUsageView = () => (usageViewPromise ??= import("./views/usage.ts"));
+let cronViewPromise: Promise<typeof import("./views/cron.ts")> | null = null;
+const loadCronView = () => (cronViewPromise ??= import("./views/cron.ts"));
+let agentsViewPromise: Promise<typeof import("./views/agents.ts")> | null = null;
+const loadAgentsView = () => (agentsViewPromise ??= import("./views/agents.ts"));
+let skillsViewPromise: Promise<typeof import("./views/skills.ts")> | null = null;
+const loadSkillsView = () => (skillsViewPromise ??= import("./views/skills.ts"));
+let nodesViewPromise: Promise<typeof import("./views/nodes.ts")> | null = null;
+const loadNodesView = () => (nodesViewPromise ??= import("./views/nodes.ts"));
+let configViewPromise: Promise<typeof import("./views/config.ts")> | null = null;
+const loadConfigView = () => (configViewPromise ??= import("./views/config.ts"));
+let debugViewPromise: Promise<typeof import("./views/debug.ts")> | null = null;
+const loadDebugView = () => (debugViewPromise ??= import("./views/debug.ts"));
+let logsViewPromise: Promise<typeof import("./views/logs.ts")> | null = null;
+const loadLogsView = () => (logsViewPromise ??= import("./views/logs.ts"));
+let gatewayUrlViewPromise: Promise<typeof import("./views/gateway-url-confirmation.ts")> | null =
+  null;
+const loadGatewayUrlView = () =>
+  (gatewayUrlViewPromise ??= import("./views/gateway-url-confirmation.ts"));
+let execApprovalViewPromise: Promise<typeof import("./views/exec-approval.ts")> | null = null;
+const loadExecApprovalView = () => (execApprovalViewPromise ??= import("./views/exec-approval.ts"));
 
 let knowledgeBaseViewPromise: Promise<typeof import("./views/knowledge-base.ts")> | null = null;
 function loadKnowledgeBaseView() {
@@ -138,13 +192,66 @@ function loadKnowledgeBaseView() {
 }
 
 function renderKnowledgeBaseLazy(props: KnowledgeBaseProps) {
-  return until(
-    loadKnowledgeBaseView().then((mod) => mod.renderKnowledgeBase(props)),
-    html`
-      <section class="card"><div class="muted">Loading…</div></section>
-    `,
-  );
+  return renderLazyView(loadKnowledgeBaseView, (mod) => mod.renderKnowledgeBase(props));
 }
+
+const renderOverviewLazy = (
+  props: Parameters<typeof import("./views/overview.ts").renderOverview>[0],
+) => renderLazyView(loadOverviewView, (mod) => mod.renderOverview(props));
+
+const renderChannelsLazy = (
+  props: Parameters<typeof import("./views/channels.ts").renderChannels>[0],
+) => renderLazyView(loadChannelsView, (mod) => mod.renderChannels(props));
+
+const renderCredentialsLazy = (
+  props: Parameters<typeof import("./views/credentials.ts").renderCredentials>[0],
+) => renderLazyView(loadCredentialsView, (mod) => mod.renderCredentials(props));
+
+const renderInstancesLazy = (
+  props: Parameters<typeof import("./views/instances.ts").renderInstances>[0],
+) => renderLazyView(loadInstancesView, (mod) => mod.renderInstances(props));
+
+const renderSessionsLazy = (
+  props: Parameters<typeof import("./views/sessions.ts").renderSessions>[0],
+) => renderLazyView(loadSessionsView, (mod) => mod.renderSessions(props));
+
+const renderBrowserLazy = (
+  props: Parameters<typeof import("./views/browser.ts").renderBrowser>[0],
+) => renderLazyView(loadBrowserView, (mod) => mod.renderBrowser(props));
+
+const renderUsageLazy = (props: Parameters<typeof import("./views/usage.ts").renderUsage>[0]) =>
+  renderLazyView(loadUsageView, (mod) => mod.renderUsage(props));
+
+const renderCronLazy = (props: Parameters<typeof import("./views/cron.ts").renderCron>[0]) =>
+  renderLazyView(loadCronView, (mod) => mod.renderCron(props));
+
+const renderAgentsLazy = (props: Parameters<typeof import("./views/agents.ts").renderAgents>[0]) =>
+  renderLazyView(loadAgentsView, (mod) => mod.renderAgents(props));
+
+const renderSkillsLazy = (props: Parameters<typeof import("./views/skills.ts").renderSkills>[0]) =>
+  renderLazyView(loadSkillsView, (mod) => mod.renderSkills(props));
+
+const renderNodesLazy = (props: Parameters<typeof import("./views/nodes.ts").renderNodes>[0]) =>
+  renderLazyView(loadNodesView, (mod) => mod.renderNodes(props));
+
+const renderConfigLazy = (props: Parameters<typeof import("./views/config.ts").renderConfig>[0]) =>
+  renderLazyView(loadConfigView, (mod) => mod.renderConfig(props));
+
+const renderDebugLazy = (props: Parameters<typeof import("./views/debug.ts").renderDebug>[0]) =>
+  renderLazyView(loadDebugView, (mod) => mod.renderDebug(props));
+
+const renderLogsLazy = (props: Parameters<typeof import("./views/logs.ts").renderLogs>[0]) =>
+  renderLazyView(loadLogsView, (mod) => mod.renderLogs(props));
+
+const renderGatewayUrlConfirmationLazy = (
+  props: Parameters<
+    typeof import("./views/gateway-url-confirmation.ts").renderGatewayUrlConfirmation
+  >[0],
+) => renderLazyView(loadGatewayUrlView, (mod) => mod.renderGatewayUrlConfirmation(props));
+
+const renderExecApprovalPromptLazy = (
+  props: Parameters<typeof import("./views/exec-approval.ts").renderExecApprovalPrompt>[0],
+) => renderLazyView(loadExecApprovalView, (mod) => mod.renderExecApprovalPrompt(props));
 
 function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   const list = state.agentsList?.agents ?? [];
@@ -275,7 +382,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "overview"
-            ? renderOverview({
+            ? renderOverviewLazy({
                 connected: state.connected,
                 hello: state.hello,
                 settings: state.settings,
@@ -307,7 +414,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "channels"
-            ? renderChannels({
+            ? renderChannelsLazy({
                 connected: state.connected,
                 loading: state.channelsLoading,
                 snapshot: state.channelsSnapshot,
@@ -332,14 +439,29 @@ export function renderApp(state: AppViewState) {
                 installBusy: state.channelInstallBusy,
                 installError: state.channelInstallError,
                 installSuccess: state.channelInstallSuccess,
+                installLog: state.channelInstallLog,
+                installLogTruncated: state.channelInstallLogTruncated,
+                doctorPlan: state.doctorPlan,
+                doctorPlanLoading: state.doctorPlanLoading,
+                doctorPlanError: state.doctorPlanError,
+                doctorFixBusy: state.doctorFixBusy,
+                doctorFixError: state.doctorFixError,
+                onDoctorFix: async () => {
+                  await fixDoctor(state);
+                  await loadChannelsAndCatalog(state, false);
+                },
                 restartBusy: state.channelRestartBusy,
                 restartError: state.channelRestartError,
-                onInstallChannel: async (channelId) => {
+                onInstallChannel: async (channelId, mode) => {
                   state.channelInstallBusy = channelId;
                   state.channelInstallError = null;
                   state.channelInstallSuccess = null;
                   state.channelRestartError = null;
-                  const res = await installChannel(state, channelId);
+                  const runId = generateUUID();
+                  state.channelInstallRunId = runId;
+                  state.channelInstallLog = "";
+                  state.channelInstallLogTruncated = false;
+                  const res = await installChannel(state, channelId, mode, runId);
                   state.channelInstallBusy = null;
                   if (res.ok) {
                     state.channelInstallSuccess = channelId;
@@ -406,7 +528,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "credentials"
-            ? renderCredentials({
+            ? renderCredentialsLazy({
                 connected: state.connected,
                 gatewayUrl: state.settings.gatewayUrl,
                 loading: state.credentialsLoading,
@@ -499,7 +621,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "instances"
-            ? renderInstances({
+            ? renderInstancesLazy({
                 loading: state.presenceLoading,
                 entries: state.presenceEntries,
                 lastError: state.presenceError,
@@ -511,7 +633,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "sessions"
-            ? renderSessions({
+            ? renderSessionsLazy({
                 loading: state.sessionsLoading,
                 result: state.sessionsResult,
                 error: state.sessionsError,
@@ -535,7 +657,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "browser"
-            ? renderBrowser({
+            ? renderBrowserLazy({
                 loading: state.browserLoading,
                 error: state.browserError,
                 profiles: state.browserProfiles,
@@ -603,7 +725,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "usage"
-            ? renderUsage({
+            ? renderUsageLazy({
                 loading: state.usageLoading,
                 error: state.usageError,
                 startDate: state.usageStartDate,
@@ -866,7 +988,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "cron"
-            ? renderCron({
+            ? renderCronLazy({
                 basePath: state.basePath,
                 loading: state.cronLoading,
                 status: state.cronStatus,
@@ -894,7 +1016,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "agents"
-            ? renderAgents({
+            ? renderAgentsLazy({
                 loading: state.agentsLoading,
                 error: state.agentsError,
                 agentsList: state.agentsList,
@@ -1571,7 +1693,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "skills"
-            ? renderSkills({
+            ? renderSkillsLazy({
                 loading: state.skillsLoading,
                 report: state.skillsReport,
                 error: state.skillsError,
@@ -1592,7 +1714,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "nodes"
-            ? renderNodes({
+            ? renderNodesLazy({
                 loading: state.nodesLoading,
                 nodes: state.nodes,
                 devicesLoading: state.devicesLoading,
@@ -1750,7 +1872,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "config"
-            ? renderConfig({
+            ? renderConfigLazy({
                 raw: state.configRaw,
                 originalRaw: state.configRawOriginal,
                 valid: state.configValid,
@@ -1790,7 +1912,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "debug"
-            ? renderDebug({
+            ? renderDebugLazy({
                 loading: state.debugLoading,
                 status: state.debugStatus,
                 health: state.debugHealth,
@@ -1811,7 +1933,7 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "logs"
-            ? renderLogs({
+            ? renderLogsLazy({
                 loading: state.logsLoading,
                 error: state.logsError,
                 file: state.logsFile,
@@ -1819,12 +1941,24 @@ export function renderApp(state: AppViewState) {
                 filterText: state.logsFilterText,
                 levelFilters: state.logsLevelFilters,
                 autoFollow: state.logsAutoFollow,
+                paused: state.logsPaused,
                 truncated: state.logsTruncated,
                 onFilterTextChange: (next) => (state.logsFilterText = next),
                 onLevelToggle: (level, enabled) => {
                   state.logsLevelFilters = { ...state.logsLevelFilters, [level]: enabled };
                 },
                 onToggleAutoFollow: (next) => (state.logsAutoFollow = next),
+                onResume: () => {
+                  state.logsPaused = false;
+                  state.logsAtBottom = true;
+                  state.logsAutoFollow = true;
+                  void loadLogs(state, { reset: true }).then(() => {
+                    scheduleLogsScroll(
+                      state as unknown as Parameters<typeof scheduleLogsScroll>[0],
+                      true,
+                    );
+                  });
+                },
                 onRefresh: () => loadLogs(state, { reset: true }),
                 onExport: (lines, label) => state.exportLogs(lines, label),
                 onScroll: (event) => state.handleLogsScroll(event),
@@ -1832,8 +1966,8 @@ export function renderApp(state: AppViewState) {
             : nothing
         }
       </main>
-      ${renderExecApprovalPrompt(state)}
-      ${renderGatewayUrlConfirmation(state)}
+      ${state.execApprovalQueue.length > 0 ? renderExecApprovalPromptLazy(state) : nothing}
+      ${state.pendingGatewayUrl ? renderGatewayUrlConfirmationLazy(state) : nothing}
     </div>
   `;
 }

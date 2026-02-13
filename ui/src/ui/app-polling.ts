@@ -8,6 +8,7 @@ type PollingHost = {
   logsPollInterval: number | null;
   debugPollInterval: number | null;
   tab: string;
+  logsPaused?: boolean;
 };
 
 export function startNodesPolling(host: PollingHost) {
@@ -34,6 +35,9 @@ export function startLogsPolling(host: PollingHost) {
   }
   host.logsPollInterval = window.setInterval(() => {
     if (host.tab !== "logs") {
+      return;
+    }
+    if (host.logsPaused) {
       return;
     }
     void loadLogs(host as unknown as OpenClawApp, { quiet: true });
