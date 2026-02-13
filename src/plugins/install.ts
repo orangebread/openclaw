@@ -16,12 +16,15 @@ import { CONFIG_DIR, resolveUserPath } from "../utils.js";
 type PluginInstallLogger = {
   info?: (message: string) => void;
   warn?: (message: string) => void;
+  stdout?: (chunk: string) => void;
+  stderr?: (chunk: string) => void;
 };
 
 type PackageManifest = {
   name?: string;
   version?: string;
   dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 } & Partial<Record<typeof MANIFEST_KEY, { extensions?: string[] }>>;
 
 export type InstallPluginResult =
@@ -84,6 +87,39 @@ function extensionUsesSkippedScannerPath(entry: string): boolean {
       segment === "node_modules" ||
       (segment.startsWith(".") && segment !== "." && segment !== ".."),
   );
+}
+
+function stripWorkspaceDevDependencies(manifest: PackageManifest): {
+  manifest: PackageManifest;
+  removed: string[];
+} {
+  const devDependencies = manifest.devDependencies;
+  if (!devDependencies || typeof devDependencies !== "object") {
+    return { manifest, removed: [] };
+  }
+
+  const nextDevDependencies: Record<string, string> = {};
+  const removed: string[] = [];
+  for (const [name, version] of Object.entries(devDependencies)) {
+    if (typeof version === "string" && version.trim().startsWith("workspace:")) {
+      removed.push(name);
+      continue;
+    }
+    nextDevDependencies[name] = version;
+  }
+
+  if (removed.length === 0) {
+    return { manifest, removed };
+  }
+
+  const nextManifest: PackageManifest = { ...manifest };
+  if (Object.keys(nextDevDependencies).length === 0) {
+    delete nextManifest.devDependencies;
+  } else {
+    nextManifest.devDependencies = nextDevDependencies;
+  }
+
+  return { manifest: nextManifest, removed };
 }
 
 async function ensureOpenClawExtensions(manifest: PackageManifest) {
@@ -254,7 +290,26 @@ async function installPluginFromPackageDir(params: {
     await fs.rename(targetDir, backupDir);
   }
   try {
-    await fs.cp(params.packageDir, targetDir, { recursive: true });
+    // Never copy a workspace `node_modules/` into the plugin install directory.
+    // pnpm/Bun often use symlink forests that break when moved (example: missing deps at runtime
+    // even though `node_modules/<dep>` exists as a dead symlink). Instead we install deps fresh
+    // (when declared in package.json) after copying source files.
+    const copyFilter = (src: string) => {
+      const rel = path.relative(packageDir, src);
+      if (!rel || rel === ".") {
+        return true;
+      }
+      const segments = rel.split(path.sep).filter(Boolean);
+      if (segments.includes("node_modules")) {
+        return false;
+      }
+      if (segments[0] === ".git") {
+        return false;
+      }
+      return true;
+    };
+
+    await fs.cp(packageDir, targetDir, { recursive: true, filter: copyFilter });
   } catch (err) {
     if (backupDir) {
       await fs.rm(targetDir, { recursive: true, force: true }).catch(() => undefined);
@@ -276,6 +331,18 @@ async function installPluginFromPackageDir(params: {
 
   const deps = manifest.dependencies ?? {};
   const hasDeps = Object.keys(deps).length > 0;
+  const sanitized = stripWorkspaceDevDependencies(manifest);
+  if (sanitized.removed.length > 0) {
+    const targetManifestPath = path.join(targetDir, "package.json");
+    await fs.writeFile(
+      targetManifestPath,
+      `${JSON.stringify(sanitized.manifest, null, 2)}\n`,
+      "utf-8",
+    );
+    logger.info?.(
+      `Stripped workspace devDependencies before npm install: ${sanitized.removed.join(", ")}`,
+    );
+  }
   if (hasDeps) {
     logger.info?.("Installing plugin dependencies…");
     const npmRes = await runCommandWithTimeout(
@@ -283,6 +350,8 @@ async function installPluginFromPackageDir(params: {
       {
         timeoutMs: Math.max(timeoutMs, 300_000),
         cwd: targetDir,
+        onStdout: (chunk) => logger.stdout?.(chunk),
+        onStderr: (chunk) => logger.stderr?.(chunk),
       },
     );
     if (npmRes.code !== 0) {
@@ -473,38 +542,46 @@ export async function installPluginFromNpmSpec(params: {
   }
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-npm-pack-"));
-  logger.info?.(`Downloading ${spec}…`);
-  const res = await runCommandWithTimeout(["npm", "pack", spec], {
-    timeoutMs: Math.max(timeoutMs, 300_000),
-    cwd: tmpDir,
-    env: { COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
-  });
-  if (res.code !== 0) {
-    return {
-      ok: false,
-      error: `npm pack failed: ${res.stderr.trim() || res.stdout.trim()}`,
-    };
-  }
+  try {
+    logger.info?.(`Downloading ${spec}…`);
+    const res = await runCommandWithTimeout(["npm", "pack", spec], {
+      timeoutMs: Math.max(timeoutMs, 300_000),
+      cwd: tmpDir,
+      env: { COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
+      onStdout: (chunk) => logger.stdout?.(chunk),
+      onStderr: (chunk) => logger.stderr?.(chunk),
+    });
+    if (res.code !== 0) {
+      return {
+        ok: false,
+        error: `npm pack failed: ${res.stderr.trim() || res.stdout.trim()}`,
+      };
+    }
 
-  const packed = (res.stdout || "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .pop();
-  if (!packed) {
-    return { ok: false, error: "npm pack produced no archive" };
-  }
+    const packed = (res.stdout || "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .pop();
+    if (!packed) {
+      return { ok: false, error: "npm pack produced no archive" };
+    }
 
-  const archivePath = path.join(tmpDir, packed);
-  return await installPluginFromArchive({
-    archivePath,
-    extensionsDir: params.extensionsDir,
-    timeoutMs,
-    logger,
-    mode,
-    dryRun,
-    expectedPluginId,
-  });
+    const archivePath = path.join(tmpDir, packed);
+    return await installPluginFromArchive({
+      archivePath,
+      extensionsDir: params.extensionsDir,
+      timeoutMs,
+      logger,
+      mode,
+      dryRun,
+      expectedPluginId,
+    });
+  } finally {
+    if (!dryRun) {
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
 }
 
 export async function installPluginFromPath(params: {

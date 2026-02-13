@@ -71,7 +71,24 @@ function formatPluginLoadError(err: unknown, pluginRootDir: string): string {
     return base;
   }
 
-  return `${base} (missing "${missingModule}" in "${pluginRootDir}/node_modules"; run: cd "${pluginRootDir}" && npm install --omit=dev --silent --ignore-scripts)`;
+  let reinstallHint = "";
+  try {
+    const raw = fs.readFileSync(packageJsonPath, "utf-8");
+    const pkg = JSON.parse(raw) as {
+      name?: unknown;
+      openclaw?: { install?: { npmSpec?: unknown } };
+    };
+    const spec =
+      (typeof pkg.openclaw?.install?.npmSpec === "string" ? pkg.openclaw.install.npmSpec : "") ||
+      (typeof pkg.name === "string" ? pkg.name : "");
+    if (spec.trim()) {
+      reinstallHint = `; or reinstall via: openclaw plugins install "${spec.trim()}"`;
+    }
+  } catch {
+    // ignore
+  }
+
+  return `${base} (missing "${missingModule}" in "${pluginRootDir}/node_modules"; run: cd "${pluginRootDir}" && npm install --omit=dev --silent --ignore-scripts${reinstallHint})`;
 }
 
 const resolvePluginSdkAlias = (): string | null => {
