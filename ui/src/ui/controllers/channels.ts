@@ -39,8 +39,59 @@ function reconcileSetupSelection(state: ChannelsState) {
 }
 
 export async function loadChannelsAndCatalog(state: ChannelsState, probe: boolean) {
-  await Promise.all([loadChannels(state, probe), loadChannelsCatalog(state)]);
+  await Promise.all([
+    loadChannels(state, probe),
+    loadChannelsCatalog(state),
+    loadDoctorPlan(state),
+  ]);
   reconcileSetupSelection(state);
+}
+
+export async function loadDoctorPlan(state: ChannelsState) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.doctorPlanLoading) {
+    return;
+  }
+  state.doctorPlanLoading = true;
+  state.doctorPlanError = null;
+  try {
+    const res = await state.client.request<import("./channels.types.ts").DoctorPlanResult>(
+      "doctor.plan",
+      {},
+    );
+    state.doctorPlan = res;
+  } catch (err) {
+    state.doctorPlan = null;
+    state.doctorPlanError = String(err);
+  } finally {
+    state.doctorPlanLoading = false;
+  }
+}
+
+export async function fixDoctor(state: ChannelsState) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.doctorFixBusy) {
+    return;
+  }
+  state.doctorFixBusy = true;
+  state.doctorFixError = null;
+  try {
+    const res = await state.client.request<import("./channels.types.ts").DoctorFixResult>(
+      "doctor.fix",
+      {},
+    );
+    if (!res.ok) {
+      state.doctorFixError = res.error ?? "Doctor fix failed";
+    }
+  } catch (err) {
+    state.doctorFixError = String(err);
+  } finally {
+    state.doctorFixBusy = false;
+  }
 }
 
 export async function loadChannels(state: ChannelsState, probe: boolean) {
@@ -141,6 +192,8 @@ export async function loadChannelsCatalog(state: ChannelsState) {
 export async function installChannel(
   state: ChannelsState,
   channelId: string,
+  mode?: "install" | "update",
+  clientRunId?: string,
 ): Promise<{
   ok: boolean;
   pluginId?: string;
@@ -152,16 +205,28 @@ export async function installChannel(
     return { ok: false, error: "Not connected" };
   }
   try {
+    const isRepair = mode === "update";
     const res = await state.client.request<{
       ok: boolean;
       pluginId?: string;
       version?: string;
       error?: string;
       restartRequired?: boolean;
-    }>("channels.install", {
-      channelId,
-      timeoutMs: 300_000,
-    });
+    }>(
+      isRepair ? "channels.repair" : "channels.install",
+      isRepair
+        ? {
+            channelId,
+            ...(clientRunId ? { clientRunId } : {}),
+            timeoutMs: 300_000,
+          }
+        : {
+            channelId,
+            ...(clientRunId ? { clientRunId } : {}),
+            ...(mode ? { mode } : {}),
+            timeoutMs: 300_000,
+          },
+    );
     return res;
   } catch (err) {
     return { ok: false, error: String(err) };

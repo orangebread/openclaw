@@ -55,6 +55,9 @@ export function renderChannels(props: ChannelsProps) {
   const catalogGhostSet = new Set(catalogGhosts);
   const fullOrder = [...channelOrder, ...catalogGhosts];
   const catalogMap = new Map((props.catalog ?? []).map((entry) => [entry.id, entry]));
+  const doctorPlan = props.doctorPlan;
+  const doctorIssues = doctorPlan?.issues ?? [];
+  const doctorFixAvailable = doctorPlan?.fixAvailable === true;
 
   const orderedChannels = fullOrder
     .map((key, index) => ({
@@ -97,9 +100,57 @@ export function renderChannels(props: ChannelsProps) {
           `
         : nothing
     }
+    ${
+      props.doctorPlanLoading
+        ? html`
+            <div class="muted" style="margin-bottom: 12px">Checking for common gateway issues...</div>
+          `
+        : nothing
+    }
+    ${props.doctorPlanError ? html`<div class="callout danger" style="margin-bottom: 12px;">Doctor error: ${props.doctorPlanError}</div>` : nothing}
+    ${props.doctorFixError ? html`<div class="callout danger" style="margin-bottom: 12px;">Doctor fix error: ${props.doctorFixError}</div>` : nothing}
+    ${
+      doctorIssues.length
+        ? html`
+            <div class="callout danger" style="margin-bottom: 12px;">
+              <div class="row" style="justify-content: space-between; align-items: center;">
+                <div>
+                  <strong>Gateway issues detected</strong>
+                  <div class="muted" style="margin-top: 4px;">These can prevent channels from loading or installing.</div>
+                </div>
+                <button
+                  class="btn"
+                  ?disabled=${props.doctorFixBusy || !doctorFixAvailable}
+                  @click=${() => props.onDoctorFix()}
+                >
+                  ${props.doctorFixBusy ? "Fixing..." : "Fix"}
+                </button>
+              </div>
+              <ul style="margin: 10px 0 0 18px;">
+                ${doctorIssues.slice(0, 8).map((issue) => html`<li>${issue.message}</li>`)}
+              </ul>
+              ${
+                doctorIssues.length > 8
+                  ? html`<div class="muted" style="margin-top: 8px;">And ${doctorIssues.length - 8} more</div>`
+                  : nothing
+              }
+            </div>
+          `
+        : nothing
+    }
     ${props.catalogError ? html`<div class="callout danger" style="margin-bottom: 12px;">Catalog error: ${props.catalogError}</div>` : nothing}
     ${props.installError ? html`<div class="callout danger" style="margin-bottom: 12px;">Install error: ${props.installError}</div>` : nothing}
     ${props.restartError ? html`<div class="callout danger" style="margin-bottom: 12px;">Restart error: ${props.restartError}</div>` : nothing}
+    ${
+      props.installLog.trim()
+        ? html`
+            <details class="card" style="margin-bottom: 12px;">
+              <summary style="cursor: pointer; list-style: none;">Install logs${props.installLogTruncated ? " (truncated)" : ""}</summary>
+              <pre class="code-block" style="margin-top: 12px;">${props.installLog}</pre>
+            </details>
+          `
+        : nothing
+    }
     ${
       props.installSuccess
         ? html`
@@ -330,6 +381,10 @@ function resolveChannelLabel(snapshot: ChannelsStatusSnapshot | null, key: strin
 
 function renderGhostChannelCard(entry: ChannelCatalogEntry, props: ChannelsProps) {
   const isSetupActive = props.setupChannelId === entry.id;
+  const pluginLoadError =
+    entry.pluginStatus === "error" && typeof entry.pluginError === "string" && entry.pluginError
+      ? entry.pluginError
+      : null;
 
   if (isSetupActive) {
     return html`
@@ -362,6 +417,7 @@ function renderGhostChannelCard(entry: ChannelCatalogEntry, props: ChannelsProps
           <span>${entry.enabled ? "Yes" : "No"}</span>
         </div>
       </div>
+      ${pluginLoadError ? html`<div class="callout danger" style="margin-top: 12px;">${pluginLoadError}</div>` : nothing}
       <div class="row" style="margin-top: 12px;">
         ${
           !entry.installed
@@ -370,18 +426,24 @@ function renderGhostChannelCard(entry: ChannelCatalogEntry, props: ChannelsProps
                 ?disabled=${props.installBusy === entry.id}
                 @click=${() => props.onInstallChannel(entry.id)}
               >${props.installBusy === entry.id ? "Installing…" : "Install"}</button>`
-            : !entry.enabled
+            : pluginLoadError
               ? html`<button
+                class="btn"
+                ?disabled=${props.installBusy === entry.id}
+                @click=${() => props.onInstallChannel(entry.id, "update")}
+              >${props.installBusy === entry.id ? "Repairing…" : "Repair"}</button>`
+              : !entry.enabled
+                ? html`<button
                 class="btn"
                 ?disabled=${props.installBusy === entry.id}
                 @click=${() => props.onEnableChannel(entry.id)}
               >${props.installBusy === entry.id ? "Enabling…" : "Enable"}</button>`
-              : entry.hasSchema
-                ? html`<button
+                : entry.hasSchema
+                  ? html`<button
                   class="btn"
                   @click=${() => props.onSetupChannel(entry.id)}
                 >Set up</button>`
-                : html`
+                  : html`
                   <div class="muted">Installed. Restart gateway to finish loading this channel.</div>
                   <button
                     class="btn"

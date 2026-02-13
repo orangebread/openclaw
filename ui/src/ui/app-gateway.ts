@@ -54,6 +54,9 @@ type GatewayHost = {
   refreshSessionsAfterChat: Set<string>;
   execApprovalQueue: ExecApprovalRequest[];
   execApprovalError: string | null;
+  channelInstallRunId: string | null;
+  channelInstallLog: string;
+  channelInstallLogTruncated: boolean;
 };
 
 type SessionDefaultsSnapshot = {
@@ -224,6 +227,34 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
       host.presenceEntries = payload.presence;
       host.presenceError = null;
       host.presenceStatus = null;
+    }
+    return;
+  }
+
+  if (evt.event === "channels.install.progress") {
+    const payload = evt.payload as Record<string, unknown> | undefined;
+    const runId = typeof payload?.clientRunId === "string" ? payload.clientRunId : "";
+    if (!runId || runId !== host.channelInstallRunId) {
+      return;
+    }
+    if (!payload) {
+      return;
+    }
+    const kind = typeof payload?.kind === "string" ? payload.kind : "";
+    if (kind === "log") {
+      const chunk = typeof payload.chunk === "string" ? payload.chunk : "";
+      if (chunk) {
+        host.channelInstallLog = `${host.channelInstallLog}${chunk}`.slice(-250_000);
+      }
+    } else if (kind === "status") {
+      const level = typeof payload.level === "string" ? payload.level : "info";
+      const message = typeof payload.message === "string" ? payload.message : "";
+      if (message) {
+        host.channelInstallLog = `${host.channelInstallLog}[${level}] ${message}\n`.slice(-250_000);
+      }
+    }
+    if (payload.truncated === true) {
+      host.channelInstallLogTruncated = true;
     }
     return;
   }

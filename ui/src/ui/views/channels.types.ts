@@ -60,8 +60,16 @@ export type ChannelsProps = {
   installBusy: string | null;
   installError: string | null;
   installSuccess: string | null;
-  onInstallChannel: (channelId: string) => void;
+  installLog: string;
+  installLogTruncated: boolean;
+  onInstallChannel: (channelId: string, mode?: "install" | "update") => void;
   onEnableChannel: (channelId: string) => void;
+  doctorPlan: import("../controllers/channels.types.ts").DoctorPlanResult | null;
+  doctorPlanLoading: boolean;
+  doctorPlanError: string | null;
+  doctorFixBusy: boolean;
+  doctorFixError: string | null;
+  onDoctorFix: () => void;
   restartBusy: boolean;
   restartError: string | null;
   onRestartGateway: () => void;

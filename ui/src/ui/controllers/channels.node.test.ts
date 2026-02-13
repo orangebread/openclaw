@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   enableChannel,
+  installChannel,
   loadChannelsAndCatalog,
   restartGateway,
   type ChannelsState,
@@ -21,8 +22,16 @@ function createState(): ChannelsState {
     channelInstallBusy: null,
     channelInstallError: null,
     channelInstallSuccess: null,
+    channelInstallRunId: null,
+    channelInstallLog: "",
+    channelInstallLogTruncated: false,
     channelRestartBusy: false,
     channelRestartError: null,
+    doctorPlanLoading: false,
+    doctorPlanError: null,
+    doctorPlan: null,
+    doctorFixBusy: false,
+    doctorFixError: null,
     whatsappLoginMessage: null,
     whatsappLoginQrDataUrl: null,
     whatsappLoginConnected: null,
@@ -45,6 +54,9 @@ describe("loadChannelsAndCatalog", () => {
       }
       if (method === "channels.catalog") {
         return { entries: [] };
+      }
+      if (method === "doctor.plan") {
+        return { ok: true, issues: [], fixAvailable: false };
       }
       throw new Error(`unexpected method: ${method}`);
     });
@@ -86,6 +98,9 @@ describe("loadChannelsAndCatalog", () => {
           ],
         };
       }
+      if (method === "doctor.plan") {
+        return { ok: true, issues: [], fixAvailable: false };
+      }
       throw new Error(`unexpected method: ${method}`);
     });
     const state = createState();
@@ -124,6 +139,9 @@ describe("loadChannelsAndCatalog", () => {
           ],
         };
       }
+      if (method === "doctor.plan") {
+        return { ok: true, issues: [], fixAvailable: false };
+      }
       throw new Error(`unexpected method: ${method}`);
     });
     const state = createState();
@@ -161,5 +179,35 @@ describe("loadChannelsAndCatalog", () => {
 
     expect(res.ok).toBe(true);
     expect(request).toHaveBeenCalledWith("channels.enable", { channelId: "whatsapp" });
+  });
+
+  it("uses channels.install for normal installs", async () => {
+    const request = vi.fn(async () => ({ ok: true, pluginId: "msteams", restartRequired: true }));
+    const state = createState();
+    state.connected = true;
+    state.client = { request } as unknown as ChannelsState["client"];
+
+    const res = await installChannel(state, "msteams");
+
+    expect(res.ok).toBe(true);
+    expect(request).toHaveBeenCalledWith("channels.install", {
+      channelId: "msteams",
+      timeoutMs: 300_000,
+    });
+  });
+
+  it("uses channels.repair for update mode", async () => {
+    const request = vi.fn(async () => ({ ok: true, pluginId: "msteams", restartRequired: true }));
+    const state = createState();
+    state.connected = true;
+    state.client = { request } as unknown as ChannelsState["client"];
+
+    const res = await installChannel(state, "msteams", "update");
+
+    expect(res.ok).toBe(true);
+    expect(request).toHaveBeenCalledWith("channels.repair", {
+      channelId: "msteams",
+      timeoutMs: 300_000,
+    });
   });
 });
