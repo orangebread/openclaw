@@ -9,6 +9,7 @@ public enum ErrorCode: String, Codable, Sendable {
     case notPaired = "NOT_PAIRED"
     case agentTimeout = "AGENT_TIMEOUT"
     case invalidRequest = "INVALID_REQUEST"
+    case unsupported = "UNSUPPORTED"
     case unavailable = "UNAVAILABLE"
 }
 
@@ -379,6 +380,257 @@ public struct AgentEvent: Codable, Sendable {
         case stream
         case ts
         case data
+    }
+}
+
+public struct AuthProfilesGetParams: Codable, Sendable {
+}
+
+public struct AuthProfilesGetResult: Codable, Sendable {
+    public let exists: Bool
+    public let basehash: String?
+    public let profiles: [[String: AnyCodable]]
+    public let order: [String: AnyCodable]?
+    public let lastgood: [String: AnyCodable]?
+
+    public init(
+        exists: Bool,
+        basehash: String?,
+        profiles: [[String: AnyCodable]],
+        order: [String: AnyCodable]?,
+        lastgood: [String: AnyCodable]?
+    ) {
+        self.exists = exists
+        self.basehash = basehash
+        self.profiles = profiles
+        self.order = order
+        self.lastgood = lastgood
+    }
+    private enum CodingKeys: String, CodingKey {
+        case exists
+        case basehash = "baseHash"
+        case profiles
+        case order
+        case lastgood = "lastGood"
+    }
+}
+
+public struct AuthProfilesUpsertApiKeyParams: Codable, Sendable {
+    public let basehash: String?
+    public let profileid: String
+    public let provider: String
+    public let apikey: String
+    public let email: String?
+
+    public init(
+        basehash: String?,
+        profileid: String,
+        provider: String,
+        apikey: String,
+        email: String?
+    ) {
+        self.basehash = basehash
+        self.profileid = profileid
+        self.provider = provider
+        self.apikey = apikey
+        self.email = email
+    }
+    private enum CodingKeys: String, CodingKey {
+        case basehash = "baseHash"
+        case profileid = "profileId"
+        case provider
+        case apikey = "apiKey"
+        case email
+    }
+}
+
+public struct AuthProfilesDeleteParams: Codable, Sendable {
+    public let basehash: String?
+    public let profileid: String
+
+    public init(
+        basehash: String?,
+        profileid: String
+    ) {
+        self.basehash = basehash
+        self.profileid = profileid
+    }
+    private enum CodingKeys: String, CodingKey {
+        case basehash = "baseHash"
+        case profileid = "profileId"
+    }
+}
+
+public struct AuthProfilesMutationResult: Codable, Sendable {
+    public let basehash: String
+
+    public init(
+        basehash: String
+    ) {
+        self.basehash = basehash
+    }
+    private enum CodingKeys: String, CodingKey {
+        case basehash = "baseHash"
+    }
+}
+
+public struct AuthFlowListParams: Codable, Sendable {
+}
+
+public struct AuthFlowListResult: Codable, Sendable {
+    public let quickconnect: [[String: AnyCodable]]
+    public let providers: [[String: AnyCodable]]
+
+    public init(
+        quickconnect: [[String: AnyCodable]],
+        providers: [[String: AnyCodable]]
+    ) {
+        self.quickconnect = quickconnect
+        self.providers = providers
+    }
+    private enum CodingKeys: String, CodingKey {
+        case quickconnect = "quickConnect"
+        case providers
+    }
+}
+
+public struct AuthFlowStartParams: Codable, Sendable {
+    public let providerid: String
+    public let methodid: String
+    public let mode: AnyCodable
+
+    public init(
+        providerid: String,
+        methodid: String,
+        mode: AnyCodable
+    ) {
+        self.providerid = providerid
+        self.methodid = methodid
+        self.mode = mode
+    }
+    private enum CodingKeys: String, CodingKey {
+        case providerid = "providerId"
+        case methodid = "methodId"
+        case mode
+    }
+}
+
+public struct AuthFlowStartResult: Codable, Sendable {
+    public let sessionid: String
+    public let done: Bool
+    public let step: AnyCodable?
+    public let status: AnyCodable
+    public let error: String?
+    public let result: [String: AnyCodable]?
+
+    public init(
+        sessionid: String,
+        done: Bool,
+        step: AnyCodable?,
+        status: AnyCodable,
+        error: String?,
+        result: [String: AnyCodable]?
+    ) {
+        self.sessionid = sessionid
+        self.done = done
+        self.step = step
+        self.status = status
+        self.error = error
+        self.result = result
+    }
+    private enum CodingKeys: String, CodingKey {
+        case sessionid = "sessionId"
+        case done
+        case step
+        case status
+        case error
+        case result
+    }
+}
+
+public struct AuthFlowNextParams: Codable, Sendable {
+    public let sessionid: String
+    public let answer: [String: AnyCodable]?
+
+    public init(
+        sessionid: String,
+        answer: [String: AnyCodable]?
+    ) {
+        self.sessionid = sessionid
+        self.answer = answer
+    }
+    private enum CodingKeys: String, CodingKey {
+        case sessionid = "sessionId"
+        case answer
+    }
+}
+
+public struct AuthFlowNextResult: Codable, Sendable {
+    public let done: Bool
+    public let step: AnyCodable?
+    public let status: AnyCodable
+    public let error: String?
+    public let result: [String: AnyCodable]?
+
+    public init(
+        done: Bool,
+        step: AnyCodable?,
+        status: AnyCodable,
+        error: String?,
+        result: [String: AnyCodable]?
+    ) {
+        self.done = done
+        self.step = step
+        self.status = status
+        self.error = error
+        self.result = result
+    }
+    private enum CodingKeys: String, CodingKey {
+        case done
+        case step
+        case status
+        case error
+        case result
+    }
+}
+
+public struct AuthFlowCurrentParams: Codable, Sendable {
+}
+
+public struct AuthFlowCurrentResult: Codable, Sendable {
+    public let running: Bool
+    public let owned: Bool?
+    public let sessionid: String?
+
+    public init(
+        running: Bool,
+        owned: Bool?,
+        sessionid: String?
+    ) {
+        self.running = running
+        self.owned = owned
+        self.sessionid = sessionid
+    }
+    private enum CodingKeys: String, CodingKey {
+        case running
+        case owned
+        case sessionid = "sessionId"
+    }
+}
+
+public struct AuthFlowCancelCurrentParams: Codable, Sendable {
+}
+
+public struct AuthFlowCancelCurrentResult: Codable, Sendable {
+    public let cancelled: Bool
+
+    public init(
+        cancelled: Bool
+    ) {
+        self.cancelled = cancelled
+    }
+    private enum CodingKeys: String, CodingKey {
+        case cancelled
     }
 }
 
@@ -1227,6 +1479,31 @@ public struct ConfigPatchParams: Codable, Sendable {
     }
 }
 
+public struct GatewayRestartParams: Codable, Sendable {
+    public let sessionkey: String?
+    public let note: String?
+    public let reason: String?
+    public let restartdelayms: Int?
+
+    public init(
+        sessionkey: String?,
+        note: String?,
+        reason: String?,
+        restartdelayms: Int?
+    ) {
+        self.sessionkey = sessionkey
+        self.note = note
+        self.reason = reason
+        self.restartdelayms = restartdelayms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case sessionkey = "sessionKey"
+        case note
+        case reason
+        case restartdelayms = "restartDelayMs"
+    }
+}
+
 public struct ConfigSchemaParams: Codable, Sendable {
 }
 
@@ -1252,6 +1529,66 @@ public struct ConfigSchemaResponse: Codable, Sendable {
         case uihints = "uiHints"
         case version
         case generatedat = "generatedAt"
+    }
+}
+
+public struct DoctorPlanParams: Codable, Sendable {
+}
+
+public struct DoctorPlanResult: Codable, Sendable {
+    public let ok: Bool
+    public let issues: [[String: AnyCodable]]
+    public let fixavailable: Bool
+
+    public init(
+        ok: Bool,
+        issues: [[String: AnyCodable]],
+        fixavailable: Bool
+    ) {
+        self.ok = ok
+        self.issues = issues
+        self.fixavailable = fixavailable
+    }
+    private enum CodingKeys: String, CodingKey {
+        case ok
+        case issues
+        case fixavailable = "fixAvailable"
+    }
+}
+
+public struct DoctorFixParams: Codable, Sendable {
+}
+
+public struct DoctorFixResult: Codable, Sendable {
+    public let ok: Bool
+    public let changed: Bool
+    public let fixed: [[String: AnyCodable]]
+    public let restartrequired: Bool?
+    public let backupdir: String?
+    public let error: String?
+
+    public init(
+        ok: Bool,
+        changed: Bool,
+        fixed: [[String: AnyCodable]],
+        restartrequired: Bool?,
+        backupdir: String?,
+        error: String?
+    ) {
+        self.ok = ok
+        self.changed = changed
+        self.fixed = fixed
+        self.restartrequired = restartrequired
+        self.backupdir = backupdir
+        self.error = error
+    }
+    private enum CodingKeys: String, CodingKey {
+        case ok
+        case changed
+        case fixed
+        case restartrequired = "restartRequired"
+        case backupdir = "backupDir"
+        case error
     }
 }
 
@@ -1313,6 +1650,9 @@ public struct WizardStatusParams: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case sessionid = "sessionId"
     }
+}
+
+public struct WizardCurrentParams: Codable, Sendable {
 }
 
 public struct WizardStep: Codable, Sendable {
@@ -1431,6 +1771,40 @@ public struct WizardStatusResult: Codable, Sendable {
     }
 }
 
+public struct WizardCurrentResult: Codable, Sendable {
+    public let running: Bool
+    public let owned: Bool?
+    public let sessionid: String?
+
+    public init(
+        running: Bool,
+        owned: Bool?,
+        sessionid: String?
+    ) {
+        self.running = running
+        self.owned = owned
+        self.sessionid = sessionid
+    }
+    private enum CodingKeys: String, CodingKey {
+        case running
+        case owned
+        case sessionid = "sessionId"
+    }
+}
+
+public struct WizardCancelCurrentResult: Codable, Sendable {
+    public let cancelled: Bool
+
+    public init(
+        cancelled: Bool
+    ) {
+        self.cancelled = cancelled
+    }
+    private enum CodingKeys: String, CodingKey {
+        case cancelled
+    }
+}
+
 public struct TalkModeParams: Codable, Sendable {
     public let enabled: Bool
     public let phase: String?
@@ -1445,6 +1819,130 @@ public struct TalkModeParams: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case enabled
         case phase
+    }
+}
+
+public struct ChannelsCatalogParams: Codable, Sendable {
+}
+
+public struct ChannelsCatalogResult: Codable, Sendable {
+    public let entries: [[String: AnyCodable]]
+
+    public init(
+        entries: [[String: AnyCodable]]
+    ) {
+        self.entries = entries
+    }
+    private enum CodingKeys: String, CodingKey {
+        case entries
+    }
+}
+
+public struct ChannelsInstallParams: Codable, Sendable {
+    public let channelid: String?
+    public let npmspec: String?
+    public let clientrunid: String?
+    public let mode: AnyCodable?
+    public let timeoutms: Int?
+
+    public init(
+        channelid: String?,
+        npmspec: String?,
+        clientrunid: String?,
+        mode: AnyCodable?,
+        timeoutms: Int?
+    ) {
+        self.channelid = channelid
+        self.npmspec = npmspec
+        self.clientrunid = clientrunid
+        self.mode = mode
+        self.timeoutms = timeoutms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case channelid = "channelId"
+        case npmspec = "npmSpec"
+        case clientrunid = "clientRunId"
+        case mode
+        case timeoutms = "timeoutMs"
+    }
+}
+
+public struct ChannelsInstallResult: Codable, Sendable {
+    public let ok: Bool
+    public let pluginid: String?
+    public let version: String?
+    public let error: String?
+    public let restartrequired: Bool?
+
+    public init(
+        ok: Bool,
+        pluginid: String?,
+        version: String?,
+        error: String?,
+        restartrequired: Bool?
+    ) {
+        self.ok = ok
+        self.pluginid = pluginid
+        self.version = version
+        self.error = error
+        self.restartrequired = restartrequired
+    }
+    private enum CodingKeys: String, CodingKey {
+        case ok
+        case pluginid = "pluginId"
+        case version
+        case error
+        case restartrequired = "restartRequired"
+    }
+}
+
+public struct ChannelsRepairParams: Codable, Sendable {
+    public let channelid: String
+    public let clientrunid: String?
+    public let timeoutms: Int?
+
+    public init(
+        channelid: String,
+        clientrunid: String?,
+        timeoutms: Int?
+    ) {
+        self.channelid = channelid
+        self.clientrunid = clientrunid
+        self.timeoutms = timeoutms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case channelid = "channelId"
+        case clientrunid = "clientRunId"
+        case timeoutms = "timeoutMs"
+    }
+}
+
+public struct ChannelsRepairResult: Codable, Sendable {
+    public let ok: Bool
+    public let pluginid: String?
+    public let version: String?
+    public let error: String?
+    public let restartrequired: Bool?
+
+    public init(
+        ok: Bool,
+        pluginid: String?,
+        version: String?,
+        error: String?,
+        restartrequired: Bool?
+    ) {
+        self.ok = ok
+        self.pluginid = pluginid
+        self.version = version
+        self.error = error
+        self.restartrequired = restartrequired
+    }
+    private enum CodingKeys: String, CodingKey {
+        case ok
+        case pluginid = "pluginId"
+        case version
+        case error
+        case restartrequired = "restartRequired"
     }
 }
 
@@ -2405,6 +2903,212 @@ public struct ExecApprovalResolveParams: Codable, Sendable {
     }
 }
 
+public struct WorkflowApprovalRequestParams: Codable, Sendable {
+    public let id: String?
+    public let idempotencykey: String?
+    public let kind: String
+    public let title: String
+    public let summary: String?
+    public let details: [String: AnyCodable]?
+    public let agentid: AnyCodable?
+    public let sessionkey: AnyCodable?
+    public let timeoutms: Int?
+
+    public init(
+        id: String?,
+        idempotencykey: String?,
+        kind: String,
+        title: String,
+        summary: String?,
+        details: [String: AnyCodable]?,
+        agentid: AnyCodable?,
+        sessionkey: AnyCodable?,
+        timeoutms: Int?
+    ) {
+        self.id = id
+        self.idempotencykey = idempotencykey
+        self.kind = kind
+        self.title = title
+        self.summary = summary
+        self.details = details
+        self.agentid = agentid
+        self.sessionkey = sessionkey
+        self.timeoutms = timeoutms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case idempotencykey = "idempotencyKey"
+        case kind
+        case title
+        case summary
+        case details
+        case agentid = "agentId"
+        case sessionkey = "sessionKey"
+        case timeoutms = "timeoutMs"
+    }
+}
+
+public struct WorkflowApprovalRequestResult: Codable, Sendable {
+    public let id: String
+    public let decision: AnyCodable
+    public let createdatms: Int
+    public let expiresatms: Int
+
+    public init(
+        id: String,
+        decision: AnyCodable,
+        createdatms: Int,
+        expiresatms: Int
+    ) {
+        self.id = id
+        self.decision = decision
+        self.createdatms = createdatms
+        self.expiresatms = expiresatms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case decision
+        case createdatms = "createdAtMs"
+        case expiresatms = "expiresAtMs"
+    }
+}
+
+public struct WorkflowApprovalCreateParams: Codable, Sendable {
+    public let id: String?
+    public let idempotencykey: String?
+    public let kind: String
+    public let title: String
+    public let summary: String?
+    public let details: [String: AnyCodable]?
+    public let agentid: AnyCodable?
+    public let sessionkey: AnyCodable?
+    public let timeoutms: Int?
+
+    public init(
+        id: String?,
+        idempotencykey: String?,
+        kind: String,
+        title: String,
+        summary: String?,
+        details: [String: AnyCodable]?,
+        agentid: AnyCodable?,
+        sessionkey: AnyCodable?,
+        timeoutms: Int?
+    ) {
+        self.id = id
+        self.idempotencykey = idempotencykey
+        self.kind = kind
+        self.title = title
+        self.summary = summary
+        self.details = details
+        self.agentid = agentid
+        self.sessionkey = sessionkey
+        self.timeoutms = timeoutms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case idempotencykey = "idempotencyKey"
+        case kind
+        case title
+        case summary
+        case details
+        case agentid = "agentId"
+        case sessionkey = "sessionKey"
+        case timeoutms = "timeoutMs"
+    }
+}
+
+public struct WorkflowApprovalWaitParams: Codable, Sendable {
+    public let id: String
+    public let timeoutms: Int?
+
+    public init(
+        id: String,
+        timeoutms: Int?
+    ) {
+        self.id = id
+        self.timeoutms = timeoutms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case timeoutms = "timeoutMs"
+    }
+}
+
+public struct WorkflowApprovalResolveParams: Codable, Sendable {
+    public let id: String
+    public let decision: String
+
+    public init(
+        id: String,
+        decision: String
+    ) {
+        self.id = id
+        self.decision = decision
+    }
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case decision
+    }
+}
+
+public struct WorkflowApprovalRecord: Codable, Sendable {
+    public let id: String
+    public let idempotencykey: String?
+    public let request: [String: AnyCodable]
+    public let createdatms: Int
+    public let expiresatms: Int
+    public let resolvedatms: Int?
+    public let decision: AnyCodable?
+    public let resolvedby: AnyCodable?
+
+    public init(
+        id: String,
+        idempotencykey: String?,
+        request: [String: AnyCodable],
+        createdatms: Int,
+        expiresatms: Int,
+        resolvedatms: Int?,
+        decision: AnyCodable?,
+        resolvedby: AnyCodable?
+    ) {
+        self.id = id
+        self.idempotencykey = idempotencykey
+        self.request = request
+        self.createdatms = createdatms
+        self.expiresatms = expiresatms
+        self.resolvedatms = resolvedatms
+        self.decision = decision
+        self.resolvedby = resolvedby
+    }
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case idempotencykey = "idempotencyKey"
+        case request
+        case createdatms = "createdAtMs"
+        case expiresatms = "expiresAtMs"
+        case resolvedatms = "resolvedAtMs"
+        case decision
+        case resolvedby = "resolvedBy"
+    }
+}
+
+public struct WorkflowApprovalsListParams: Codable, Sendable {
+}
+
+public struct WorkflowApprovalsListResult: Codable, Sendable {
+    public let pending: [WorkflowApprovalRecord]
+
+    public init(
+        pending: [WorkflowApprovalRecord]
+    ) {
+        self.pending = pending
+    }
+    private enum CodingKeys: String, CodingKey {
+        case pending
+    }
+}
+
 public struct DevicePairListParams: Codable, Sendable {
 }
 
@@ -2747,6 +3451,131 @@ public struct ShutdownEvent: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case reason
         case restartexpectedms = "restartExpectedMs"
+    }
+}
+
+public struct WorkspaceListParams: Codable, Sendable {
+    public let agentid: String
+    public let dir: String
+    public let maxdepth: Int?
+    public let includehidden: Bool?
+    public let maxentries: Int?
+    public let cursor: AnyCodable?
+
+    public init(
+        agentid: String,
+        dir: String,
+        maxdepth: Int?,
+        includehidden: Bool?,
+        maxentries: Int?,
+        cursor: AnyCodable?
+    ) {
+        self.agentid = agentid
+        self.dir = dir
+        self.maxdepth = maxdepth
+        self.includehidden = includehidden
+        self.maxentries = maxentries
+        self.cursor = cursor
+    }
+    private enum CodingKeys: String, CodingKey {
+        case agentid = "agentId"
+        case dir
+        case maxdepth = "maxDepth"
+        case includehidden = "includeHidden"
+        case maxentries = "maxEntries"
+        case cursor
+    }
+}
+
+public struct WorkspaceEntry: Codable, Sendable {
+    public let path: String
+    public let kind: AnyCodable
+    public let sizebytes: Int?
+    public let modifiedatms: Int
+
+    public init(
+        path: String,
+        kind: AnyCodable,
+        sizebytes: Int?,
+        modifiedatms: Int
+    ) {
+        self.path = path
+        self.kind = kind
+        self.sizebytes = sizebytes
+        self.modifiedatms = modifiedatms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case path
+        case kind
+        case sizebytes = "sizeBytes"
+        case modifiedatms = "modifiedAtMs"
+    }
+}
+
+public struct WorkspaceListResult: Codable, Sendable {
+    public let dir: String
+    public let cursor: AnyCodable?
+    public let entries: [WorkspaceEntry]
+
+    public init(
+        dir: String,
+        cursor: AnyCodable?,
+        entries: [WorkspaceEntry]
+    ) {
+        self.dir = dir
+        self.cursor = cursor
+        self.entries = entries
+    }
+    private enum CodingKeys: String, CodingKey {
+        case dir
+        case cursor
+        case entries
+    }
+}
+
+public struct WorkspaceReadParams: Codable, Sendable {
+    public let agentid: String
+    public let path: String
+    public let maxbytes: Int?
+
+    public init(
+        agentid: String,
+        path: String,
+        maxbytes: Int?
+    ) {
+        self.agentid = agentid
+        self.path = path
+        self.maxbytes = maxbytes
+    }
+    private enum CodingKeys: String, CodingKey {
+        case agentid = "agentId"
+        case path
+        case maxbytes = "maxBytes"
+    }
+}
+
+public struct WorkspaceReadResult: Codable, Sendable {
+    public let path: String
+    public let contenttype: String
+    public let truncated: Bool
+    public let content: String
+
+    public init(
+        path: String,
+        contenttype: String,
+        truncated: Bool,
+        content: String
+    ) {
+        self.path = path
+        self.contenttype = contenttype
+        self.truncated = truncated
+        self.content = content
+    }
+    private enum CodingKeys: String, CodingKey {
+        case path
+        case contenttype = "contentType"
+        case truncated
+        case content
     }
 }
 
