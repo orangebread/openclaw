@@ -100,6 +100,10 @@ export const ChannelsCatalogEntrySchema = Type.Object(
     configured: Type.Boolean(),
     enabled: Type.Boolean(),
     hasSchema: Type.Boolean(),
+    pluginStatus: Type.Optional(
+      Type.Union([Type.Literal("loaded"), Type.Literal("disabled"), Type.Literal("error")]),
+    ),
+    pluginError: Type.Optional(Type.String()),
     install: Type.Optional(
       Type.Object({
         npmSpec: Type.String(),
@@ -138,12 +142,34 @@ export const ChannelsInstallParamsSchema = Type.Object(
   {
     channelId: Type.Optional(NonEmptyString),
     npmSpec: Type.Optional(NonEmptyString),
+    clientRunId: Type.Optional(NonEmptyString),
+    mode: Type.Optional(Type.Union([Type.Literal("install"), Type.Literal("update")])),
     timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
   },
   { additionalProperties: false },
 );
 
 export const ChannelsInstallResultSchema = Type.Object(
+  {
+    ok: Type.Boolean(),
+    pluginId: Type.Optional(Type.String()),
+    version: Type.Optional(Type.String()),
+    error: Type.Optional(Type.String()),
+    restartRequired: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: true },
+);
+
+export const ChannelsRepairParamsSchema = Type.Object(
+  {
+    channelId: NonEmptyString,
+    clientRunId: Type.Optional(NonEmptyString),
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+
+export const ChannelsRepairResultSchema = Type.Object(
   {
     ok: Type.Boolean(),
     pluginId: Type.Optional(Type.String()),

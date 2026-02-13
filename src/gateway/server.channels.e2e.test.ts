@@ -1,8 +1,10 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import type { ChannelPlugin } from "../channels/plugins/types.js";
 import type { PluginRegistry } from "../plugins/registry.js";
+import type { PluginRecord } from "../plugins/registry.js";
 import { MANIFEST_KEY } from "../compat/legacy-names.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { resolveConfigDir } from "../utils.js";
@@ -56,6 +58,32 @@ const createRegistry = (channels: PluginRegistry["channels"]): PluginRegistry =>
   cliRegistrars: [],
   services: [],
   diagnostics: [],
+});
+
+const createPluginRecord = (params: {
+  id: string;
+  status: PluginRecord["status"];
+  error?: string;
+  source?: string;
+}): PluginRecord => ({
+  id: params.id,
+  name: params.id,
+  source: params.source ?? `/tmp/${params.id}/index.ts`,
+  origin: "config",
+  enabled: params.status === "loaded",
+  status: params.status,
+  ...(params.error ? { error: params.error } : {}),
+  toolNames: [],
+  hookNames: [],
+  channelIds: [],
+  providerIds: [],
+  gatewayMethods: [],
+  cliCommands: [],
+  services: [],
+  commands: [],
+  httpHandlers: 0,
+  hookCount: 0,
+  configSchema: true,
 });
 
 const createStubChannelPlugin = (params: {
@@ -165,7 +193,10 @@ describe("gateway server channels", () => {
     expect(helloOk.features?.methods).toContain("channels.catalog");
     expect(helloOk.features?.methods).toContain("channels.enable");
     expect(helloOk.features?.methods).toContain("channels.install");
+    expect(helloOk.features?.methods).toContain("channels.repair");
     expect(helloOk.features?.methods).toContain("gateway.restart");
+    expect(helloOk.features?.methods).toContain("doctor.plan");
+    expect(helloOk.features?.methods).toContain("doctor.fix");
   });
 
   test("channels.status returns snapshot without probe", async () => {
@@ -243,6 +274,143 @@ describe("gateway server channels", () => {
     expect(res.error?.message).toContain("npm pack failed");
   });
 
+  test("channels.install repairs from local catalog path when mode=update", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-channel-local-repair-"));
+    const pluginDir = path.join(tempDir, "plugin");
+    const pluginId = "local-repair-test";
+    const pluginInstallDir = path.join(resolveConfigDir(), "extensions", pluginId);
+    await fs.mkdir(pluginDir, { recursive: true });
+    await fs.writeFile(path.join(pluginDir, "index.ts"), "export {};\n", "utf8");
+    await fs.writeFile(
+      path.join(pluginDir, "package.json"),
+      JSON.stringify(
+        {
+          name: `@openclaw/${pluginId}`,
+          version: "0.0.1",
+          [MANIFEST_KEY]: {
+            extensions: ["./index.ts"],
+            channel: {
+              id: pluginId,
+              label: "Local Repair",
+              selectionLabel: "Local Repair",
+              docsPath: `/channels/${pluginId}`,
+              blurb: "Local repair test plugin.",
+            },
+            install: {
+              npmSpec: "@openclaw/does-not-exist",
+              localPath: pluginDir,
+              defaultChoice: "local",
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    const catalogPath = path.join(tempDir, "catalog.json");
+    await fs.writeFile(
+      catalogPath,
+      JSON.stringify(
+        {
+          entries: [
+            {
+              name: `@openclaw/${pluginId}`,
+              [MANIFEST_KEY]: {
+                extensions: ["./index.ts"],
+                channel: {
+                  id: pluginId,
+                  label: "Local Repair",
+                  selectionLabel: "Local Repair",
+                  docsPath: `/channels/${pluginId}`,
+                  blurb: "Local repair test plugin.",
+                },
+                install: {
+                  npmSpec: "@openclaw/does-not-exist",
+                  localPath: pluginDir,
+                  defaultChoice: "local",
+                },
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    vi.stubEnv("OPENCLAW_PLUGIN_CATALOG_PATHS", catalogPath);
+    await fs.rm(pluginInstallDir, { recursive: true, force: true });
+    try {
+      const res = await rpcReq<{ ok?: boolean; pluginId?: string }>(ws, "channels.install", {
+        channelId: pluginId,
+        mode: "update",
+        timeoutMs: 10_000,
+      });
+      expect(res.ok).toBe(true);
+      expect(res.payload?.pluginId).toBe(pluginId);
+    } finally {
+      vi.stubEnv("OPENCLAW_PLUGIN_CATALOG_PATHS", undefined);
+      await fs.rm(pluginInstallDir, { recursive: true, force: true });
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test("channels.repair uses failing plugin source path first", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-channel-source-repair-"));
+    const pluginId = "source-repair-test";
+    const pluginDir = path.join(tempDir, pluginId);
+    const pluginInstallDir = path.join(resolveConfigDir(), "extensions", pluginId);
+    await fs.mkdir(pluginDir, { recursive: true });
+    await fs.writeFile(path.join(pluginDir, "index.ts"), "export {};\n", "utf8");
+    await fs.writeFile(
+      path.join(pluginDir, "package.json"),
+      JSON.stringify(
+        {
+          name: `@openclaw/${pluginId}`,
+          version: "0.0.1",
+          [MANIFEST_KEY]: {
+            extensions: ["./index.ts"],
+            channel: {
+              id: pluginId,
+              label: "Source Repair",
+              selectionLabel: "Source Repair",
+              docsPath: `/channels/${pluginId}`,
+              blurb: "Source repair test plugin.",
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    const registry = createRegistry([]);
+    registry.plugins = [
+      createPluginRecord({
+        id: pluginId,
+        status: "error",
+        error: "Cannot find module 'proper-lockfile'",
+        source: path.join(pluginDir, "index.ts"),
+      }),
+    ];
+    setRegistry(registry);
+    await fs.rm(pluginInstallDir, { recursive: true, force: true });
+    try {
+      const res = await rpcReq<{ ok?: boolean; pluginId?: string }>(ws, "channels.repair", {
+        channelId: pluginId,
+        timeoutMs: 10_000,
+      });
+      expect(res.ok).toBe(true);
+      expect(res.payload?.pluginId).toBe(pluginId);
+    } finally {
+      await fs.rm(pluginInstallDir, { recursive: true, force: true });
+      await fs.rm(tempDir, { recursive: true, force: true });
+      setRegistry(defaultRegistry);
+    }
+  });
+
   test("channels.catalog marks discovered on-disk plugin as installed before restart", async () => {
     const pluginId = "matrix";
     const pluginDir = path.join(resolveConfigDir(), "extensions", pluginId);
@@ -308,6 +476,31 @@ describe("gateway server channels", () => {
     expect(whatsapp?.installed).toBe(true);
     expect(whatsapp?.enabled).toBe(false);
     expect(whatsapp?.configured).toBe(false);
+  });
+
+  test("channels.catalog surfaces plugin load errors even when another origin record is disabled", async () => {
+    const previousBundledDir = process.env.OPENCLAW_BUNDLED_PLUGINS_DIR;
+    process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = path.join(process.cwd(), "extensions");
+    try {
+      const registry = createRegistry([]);
+      registry.plugins = [
+        createPluginRecord({ id: "msteams", status: "error", error: "boom" }),
+        createPluginRecord({ id: "msteams", status: "disabled" }),
+      ];
+      setRegistry(registry);
+
+      const res = await rpcReq<{
+        entries?: Array<{ id?: string; pluginStatus?: string; pluginError?: string }>;
+      }>(ws, "channels.catalog", {});
+
+      expect(res.ok).toBe(true);
+      const entry = res.payload?.entries?.find((item) => item.id === "msteams");
+      expect(entry).toBeDefined();
+      expect(entry?.pluginStatus).toBe("error");
+      expect(entry?.pluginError).toBe("boom");
+    } finally {
+      process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = previousBundledDir;
+    }
   });
 
   test("channels.enable writes plugin enablement for a channel", async () => {

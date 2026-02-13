@@ -22,12 +22,19 @@ import {
 } from "../../channels/registry.js";
 import { loadConfig, readConfigFileSnapshot, writeConfigFile } from "../../config/config.js";
 import { getChannelActivity } from "../../infra/channel-activity.js";
+import { resolveBundledPluginsDir } from "../../plugins/bundled-dir.js";
 import { normalizePluginsConfig, resolveEnableState } from "../../plugins/config-state.js";
 import { enablePluginInConfig } from "../../plugins/enable.js";
-import { installPluginFromNpmSpec, resolvePluginInstallDir } from "../../plugins/install.js";
+import {
+  type InstallPluginResult,
+  installPluginFromNpmSpec,
+  installPluginFromPath,
+  resolvePluginInstallDir,
+} from "../../plugins/install.js";
+import { getActivePluginRegistry } from "../../plugins/runtime.js";
 import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
-import { resolveConfigDir } from "../../utils.js";
+import { resolveConfigDir, resolveUserPath } from "../../utils.js";
 import {
   ErrorCodes,
   errorShape,
@@ -35,6 +42,7 @@ import {
   validateChannelsCatalogParams,
   validateChannelsEnableParams,
   validateChannelsInstallParams,
+  validateChannelsRepairParams,
   validateChannelsLogoutParams,
   validateChannelsStatusParams,
 } from "../protocol/index.js";
@@ -66,6 +74,149 @@ function resolveBundledPluginEnabled(params: { cfg: OpenClawConfig; pluginId: st
   const pluginsConfig = normalizePluginsConfig(params.cfg.plugins);
   const resolved = resolveEnableState(params.pluginId, "bundled", pluginsConfig);
   return resolved.enabled;
+}
+
+function resolveCatalogLocalInstallPath(localPath?: string): string | undefined {
+  const trimmed = localPath?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const candidates: string[] = [];
+  if (path.isAbsolute(trimmed)) {
+    candidates.push(resolveUserPath(trimmed));
+  } else {
+    candidates.push(path.resolve(process.cwd(), trimmed));
+    const bundledDir = resolveBundledPluginsDir();
+    if (bundledDir) {
+      candidates.push(path.resolve(path.dirname(bundledDir), trimmed));
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+function resolveExtensionsInstallDir(): string {
+  return path.join(resolveConfigDir(), "extensions");
+}
+
+function resolvePluginRootFromSource(sourcePath?: string): string | undefined {
+  const raw = sourcePath?.trim();
+  if (!raw) {
+    return undefined;
+  }
+  const resolved = resolveUserPath(raw);
+  if (!fs.existsSync(resolved)) {
+    return undefined;
+  }
+  let cursor = resolved;
+  try {
+    if (fs.statSync(resolved).isFile()) {
+      cursor = path.dirname(resolved);
+    }
+  } catch {
+    return undefined;
+  }
+  for (let i = 0; i < 10; i += 1) {
+    if (fs.existsSync(path.join(cursor, "package.json"))) {
+      return cursor;
+    }
+    const parent = path.dirname(cursor);
+    if (parent === cursor) {
+      break;
+    }
+    cursor = parent;
+  }
+  return undefined;
+}
+
+type ChannelInstallAttempt = {
+  kind: "source" | "local" | "npm";
+  run: () => Promise<InstallPluginResult>;
+};
+
+function createInstallProgressLogger(params: {
+  context: GatewayRequestContext;
+  connId?: string;
+  clientRunId?: string;
+  channelId?: string;
+  kind: ChannelInstallAttempt["kind"];
+}) {
+  const connIds = params.connId ? new Set([params.connId]) : null;
+  let sentChars = 0;
+  let truncated = false;
+  const maxChars = 150_000;
+
+  const send = (payload: Record<string, unknown>) => {
+    if (!connIds || truncated) {
+      return;
+    }
+    const chunk = typeof payload.chunk === "string" ? payload.chunk : "";
+    sentChars += chunk.length;
+    if (sentChars > maxChars) {
+      truncated = true;
+      params.context.broadcastToConnIds(
+        "channels.install.progress",
+        {
+          kind: "status",
+          level: "warn",
+          message: "Install output truncated.",
+          ts: Date.now(),
+          clientRunId: params.clientRunId,
+          channelId: params.channelId,
+          attempt: params.kind,
+          truncated: true,
+        },
+        connIds,
+        { dropIfSlow: true },
+      );
+      return;
+    }
+    params.context.broadcastToConnIds(
+      "channels.install.progress",
+      {
+        ...payload,
+        ts: Date.now(),
+        clientRunId: params.clientRunId,
+        channelId: params.channelId,
+        attempt: params.kind,
+      },
+      connIds,
+      { dropIfSlow: true },
+    );
+  };
+
+  return {
+    info: (message: string) => send({ kind: "status", level: "info", message }),
+    warn: (message: string) => send({ kind: "status", level: "warn", message }),
+    stdout: (chunk: string) => send({ kind: "log", stream: "stdout", chunk }),
+    stderr: (chunk: string) => send({ kind: "log", stream: "stderr", chunk }),
+  };
+}
+
+async function runChannelInstallAttempts(
+  attempts: ChannelInstallAttempt[],
+): Promise<{ ok: true; pluginId: string; version?: string } | { ok: false; error: string }> {
+  if (attempts.length === 0) {
+    return { ok: false, error: "no install attempts available" };
+  }
+
+  const errors: string[] = [];
+  for (const attempt of attempts) {
+    const result = await attempt.run();
+    if (result.ok) {
+      return { ok: true, pluginId: result.pluginId, version: result.version };
+    }
+    errors.push(`${attempt.kind}: ${result.error}`);
+  }
+
+  return { ok: false, error: errors.join("; ") || "channel install failed" };
 }
 
 export async function logoutChannelAccount(params: {
@@ -427,6 +578,25 @@ export const channelsHandlers: GatewayRequestHandlers = {
     }
 
     const cfg = loadConfig();
+    const pluginRegistry = getActivePluginRegistry();
+    const pluginHealthById = new Map<
+      string,
+      { status: "loaded" | "disabled" | "error"; error?: string }
+    >();
+    for (const record of pluginRegistry?.plugins ?? []) {
+      const existing = pluginHealthById.get(record.id);
+      const rank = record.status === "loaded" ? 2 : record.status === "error" ? 1 : 0;
+      const existingRank = existing?.status === "loaded" ? 2 : existing?.status === "error" ? 1 : 0;
+      if (!existing || rank > existingRank) {
+        pluginHealthById.set(record.id, {
+          status: record.status,
+          ...(record.status === "error" && record.error ? { error: record.error } : {}),
+        });
+      } else if (rank === 1 && existing.status === "error" && !existing.error && record.error) {
+        existing.error = record.error;
+      }
+    }
+    const pluginsConfig = normalizePluginsConfig(cfg.plugins);
     const loadedPlugins = listChannelPlugins();
     const loadedIds = new Set(loadedPlugins.map((p) => p.id));
     const coreChannelMeta = listChatChannels();
@@ -461,6 +631,7 @@ export const channelsHandlers: GatewayRequestHandlers = {
         configured: hasAnyConfig,
         enabled: Boolean(enabled),
         hasSchema: Boolean(plugin.configSchema),
+        pluginStatus: "loaded",
       });
     }
 
@@ -470,6 +641,8 @@ export const channelsHandlers: GatewayRequestHandlers = {
         continue;
       }
       const isCoreChannel = coreChannelMetaById.has(catalogEntry.id);
+      const pluginHealth = pluginHealthById.get(catalogEntry.id);
+      const pluginStatus = pluginHealth?.status;
       entries.push({
         id: catalogEntry.id,
         label: catalogEntry.meta.label,
@@ -483,8 +656,12 @@ export const channelsHandlers: GatewayRequestHandlers = {
         configured: false,
         enabled: isCoreChannel
           ? resolveBundledPluginEnabled({ cfg, pluginId: catalogEntry.id })
-          : false,
+          : resolveEnableState(catalogEntry.id, "global", pluginsConfig).enabled,
         hasSchema: false,
+        ...(pluginStatus ? { pluginStatus } : {}),
+        ...(pluginStatus === "error" && pluginHealth?.error
+          ? { pluginError: pluginHealth.error }
+          : {}),
         install: {
           npmSpec: catalogEntry.install.npmSpec,
           ...(catalogEntry.install.localPath ? { localPath: catalogEntry.install.localPath } : {}),
@@ -513,7 +690,184 @@ export const channelsHandlers: GatewayRequestHandlers = {
 
     respond(true, { entries }, undefined);
   },
-  "channels.install": async ({ params, respond }) => {
+  "channels.repair": async ({ params, respond, context, client }) => {
+    if (!validateChannelsRepairParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid channels.repair params: ${formatValidationErrors(validateChannelsRepairParams.errors)}`,
+        ),
+      );
+      return;
+    }
+
+    const rawChannelId = (params as { channelId?: string }).channelId?.trim();
+    if (!rawChannelId) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "channelId is required"));
+      return;
+    }
+    const channelId = normalizeDockedChannelId(rawChannelId) ?? rawChannelId;
+    const clientRunId = (params as { clientRunId?: string }).clientRunId?.trim() || undefined;
+    const connId = client?.connId;
+    const timeoutMs =
+      typeof (params as { timeoutMs?: unknown }).timeoutMs === "number"
+        ? (params as { timeoutMs: number }).timeoutMs
+        : 120_000;
+
+    const installAttempts: ChannelInstallAttempt[] = [];
+    const seenPathAttempts = new Set<string>();
+    const registry = getActivePluginRegistry();
+    for (const record of registry?.plugins ?? []) {
+      if (record.id !== channelId || record.status !== "error") {
+        continue;
+      }
+      const pluginRoot = resolvePluginRootFromSource(record.source);
+      if (!pluginRoot) {
+        continue;
+      }
+      const normalized = resolveUserPath(pluginRoot);
+      if (seenPathAttempts.has(normalized)) {
+        continue;
+      }
+      seenPathAttempts.add(normalized);
+      installAttempts.push({
+        kind: "source",
+        run: async () => {
+          const logger = createInstallProgressLogger({
+            context,
+            connId,
+            clientRunId,
+            channelId,
+            kind: "source",
+          });
+          logger.info(`Repair attempt: source (${pluginRoot})`);
+          const result = await installPluginFromPath({
+            path: pluginRoot,
+            extensionsDir: resolveExtensionsInstallDir(),
+            timeoutMs,
+            expectedPluginId: channelId,
+            mode: "update",
+            logger,
+          });
+          if (!result.ok) {
+            logger.warn(`Repair attempt failed: ${result.error}`);
+          } else {
+            logger.info(
+              `Repair attempt succeeded: ${result.pluginId}${result.version ? `@${result.version}` : ""}`,
+            );
+          }
+          return result;
+        },
+      });
+    }
+
+    const catalogEntry = getChannelPluginCatalogEntry(channelId);
+    const localInstallPath = resolveCatalogLocalInstallPath(catalogEntry?.install.localPath);
+    if (localInstallPath) {
+      const normalized = resolveUserPath(localInstallPath);
+      if (!seenPathAttempts.has(normalized)) {
+        seenPathAttempts.add(normalized);
+        installAttempts.push({
+          kind: "local",
+          run: async () => {
+            const logger = createInstallProgressLogger({
+              context,
+              connId,
+              clientRunId,
+              channelId,
+              kind: "local",
+            });
+            logger.info(`Repair attempt: local (${localInstallPath})`);
+            const result = await installPluginFromPath({
+              path: localInstallPath,
+              extensionsDir: resolveExtensionsInstallDir(),
+              timeoutMs,
+              expectedPluginId: channelId,
+              mode: "update",
+              logger,
+            });
+            if (!result.ok) {
+              logger.warn(`Repair attempt failed: ${result.error}`);
+            } else {
+              logger.info(
+                `Repair attempt succeeded: ${result.pluginId}${result.version ? `@${result.version}` : ""}`,
+              );
+            }
+            return result;
+          },
+        });
+      }
+    }
+
+    const npmSpec = catalogEntry?.install.npmSpec?.trim();
+    if (npmSpec) {
+      installAttempts.push({
+        kind: "npm",
+        run: async () => {
+          const logger = createInstallProgressLogger({
+            context,
+            connId,
+            clientRunId,
+            channelId,
+            kind: "npm",
+          });
+          logger.info(`Repair attempt: npm (${npmSpec})`);
+          const result = await installPluginFromNpmSpec({
+            spec: npmSpec,
+            extensionsDir: resolveExtensionsInstallDir(),
+            timeoutMs,
+            expectedPluginId: channelId,
+            mode: "update",
+            logger,
+          });
+          if (!result.ok) {
+            logger.warn(`Repair attempt failed: ${result.error}`);
+          } else {
+            logger.info(
+              `Repair attempt succeeded: ${result.pluginId}${result.version ? `@${result.version}` : ""}`,
+            );
+          }
+          return result;
+        },
+      });
+    }
+
+    if (installAttempts.length === 0) {
+      respond(
+        false,
+        { ok: false, error: `no repair source found for channel "${channelId}"` },
+        errorShape(ErrorCodes.INVALID_REQUEST, `no repair source found for channel "${channelId}"`),
+      );
+      return;
+    }
+
+    try {
+      const result = await runChannelInstallAttempts(installAttempts);
+      if (result.ok) {
+        respond(
+          true,
+          {
+            ok: true,
+            pluginId: result.pluginId,
+            version: result.version,
+            restartRequired: true,
+          },
+          undefined,
+        );
+      } else {
+        respond(
+          false,
+          { ok: false, error: result.error },
+          errorShape(ErrorCodes.UNAVAILABLE, result.error),
+        );
+      }
+    } catch (err) {
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatForLog(err)));
+    }
+  },
+  "channels.install": async ({ params, respond, context, client }) => {
     if (!validateChannelsInstallParams(params)) {
       respond(
         false,
@@ -528,14 +882,26 @@ export const channelsHandlers: GatewayRequestHandlers = {
 
     const channelId = (params as { channelId?: string }).channelId?.trim();
     const npmSpecDirect = (params as { npmSpec?: string }).npmSpec?.trim();
+    const clientRunId = (params as { clientRunId?: string }).clientRunId?.trim() || undefined;
+    const modeRaw = (params as { mode?: unknown }).mode;
+    const modeParam: "install" | "update" | undefined =
+      typeof modeRaw === "string"
+        ? modeRaw.trim() === "update"
+          ? "update"
+          : modeRaw.trim() === "install"
+            ? "install"
+            : undefined
+        : undefined;
     const timeoutMs =
       typeof (params as { timeoutMs?: unknown }).timeoutMs === "number"
         ? (params as { timeoutMs: number }).timeoutMs
         : 120_000;
 
+    const connId = client?.connId;
+
+    const catalogEntry = channelId ? getChannelPluginCatalogEntry(channelId) : undefined;
     let npmSpec = npmSpecDirect;
     if (!npmSpec && channelId) {
-      const catalogEntry = getChannelPluginCatalogEntry(channelId);
       if (!catalogEntry) {
         respond(
           false,
@@ -556,13 +922,120 @@ export const channelsHandlers: GatewayRequestHandlers = {
       return;
     }
 
-    try {
-      const result = await installPluginFromNpmSpec({
-        spec: npmSpec,
-        timeoutMs,
-        expectedPluginId: channelId ?? undefined,
-      });
+    let mode: "install" | "update" | undefined = modeParam;
+    if (!mode && channelId) {
+      // Make channels.install idempotent for UI flows:
+      // if the plugin directory exists already (even partially), treat it as an update/repair.
+      try {
+        const installDir = resolvePluginInstallDir(
+          channelId,
+          path.join(resolveConfigDir(), "extensions"),
+        );
+        if (fs.existsSync(installDir)) {
+          mode = "update";
+        }
+      } catch {
+        // ignore
+      }
+    }
 
+    const localInstallPath = resolveCatalogLocalInstallPath(catalogEntry?.install.localPath);
+    const preferLocalInstall = Boolean(localInstallPath) && mode === "update";
+    const installAttempts: ChannelInstallAttempt[] = [];
+    if (preferLocalInstall && localInstallPath) {
+      installAttempts.push({
+        kind: "local",
+        run: async () => {
+          const logger = createInstallProgressLogger({
+            context,
+            connId,
+            clientRunId,
+            channelId,
+            kind: "local",
+          });
+          logger.info(`Install attempt: local (${localInstallPath})`);
+          const result = await installPluginFromPath({
+            path: localInstallPath,
+            extensionsDir: resolveExtensionsInstallDir(),
+            timeoutMs,
+            expectedPluginId: channelId ?? undefined,
+            mode: mode ?? "install",
+            logger,
+          });
+          if (!result.ok) {
+            logger.warn(`Install attempt failed: ${result.error}`);
+          } else {
+            logger.info(
+              `Install attempt succeeded: ${result.pluginId}${result.version ? `@${result.version}` : ""}`,
+            );
+          }
+          return result;
+        },
+      });
+    }
+    installAttempts.push({
+      kind: "npm",
+      run: async () => {
+        const logger = createInstallProgressLogger({
+          context,
+          connId,
+          clientRunId,
+          channelId,
+          kind: "npm",
+        });
+        logger.info(`Install attempt: npm (${npmSpec})`);
+        const result = await installPluginFromNpmSpec({
+          spec: npmSpec,
+          extensionsDir: resolveExtensionsInstallDir(),
+          timeoutMs,
+          expectedPluginId: channelId ?? undefined,
+          mode: mode ?? "install",
+          logger,
+        });
+        if (!result.ok) {
+          logger.warn(`Install attempt failed: ${result.error}`);
+        } else {
+          logger.info(
+            `Install attempt succeeded: ${result.pluginId}${result.version ? `@${result.version}` : ""}`,
+          );
+        }
+        return result;
+      },
+    });
+    if (!preferLocalInstall && localInstallPath) {
+      installAttempts.push({
+        kind: "local",
+        run: async () => {
+          const logger = createInstallProgressLogger({
+            context,
+            connId,
+            clientRunId,
+            channelId,
+            kind: "local",
+          });
+          logger.info(`Install attempt: local (${localInstallPath})`);
+          const result = await installPluginFromPath({
+            path: localInstallPath,
+            extensionsDir: resolveExtensionsInstallDir(),
+            timeoutMs,
+            expectedPluginId: channelId ?? undefined,
+            mode: mode ?? "install",
+            logger,
+          });
+          if (!result.ok) {
+            logger.warn(`Install attempt failed: ${result.error}`);
+          } else {
+            logger.info(
+              `Install attempt succeeded: ${result.pluginId}${result.version ? `@${result.version}` : ""}`,
+            );
+          }
+          return result;
+        },
+      });
+    }
+
+    try {
+      const result = await runChannelInstallAttempts(installAttempts);
       if (result.ok) {
         respond(
           true,
@@ -578,7 +1051,7 @@ export const channelsHandlers: GatewayRequestHandlers = {
         respond(
           false,
           { ok: false, error: result.error },
-          errorShape(ErrorCodes.UNAVAILABLE, result.error ?? "channel install failed"),
+          errorShape(ErrorCodes.UNAVAILABLE, result.error),
         );
       }
     } catch (err) {
