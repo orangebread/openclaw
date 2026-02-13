@@ -429,6 +429,7 @@ export async function runEmbeddedAttempt(
       sessionManager = guardSessionManager(SessionManager.open(params.sessionFile), {
         agentId: sessionAgentId,
         sessionKey: params.sessionKey,
+        inputProvenance: params.inputProvenance,
         allowSyntheticToolResults: transcriptPolicy.allowSyntheticToolResults,
       });
       trackSessionManagerAccess(params.sessionFile);
@@ -455,6 +456,9 @@ export async function runEmbeddedAttempt(
         modelId: params.modelId,
         model: params.model,
       });
+
+      // Get hook runner early so it's available when creating tools
+      const hookRunner = getGlobalHookRunner();
 
       const { builtInTools, customTools } = splitSdkTools({
         tools,
@@ -633,6 +637,7 @@ export async function runEmbeddedAttempt(
       const subscription = subscribeEmbeddedPiSession({
         session: activeSession,
         runId: params.runId,
+        hookRunner: getGlobalHookRunner() ?? undefined,
         verboseLevel: params.verboseLevel,
         reasoningMode: params.reasoningLevel ?? "off",
         toolResultFormat: params.toolResultFormat,
@@ -716,8 +721,7 @@ export async function runEmbeddedAttempt(
         }
       }
 
-      // Get hook runner once for both before_agent_start and agent_end hooks
-      const hookRunner = getGlobalHookRunner();
+      // Hook runner was already obtained earlier before tool creation
       const hookAgentId =
         typeof params.agentId === "string" && params.agentId.trim()
           ? normalizeAgentId(params.agentId)
