@@ -110,6 +110,30 @@ export const msteamsPlugin: ChannelPlugin<ResolvedMSTeamsAccount> = {
       return next;
     },
     isConfigured: (_account, cfg) => Boolean(resolveMSTeamsCredentials(cfg.channels?.msteams)),
+    unconfiguredReason: (_account, cfg) => {
+      const appId = cfg.channels?.msteams?.appId?.trim() || process.env.MSTEAMS_APP_ID?.trim();
+      const appPassword =
+        cfg.channels?.msteams?.appPassword?.trim() || process.env.MSTEAMS_APP_PASSWORD?.trim();
+      const tenantId =
+        cfg.channels?.msteams?.tenantId?.trim() || process.env.MSTEAMS_TENANT_ID?.trim();
+
+      const missing: string[] = [];
+      if (!appId) {
+        missing.push("appId");
+      }
+      if (!appPassword) {
+        missing.push("appPassword");
+      }
+      if (!tenantId) {
+        missing.push("tenantId");
+      }
+
+      if (missing.length === 0) {
+        return "not configured";
+      }
+
+      return `missing credentials (${missing.join(", ")}) — set channels.msteams.${missing.join(", channels.msteams.")} (or env MSTEAMS_APP_ID/MSTEAMS_APP_PASSWORD/MSTEAMS_TENANT_ID)`;
+    },
     describeAccount: (account) => ({
       accountId: account.accountId,
       enabled: account.enabled,
