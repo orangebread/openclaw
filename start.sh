@@ -726,6 +726,64 @@ NODE
   return "${parse_status}"
 }
 
+verify_enabled_plugins_loaded_once() {
+  local raw_output
+  raw_output="$(node openclaw.mjs plugins list --json 2>&1)" || {
+    printf "plugins list command failed: %s\n" "${raw_output}" >&2
+    return 1
+  }
+
+  local plugins_tmp parse_status
+  plugins_tmp="$(mktemp "${TMPDIR:-/tmp}/openclaw-plugins-verify.XXXXXX")" || {
+    printf "failed to create temp file for plugins verification\n" >&2
+    return 1
+  }
+  printf "%s\n" "${raw_output}" >"${plugins_tmp}"
+
+  node - "${plugins_tmp}" <<'NODE'
+const fs = require("fs");
+
+const pluginsPath = process.argv[2];
+const raw = fs.readFileSync(pluginsPath, "utf8");
+const start = raw.indexOf("{");
+const end = raw.lastIndexOf("}");
+if (start === -1 || end === -1 || end < start) {
+  process.stderr.write("plugins list did not emit JSON payload");
+  process.exit(1);
+}
+
+let payload;
+try {
+  payload = JSON.parse(raw.slice(start, end + 1));
+} catch (err) {
+  process.stderr.write(`failed to parse plugins list JSON: ${String(err)}`);
+  process.exit(1);
+}
+
+const plugins = Array.isArray(payload?.plugins) ? payload.plugins : [];
+const failures = [];
+for (const plugin of plugins) {
+  const enabled = plugin?.enabled === true;
+  const status = typeof plugin?.status === "string" ? plugin.status : "";
+  if (!enabled || status !== "error") {
+    continue;
+  }
+  const id = typeof plugin?.id === "string" && plugin.id ? plugin.id : "unknown";
+  const source = typeof plugin?.source === "string" && plugin.source ? plugin.source : "unknown";
+  const error = typeof plugin?.error === "string" && plugin.error ? plugin.error : "unknown error";
+  failures.push(`${id} (${source}): ${error}`);
+}
+
+if (failures.length > 0) {
+  process.stderr.write(`enabled plugins failed to load: ${failures.join(" ; ")}`);
+  process.exit(1);
+}
+NODE
+  parse_status=$?
+  rm -f "${plugins_tmp}" 2>/dev/null || true
+  return "${parse_status}"
+}
+
 verify_gateway_status() {
   local attempts_raw delay_raw attempts delay attempt reason
   attempts_raw="${OPENCLAW_START_VERIFY_RETRIES:-12}"
@@ -741,10 +799,14 @@ verify_gateway_status() {
   for ((attempt = 1; attempt <= attempts; attempt += 1)); do
     if reason="$(verify_gateway_status_once 2>&1)"; then
       if reason="$(verify_gateway_probe_once 2>&1)"; then
-        info "Gateway health verification passed (attempt ${attempt}/${attempts})."
-        return 0
+        if reason="$(verify_enabled_plugins_loaded_once 2>&1)"; then
+          info "Gateway health verification passed (attempt ${attempt}/${attempts})."
+          return 0
+        fi
+        warn "Plugin load verification attempt ${attempt}/${attempts} failed: ${reason}"
+      else
+        warn "Gateway probe attempt ${attempt}/${attempts} failed: ${reason}"
       fi
-      warn "Gateway probe attempt ${attempt}/${attempts} failed: ${reason}"
     else
       warn "Gateway status verification attempt ${attempt}/${attempts} failed: ${reason}"
     fi
