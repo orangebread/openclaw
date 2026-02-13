@@ -225,7 +225,11 @@ export async function initSessionState(params: {
     ? evaluateSessionFreshness({ updatedAt: entry.updatedAt, now, policy: resetPolicy }).fresh
     : false;
 
-  if (!isNewSession && freshEntry) {
+  // When this is the first user message in a thread, the session entry may already
+  // exist (created by recordInboundSession in prepare.ts), but we should still treat
+  // it as a new session so that thread context (history/starter/fork) is applied.
+  const forceNewForThread = Boolean(ctx.IsFirstThreadTurn) && !resetTriggered;
+  if (!isNewSession && freshEntry && !forceNewForThread) {
     sessionId = entry.sessionId;
     systemSent = entry.systemSent ?? false;
     abortedLastRun = entry.abortedLastRun ?? false;
@@ -240,6 +244,15 @@ export async function initSessionState(params: {
     isNewSession = true;
     systemSent = false;
     abortedLastRun = false;
+    // When a reset trigger (/new, /reset) starts a new session, carry over
+    // user-set behavior overrides (verbose, thinking, reasoning, ttsAuto)
+    // so the user doesn't have to re-enable them every time.
+    if (resetTriggered && entry) {
+      persistedThinking = entry.thinkingLevel;
+      persistedVerbose = entry.verboseLevel;
+      persistedReasoning = entry.reasoningLevel;
+      persistedTtsAuto = entry.ttsAuto;
+    }
   }
 
   const baseEntry = !isNewSession && freshEntry ? entry : undefined;
@@ -345,6 +358,7 @@ export async function initSessionState(params: {
     // Clear stale token metrics from previous session so /status doesn't
     // display the old session's context usage after /new or /reset.
     sessionEntry.totalTokens = undefined;
+    sessionEntry.totalTokensFresh = false;
     sessionEntry.inputTokens = undefined;
     sessionEntry.outputTokens = undefined;
     sessionEntry.contextTokens = undefined;
