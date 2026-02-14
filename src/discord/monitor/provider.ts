@@ -15,6 +15,7 @@ import {
   resolveNativeSkillsEnabled,
 } from "../../config/commands.js";
 import { loadConfig } from "../../config/config.js";
+import { resolveGatewayAuth } from "../../gateway/auth.js";
 import { buildGatewayConnectionDetails } from "../../gateway/call.js";
 import { danger, logVerbose, shouldLogVerbose, warn } from "../../globals.js";
 import { formatErrorMessage } from "../../infra/errors.js";
@@ -476,6 +477,24 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       : {}),
   }).url;
 
+  const normalizeSecret = (value: unknown): string | undefined => {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  };
+
+  // Resolve gateway auth token for approval handler clients.
+  // UI-first precedence: remote token (remote mode) → config token → env token.
+  // Note: treat empty env vars as unset so they can't shadow config.
+  const isRemoteMode = cfg.gateway?.mode === "remote";
+  const remote = isRemoteMode ? cfg.gateway?.remote : undefined;
+  const gatewayAuth = resolveGatewayAuth({ authConfig: cfg.gateway?.auth, env: process.env });
+  const approvalsGatewayToken =
+    (isRemoteMode ? normalizeSecret(remote?.token) : undefined) ??
+    normalizeSecret(gatewayAuth.token);
+
   // Initialize exec approvals handler if enabled
   const execApprovalsConfig = discordCfg.execApprovals ?? {};
   const execApprovalsHandler = execApprovalsConfig.enabled
@@ -484,6 +503,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         accountId: account.accountId,
         config: execApprovalsConfig,
         gatewayUrl: approvalsGatewayUrl,
+        gatewayToken: approvalsGatewayToken,
         cfg,
         runtime,
       })
@@ -496,6 +516,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         accountId: account.accountId,
         config: workflowApprovalsConfig,
         gatewayUrl: approvalsGatewayUrl,
+        gatewayToken: approvalsGatewayToken,
         cfg,
         runtime,
       })

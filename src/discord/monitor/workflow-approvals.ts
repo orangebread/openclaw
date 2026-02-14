@@ -155,6 +155,7 @@ export type DiscordWorkflowApprovalHandlerOpts = {
   accountId: string;
   config: DiscordWorkflowApprovalConfig;
   gatewayUrl?: string;
+  gatewayToken?: string;
   cfg: OpenClawConfig;
   runtime?: RuntimeEnv;
 };
@@ -214,6 +215,7 @@ export class DiscordWorkflowApprovalHandler {
 
     this.gatewayClient = new GatewayClient({
       url: this.opts.gatewayUrl ?? "ws://127.0.0.1:18789",
+      token: this.opts.gatewayToken,
       clientName: GATEWAY_CLIENT_NAMES.GATEWAY_CLIENT,
       clientDisplayName: "Discord Workflow Approvals",
       mode: GATEWAY_CLIENT_MODES.BACKEND,
