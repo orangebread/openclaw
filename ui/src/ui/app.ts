@@ -442,7 +442,7 @@ export class OpenClawApp extends LitElement {
 
   @state() dataExporting = false;
   @state() dataImporting = false;
-  @state() dataImportManifest: unknown | null = null;
+  @state() dataImportManifest: unknown = null;
   @state() dataImportUploadId: string | null = null;
   @state() dataApplying = false;
   @state() dataError: string | null = null;

@@ -348,7 +348,7 @@ export type AppViewState = {
   kbCollapsedSections: Set<string>;
   dataExporting: boolean;
   dataImporting: boolean;
-  dataImportManifest: unknown | null;
+  dataImportManifest: unknown;
   dataImportUploadId: string | null;
   dataApplying: boolean;
   dataError: string | null;
