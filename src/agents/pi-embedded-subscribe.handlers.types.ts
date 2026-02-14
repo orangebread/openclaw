@@ -82,6 +82,8 @@ export type EmbeddedPiSubscribeContext = {
   ) => string;
   emitBlockChunk: (text: string) => void;
   flushBlockReplyBuffer: () => void;
+  /** Discard buffered block reply text without sending (suppresses pre-tool text). */
+  discardBlockReplyBuffer: () => void;
   emitReasoningStream: (text: string) => void;
   consumeReplyDirectives: (
     text: string,

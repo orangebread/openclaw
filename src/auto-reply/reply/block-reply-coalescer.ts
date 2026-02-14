@@ -4,6 +4,8 @@ import type { BlockStreamingCoalescing } from "./block-streaming.js";
 export type BlockReplyCoalescer = {
   enqueue: (payload: ReplyPayload) => void;
   flush: (options?: { force?: boolean }) => Promise<void>;
+  /** Discard any buffered content without sending it. */
+  discard: () => void;
   hasBuffered: () => boolean;
   stop: () => void;
 };
@@ -140,9 +142,15 @@ export function createBlockReplyCoalescer(params: {
     scheduleIdleFlush();
   };
 
+  const discard = () => {
+    clearIdleTimer();
+    resetBuffer();
+  };
+
   return {
     enqueue,
     flush,
+    discard,
     hasBuffered: () => Boolean(bufferText),
     stop: () => clearIdleTimer(),
   };

@@ -372,7 +372,7 @@ export async function runAgentTurnWithFallback(params: {
                 }
               }
             },
-            // Always pass onBlockReply so flushBlockReplyBuffer works before tool execution,
+            // Always pass onBlockReply so pre-tool flush/discard handling works,
             // even when regular block streaming is disabled. The handler sends directly
             // via opts.onBlockReply when the pipeline isn't available.
             onBlockReply: params.opts?.onBlockReply
@@ -452,6 +452,12 @@ export async function runAgentTurnWithFallback(params: {
               params.blockStreamingEnabled && blockReplyPipeline
                 ? async () => {
                     await blockReplyPipeline.flush({ force: true });
+                  }
+                : undefined,
+            onBlockReplyDiscard:
+              params.blockStreamingEnabled && blockReplyPipeline
+                ? () => {
+                    blockReplyPipeline.discard();
                   }
                 : undefined,
             shouldEmitToolResult: params.shouldEmitToolResult,

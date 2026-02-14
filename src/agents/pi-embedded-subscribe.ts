@@ -523,6 +523,11 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     }
   };
 
+  const discardBlockReplyBuffer = () => {
+    blockChunker?.reset();
+    state.blockBuffer = "";
+  };
+
   const emitReasoningStream = (text: string) => {
     if (!state.streamReasoning || !params.onReasoningStream) {
       return;
@@ -583,6 +588,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     stripBlockTags,
     emitBlockChunk,
     flushBlockReplyBuffer,
+    discardBlockReplyBuffer,
     emitReasoningStream,
     consumeReplyDirectives,
     consumePartialReplyDirectives,

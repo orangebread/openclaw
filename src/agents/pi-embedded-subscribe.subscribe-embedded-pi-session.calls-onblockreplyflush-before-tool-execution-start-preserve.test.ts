@@ -72,7 +72,7 @@ describe("subscribeEmbeddedPiSession", () => {
 
     expect(onBlockReplyFlush).toHaveBeenCalledTimes(2);
   });
-  it("flushes buffered block chunks before tool execution", () => {
+  it("discards buffered block chunks before tool execution to suppress pre-tool text", () => {
     let handler: SessionEventHandler | undefined;
     const session: StubSession = {
       subscribe: (fn) => {
@@ -82,13 +82,13 @@ describe("subscribeEmbeddedPiSession", () => {
     };
 
     const onBlockReply = vi.fn();
-    const onBlockReplyFlush = vi.fn();
+    const onBlockReplyDiscard = vi.fn();
 
     subscribeEmbeddedPiSession({
       session: session as unknown as Parameters<typeof subscribeEmbeddedPiSession>[0]["session"],
-      runId: "run-flush-buffer",
+      runId: "run-discard-buffer",
       onBlockReply,
-      onBlockReplyFlush,
+      onBlockReplyDiscard,
       blockReplyBreak: "text_end",
       blockReplyChunking: { minChars: 50, maxChars: 200 },
     });
@@ -109,18 +109,17 @@ describe("subscribeEmbeddedPiSession", () => {
 
     expect(onBlockReply).not.toHaveBeenCalled();
 
+    // Tool execution starts - should DISCARD (not send) the buffered text
     handler?.({
       type: "tool_execution_start",
       toolName: "bash",
-      toolCallId: "tool-flush-buffer-1",
+      toolCallId: "tool-discard-buffer-1",
       args: { command: "echo flush" },
     });
 
-    expect(onBlockReply).toHaveBeenCalledTimes(1);
-    expect(onBlockReply.mock.calls[0]?.[0]?.text).toBe("Short chunk.");
-    expect(onBlockReplyFlush).toHaveBeenCalledTimes(1);
-    expect(onBlockReply.mock.invocationCallOrder[0]).toBeLessThan(
-      onBlockReplyFlush.mock.invocationCallOrder[0],
-    );
+    // Pre-tool text should NOT be sent via onBlockReply
+    expect(onBlockReply).not.toHaveBeenCalled();
+    // Discard callback should be invoked instead
+    expect(onBlockReplyDiscard).toHaveBeenCalledTimes(1);
   });
 });

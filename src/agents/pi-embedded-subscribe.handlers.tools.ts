@@ -47,10 +47,16 @@ export async function handleToolExecutionStart(
   ctx: EmbeddedPiSubscribeContext,
   evt: AgentEvent & { toolName: string; toolCallId: string; args: unknown },
 ) {
-  // Flush pending block replies to preserve message boundaries before tool execution.
-  ctx.flushBlockReplyBuffer();
-  if (ctx.params.onBlockReplyFlush) {
-    void ctx.params.onBlockReplyFlush();
+  // Suppress pre-tool “first draft” text when discard support is wired.
+  // Otherwise preserve legacy behavior by flushing before tool execution.
+  if (ctx.params.onBlockReplyDiscard) {
+    ctx.discardBlockReplyBuffer();
+    void ctx.params.onBlockReplyDiscard();
+  } else {
+    ctx.flushBlockReplyBuffer();
+    if (ctx.params.onBlockReplyFlush) {
+      void ctx.params.onBlockReplyFlush();
+    }
   }
 
   const rawToolName = String(evt.toolName);

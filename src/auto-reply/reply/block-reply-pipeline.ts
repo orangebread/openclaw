@@ -6,6 +6,8 @@ import { createBlockReplyCoalescer } from "./block-reply-coalescer.js";
 export type BlockReplyPipeline = {
   enqueue: (payload: ReplyPayload) => void;
   flush: (options?: { force?: boolean }) => Promise<void>;
+  /** Discard buffered content without sending (used to suppress pre-tool text). */
+  discard: () => void;
   stop: () => void;
   hasBuffered: () => boolean;
   didStream: () => boolean;
@@ -227,9 +229,17 @@ export function createBlockReplyPipeline(params: {
     coalescer?.stop();
   };
 
+  const discard = () => {
+    coalescer?.discard();
+    bufferedKeys.clear();
+    // Note: bufferedPayloads (audio) are intentionally NOT discarded here —
+    // only text coalescer content is suppressed for pre-tool text.
+  };
+
   return {
     enqueue,
     flush,
+    discard,
     stop,
     hasBuffered: () => Boolean(coalescer?.hasBuffered() || bufferedPayloads.length > 0),
     didStream: () => didStream,
