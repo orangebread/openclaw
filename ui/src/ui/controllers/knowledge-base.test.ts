@@ -24,7 +24,7 @@ function createState(overrides: Partial<KnowledgeBaseState> = {}): KnowledgeBase
     },
     kbLoading: false,
     kbError: null,
-    kbEntries: { notes: [], links: [], review: [] },
+    kbEntries: { notes: [], links: [], review: [], images: [] },
     kbReadLoading: false,
     kbReadError: null,
     kbReadResult: null,
@@ -40,6 +40,28 @@ function createState(overrides: Partial<KnowledgeBaseState> = {}): KnowledgeBase
       fallback: "none",
       localModelPath: "",
     },
+    kbEditorMode: "browse",
+    kbEditorTitle: "",
+    kbEditorContent: "",
+    kbEditorSaving: false,
+    kbEditorError: null,
+    kbEditorNotice: null,
+    kbEditorPreviewOpen: false,
+    kbEditorTags: "",
+    kbEditorDirty: false,
+    kbEditorOriginalTitle: "",
+    kbEditorOriginalContent: "",
+    kbEditorOriginalTags: "",
+    kbEditorExtraFrontmatter: {},
+    kbDeleteConfirmPath: null,
+    kbDeleting: false,
+    kbDeleteError: null,
+    kbLinkUrl: "",
+    kbLinkAnalyzing: false,
+    kbLinkError: null,
+    kbUploadError: null,
+    kbUploading: false,
+    kbCollapsedSections: new Set(),
     ...overrides,
   };
 }
@@ -67,7 +89,7 @@ describe("knowledge base controller", () => {
     expect(state.kbEntries.notes.map((e) => e.path)).toEqual(["notes/a.md"]);
     expect(state.kbEntries.links).toEqual([]);
     expect(state.kbEntries.review).toEqual([]);
-    expect(request).toHaveBeenCalledTimes(3);
+    expect(request).toHaveBeenCalledTimes(4);
   });
 
   it("reads file on selection", async () => {

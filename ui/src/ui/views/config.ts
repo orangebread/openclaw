@@ -2,6 +2,7 @@ import { html, nothing } from "lit";
 import type { ConfigUiHints } from "../types.ts";
 import { hintForPath, humanize, schemaType, type JsonSchema } from "./config-form.shared.ts";
 import { analyzeConfigSchema, renderConfigForm, SECTION_META } from "./config-form.ts";
+import { renderData, type DataProps } from "./data.ts";
 
 export type ConfigProps = {
   raw: string;
@@ -32,6 +33,7 @@ export type ConfigProps = {
   onSave: () => void;
   onApply: () => void;
   onUpdate: () => void;
+  dataProps: DataProps;
 };
 
 // SVG Icons for sidebar (Lucide-style)
@@ -254,6 +256,13 @@ const sidebarIcons = {
       <path d="m19.07 10.93-4.24 4.24"></path>
     </svg>
   `,
+  data: html`
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="17 8 12 3 7 8"></polyline>
+      <line x1="12" y1="3" x2="12" y2="15"></line>
+    </svg>
+  `,
   default: html`
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -399,6 +408,7 @@ export function renderConfig(props: ConfigProps) {
     .map((k) => ({ key: k, label: k.charAt(0).toUpperCase() + k.slice(1) }));
 
   const allSections = [...availableSections, ...extraSections];
+  const isDataSection = props.activeSection === "data";
 
   const activeSectionSchema =
     props.activeSection && analysis.schema && schemaType(analysis.schema) === "object"
@@ -513,6 +523,16 @@ export function renderConfig(props: ConfigProps) {
               </button>
             `,
           )}
+
+          <!-- Divider + Data section -->
+          <div class="config-nav__divider"></div>
+          <button
+            class="config-nav__item ${isDataSection ? "active" : ""}"
+            @click=${() => props.onSectionChange("data")}
+          >
+            <span class="config-nav__icon">${getSectionIcon("data")}</span>
+            <span class="config-nav__label">Data</span>
+          </button>
         </nav>
 
         <!-- Mode toggle at bottom -->
@@ -537,6 +557,63 @@ export function renderConfig(props: ConfigProps) {
 
       <!-- Main content -->
       <main class="config-main">
+        ${
+          isDataSection
+            ? renderData(props.dataProps)
+            : renderConfigMain(props, {
+                analysis,
+                formUnsafe,
+                diff,
+                hasChanges,
+                hasRawChanges,
+                canSave,
+                canApply,
+                canUpdate,
+                activeSectionMeta,
+                allowSubnav,
+                subsections,
+                effectiveSubsection,
+                isAllSubsection,
+              })
+        }
+      </main>
+    </div>
+  `;
+}
+
+function renderConfigMain(
+  props: ConfigProps,
+  ctx: {
+    analysis: ReturnType<typeof analyzeConfigSchema>;
+    formUnsafe: boolean;
+    diff: Array<{ path: string; from: unknown; to: unknown }>;
+    hasChanges: boolean;
+    hasRawChanges: boolean;
+    canSave: boolean;
+    canApply: boolean;
+    canUpdate: boolean;
+    activeSectionMeta: { label: string; description?: string } | null;
+    allowSubnav: boolean;
+    subsections: Array<{ key: string; label: string; description?: string; order: number }>;
+    effectiveSubsection: string | null;
+    isAllSubsection: boolean;
+  },
+) {
+  const {
+    analysis,
+    formUnsafe,
+    diff,
+    hasChanges,
+    canSave,
+    canApply,
+    canUpdate,
+    activeSectionMeta,
+    allowSubnav,
+    subsections,
+    effectiveSubsection,
+  } = ctx;
+
+  return html`
         <!-- Action bar -->
         <div class="config-actions">
           <div class="config-actions__left">
@@ -738,7 +815,5 @@ ${JSON.stringify(props.issues, null, 2)}</pre
             </div>`
             : nothing
         }
-      </main>
-    </div>
   `;
 }

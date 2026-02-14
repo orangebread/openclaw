@@ -35,6 +35,20 @@ describe("config view", () => {
     onApply: vi.fn(),
     onUpdate: vi.fn(),
     onSubsectionChange: vi.fn(),
+    dataProps: {
+      connected: true,
+      exporting: false,
+      importing: false,
+      applying: false,
+      manifest: null,
+      uploadId: null,
+      error: null,
+      success: null,
+      onExport: vi.fn(),
+      onImportFile: vi.fn(),
+      onApply: vi.fn(),
+      onCancel: vi.fn(),
+    },
   });
 
   it("allows save when form is unsafe", () => {

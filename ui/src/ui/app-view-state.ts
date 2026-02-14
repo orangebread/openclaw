@@ -14,7 +14,10 @@ import type {
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
-import type { KnowledgeBaseEmbeddingSettings } from "./controllers/knowledge-base.ts";
+import type {
+  KnowledgeBaseEditorMode,
+  KnowledgeBaseEmbeddingSettings,
+} from "./controllers/knowledge-base.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
@@ -304,7 +307,12 @@ export type AppViewState = {
   logsPaused: boolean;
   kbLoading: boolean;
   kbError: string | null;
-  kbEntries: { notes: WorkspaceEntry[]; links: WorkspaceEntry[]; review: WorkspaceEntry[] };
+  kbEntries: {
+    notes: WorkspaceEntry[];
+    links: WorkspaceEntry[];
+    review: WorkspaceEntry[];
+    images: WorkspaceEntry[];
+  };
   kbReadLoading: boolean;
   kbReadError: string | null;
   kbReadResult: WorkspaceReadResult | null;
@@ -316,6 +324,35 @@ export type AppViewState = {
   kbEmbeddingSettingsError: string | null;
   kbEmbeddingSettingsNotice: string | null;
   kbEmbeddingSettings: KnowledgeBaseEmbeddingSettings;
+  kbEditorMode: KnowledgeBaseEditorMode;
+  kbEditorTitle: string;
+  kbEditorContent: string;
+  kbEditorSaving: boolean;
+  kbEditorError: string | null;
+  kbEditorNotice: string | null;
+  kbEditorPreviewOpen: boolean;
+  kbEditorTags: string;
+  kbEditorDirty: boolean;
+  kbEditorOriginalTitle: string;
+  kbEditorOriginalContent: string;
+  kbEditorOriginalTags: string;
+  kbEditorExtraFrontmatter: Record<string, string>;
+  kbDeleteConfirmPath: string | null;
+  kbDeleting: boolean;
+  kbDeleteError: string | null;
+  kbLinkUrl: string;
+  kbLinkAnalyzing: boolean;
+  kbLinkError: string | null;
+  kbUploadError: string | null;
+  kbUploading: boolean;
+  kbCollapsedSections: Set<string>;
+  dataExporting: boolean;
+  dataImporting: boolean;
+  dataImportManifest: unknown | null;
+  dataImportUploadId: string | null;
+  dataApplying: boolean;
+  dataError: string | null;
+  dataSuccess: string | null;
   client: GatewayBrowserClient | null;
   refreshSessionsAfterChat: Set<string>;
   connect: () => void;

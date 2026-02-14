@@ -64,6 +64,7 @@ import {
   removeCronJob,
   addCronJob,
 } from "./controllers/cron.ts";
+import { exportData, importData, applyImport, cancelImport } from "./controllers/data.ts";
 import { loadDebug, callDebugMethod } from "./controllers/debug.ts";
 import {
   approveDevicePairing,
@@ -80,12 +81,25 @@ import {
 } from "./controllers/exec-approvals.ts";
 import {
   applyKnowledgeBaseLocalEmbeddingPreset,
+  cancelDelete,
+  cancelEditor,
+  deleteKnowledgeBaseEntry,
   loadKnowledgeBase,
   loadKnowledgeBaseEmbeddingSettings,
   openReviewQueue,
+  requestDelete,
   saveKnowledgeBaseEmbeddingSettings,
+  saveLink,
+  saveNote,
   selectKnowledgeBaseFile,
+  startCreateNote,
+  startEditNote,
+  startSaveLink,
+  startUploadImage,
+  toggleKnowledgeBaseSection,
+  updateKnowledgeBaseEditorDirty,
   updateKnowledgeBaseEmbeddingSettings,
+  uploadImage,
 } from "./controllers/knowledge-base.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
@@ -603,6 +617,24 @@ export function renderApp(state: AppViewState) {
                 embeddingSettingsError: state.kbEmbeddingSettingsError,
                 embeddingSettingsNotice: state.kbEmbeddingSettingsNotice,
                 embeddingSettings: state.kbEmbeddingSettings,
+                editorMode: state.kbEditorMode,
+                editorTitle: state.kbEditorTitle,
+                editorContent: state.kbEditorContent,
+                editorSaving: state.kbEditorSaving,
+                editorError: state.kbEditorError,
+                editorNotice: state.kbEditorNotice,
+                editorPreviewOpen: state.kbEditorPreviewOpen,
+                editorTags: state.kbEditorTags,
+                editorDirty: state.kbEditorDirty,
+                deleteConfirmPath: state.kbDeleteConfirmPath,
+                deleting: state.kbDeleting,
+                deleteError: state.kbDeleteError,
+                linkUrl: state.kbLinkUrl,
+                linkAnalyzing: state.kbLinkAnalyzing,
+                linkError: state.kbLinkError,
+                uploading: state.kbUploading,
+                uploadError: state.kbUploadError,
+                collapsedSections: state.kbCollapsedSections,
                 onRefresh: () => loadKnowledgeBase(state),
                 onSelectFile: (path) => selectKnowledgeBaseFile(state, path),
                 onOpenReviewQueue: () => openReviewQueue(state),
@@ -615,6 +647,40 @@ export function renderApp(state: AppViewState) {
                   updateKnowledgeBaseEmbeddingSettings(state, { localModelPath }),
                 onUseLocalPreset: () => applyKnowledgeBaseLocalEmbeddingPreset(state),
                 onSaveEmbeddingSettings: () => saveKnowledgeBaseEmbeddingSettings(state),
+                onCreateNote: () => startCreateNote(state),
+                onEditNote: () => {
+                  if (state.kbSelectedPath) {
+                    startEditNote(state, state.kbSelectedPath);
+                  }
+                },
+                onSaveNote: () => saveNote(state),
+                onCancelEditor: () => cancelEditor(state),
+                onEditorTitleChange: (title) => {
+                  state.kbEditorTitle = title;
+                  updateKnowledgeBaseEditorDirty(state);
+                },
+                onEditorContentChange: (content) => {
+                  state.kbEditorContent = content;
+                  updateKnowledgeBaseEditorDirty(state);
+                },
+                onEditorTogglePreview: () => {
+                  state.kbEditorPreviewOpen = !state.kbEditorPreviewOpen;
+                },
+                onEditorTagsChange: (tags) => {
+                  state.kbEditorTags = tags;
+                  updateKnowledgeBaseEditorDirty(state);
+                },
+                onDeleteEntry: (path) => requestDelete(state, path),
+                onConfirmDelete: () => deleteKnowledgeBaseEntry(state),
+                onCancelDelete: () => cancelDelete(state),
+                onSaveLinkStart: () => startSaveLink(state),
+                onLinkUrlChange: (url) => {
+                  state.kbLinkUrl = url;
+                },
+                onSaveLink: () => saveLink(state),
+                onUploadImageStart: () => startUploadImage(state),
+                onUploadImage: (file) => uploadImage(state, file),
+                onToggleSection: (section) => toggleKnowledgeBaseSection(state, section),
               })
             : nothing
         }
@@ -1906,6 +1972,22 @@ export function renderApp(state: AppViewState) {
                 onSave: () => saveConfig(state),
                 onApply: () => applyConfig(state),
                 onUpdate: () => runUpdate(state),
+                dataProps: {
+                  connected: state.connected,
+                  exporting: state.dataExporting,
+                  importing: state.dataImporting,
+                  applying: state.dataApplying,
+                  manifest: state.dataImportManifest as
+                    | import("./views/data.ts").DataManifest
+                    | null,
+                  uploadId: state.dataImportUploadId,
+                  error: state.dataError,
+                  success: state.dataSuccess,
+                  onExport: () => exportData(state),
+                  onImportFile: (file: File) => importData(state, file),
+                  onApply: () => applyImport(state),
+                  onCancel: () => cancelImport(state),
+                },
               })
             : nothing
         }

@@ -14,6 +14,7 @@ describe("knowledge base view", () => {
       ],
       links: [],
       review: [],
+      images: [],
     },
     readLoading: false,
     readError: null as string | null,
@@ -30,6 +31,24 @@ describe("knowledge base view", () => {
       fallback: "none",
       localModelPath: "",
     },
+    editorMode: "browse" as const,
+    editorTitle: "",
+    editorContent: "",
+    editorSaving: false,
+    editorError: null as string | null,
+    editorNotice: null as string | null,
+    editorPreviewOpen: false,
+    editorTags: "",
+    editorDirty: false,
+    deleteConfirmPath: null as string | null,
+    deleting: false,
+    deleteError: null as string | null,
+    linkUrl: "",
+    linkAnalyzing: false,
+    linkError: null as string | null,
+    uploading: false,
+    uploadError: null as string | null,
+    collapsedSections: new Set<string>(),
     onRefresh: vi.fn(),
     onSelectFile: vi.fn(),
     onOpenReviewQueue: vi.fn(),
@@ -39,6 +58,23 @@ describe("knowledge base view", () => {
     onLocalModelPathChange: vi.fn(),
     onUseLocalPreset: vi.fn(),
     onSaveEmbeddingSettings: vi.fn(),
+    onCreateNote: vi.fn(),
+    onEditNote: vi.fn(),
+    onSaveNote: vi.fn(),
+    onCancelEditor: vi.fn(),
+    onEditorTitleChange: vi.fn(),
+    onEditorContentChange: vi.fn(),
+    onEditorTogglePreview: vi.fn(),
+    onEditorTagsChange: vi.fn(),
+    onDeleteEntry: vi.fn(),
+    onConfirmDelete: vi.fn(),
+    onCancelDelete: vi.fn(),
+    onSaveLinkStart: vi.fn(),
+    onLinkUrlChange: vi.fn(),
+    onSaveLink: vi.fn(),
+    onUploadImageStart: vi.fn(),
+    onUploadImage: vi.fn(),
+    onToggleSection: vi.fn(),
   });
 
   it("shows disconnected state", () => {
@@ -88,9 +124,9 @@ describe("knowledge base view", () => {
     render(renderKnowledgeBase(props), container);
     expect(container.textContent).toContain("Memory Embeddings");
 
-    const saveButton = Array.from(container.querySelectorAll("button")).find((btn) =>
-      btn.textContent?.includes("Save"),
-    );
+    const saveButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button.btn.primary"),
+    ).find((btn) => btn.textContent?.trim() === "Save");
     expect(saveButton).toBeTruthy();
     saveButton?.click();
     expect(props.onSaveEmbeddingSettings).toHaveBeenCalled();

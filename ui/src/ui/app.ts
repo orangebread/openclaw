@@ -97,6 +97,7 @@ import {
 } from "./app-tool-stream.ts";
 import { resolveInjectedAssistantIdentity } from "./assistant-identity.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
+import { pasteLink } from "./controllers/knowledge-base.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
@@ -389,10 +390,12 @@ export class OpenClawApp extends LitElement {
     notes: WorkspaceEntry[];
     links: WorkspaceEntry[];
     review: WorkspaceEntry[];
+    images: WorkspaceEntry[];
   } = {
     notes: [],
     links: [],
     review: [],
+    images: [],
   };
   @state() kbReadLoading = false;
   @state() kbReadError: string | null = null;
@@ -413,6 +416,37 @@ export class OpenClawApp extends LitElement {
     fallback: "none",
     localModelPath: "",
   };
+  @state() kbEditorMode: "browse" | "create-note" | "edit-note" | "save-link" | "upload-image" =
+    "browse";
+  @state() kbEditorTitle = "";
+  @state() kbEditorContent = "";
+  @state() kbEditorSaving = false;
+  @state() kbEditorError: string | null = null;
+  @state() kbEditorNotice: string | null = null;
+  @state() kbEditorPreviewOpen = false;
+  @state() kbEditorTags = "";
+  @state() kbEditorDirty = false;
+  @state() kbEditorOriginalTitle = "";
+  @state() kbEditorOriginalContent = "";
+  @state() kbEditorOriginalTags = "";
+  kbEditorExtraFrontmatter: Record<string, string> = {};
+  @state() kbDeleteConfirmPath: string | null = null;
+  @state() kbDeleting = false;
+  @state() kbDeleteError: string | null = null;
+  @state() kbLinkUrl = "";
+  @state() kbLinkAnalyzing = false;
+  @state() kbLinkError: string | null = null;
+  @state() kbUploadError: string | null = null;
+  @state() kbUploading = false;
+  kbCollapsedSections: Set<string> = new Set();
+
+  @state() dataExporting = false;
+  @state() dataImporting = false;
+  @state() dataImportManifest: unknown | null = null;
+  @state() dataImportUploadId: string | null = null;
+  @state() dataApplying = false;
+  @state() dataError: string | null = null;
+  @state() dataSuccess: string | null = null;
 
   @state() skillsLoading = false;
   @state() skillsReport: SkillStatusReport | null = null;
@@ -467,6 +501,7 @@ export class OpenClawApp extends LitElement {
   basePath = "";
   private popStateHandler = () =>
     onPopStateInternal(this as unknown as Parameters<typeof onPopStateInternal>[0]);
+  private pasteHandler = (e: ClipboardEvent) => this.handleGlobalPaste(e);
   private themeMedia: MediaQueryList | null = null;
   private themeMediaHandler: ((event: MediaQueryListEvent) => void) | null = null;
   private topbarObserver: ResizeObserver | null = null;
@@ -478,6 +513,7 @@ export class OpenClawApp extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     handleConnected(this as unknown as Parameters<typeof handleConnected>[0]);
+    document.addEventListener("paste", this.pasteHandler);
   }
 
   protected firstUpdated() {
@@ -485,6 +521,7 @@ export class OpenClawApp extends LitElement {
   }
 
   disconnectedCallback() {
+    document.removeEventListener("paste", this.pasteHandler);
     handleDisconnected(this as unknown as Parameters<typeof handleDisconnected>[0]);
     super.disconnectedCallback();
   }
@@ -523,6 +560,40 @@ export class OpenClawApp extends LitElement {
       // User returned to bottom; catch up once immediately (polling may have been paused).
       void loadLogs(this, { quiet: true });
     }
+  }
+
+  private handleGlobalPaste(e: ClipboardEvent) {
+    // Only intercept on the Knowledge Base tab
+    if (this.tab !== "knowledge-base") {
+      return;
+    }
+    // Don't intercept pastes into input/textarea elements
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+    ) {
+      return;
+    }
+    // Don't intercept if already analyzing a link
+    if (this.kbLinkAnalyzing) {
+      return;
+    }
+    const text = e.clipboardData?.getData("text/plain")?.trim();
+    if (!text) {
+      return;
+    }
+    // Check if the pasted text looks like a URL
+    try {
+      const parsed = new URL(text);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return;
+      }
+    } catch {
+      return;
+    }
+    e.preventDefault();
+    pasteLink(this as unknown as Parameters<typeof pasteLink>[0], text);
   }
 
   exportLogs(lines: string[], label: string) {
