@@ -49,6 +49,15 @@ type MemorySearchResult = {
   score: number;
 };
 
+function sanitizeAndNormalizeEmbedding(vec: number[]): number[] {
+  const sanitized = vec.map((value) => (Number.isFinite(value) ? value : 0));
+  const magnitude = Math.sqrt(sanitized.reduce((sum, value) => sum + value * value, 0));
+  if (magnitude < 1e-10) {
+    return sanitized;
+  }
+  return sanitized.map((value) => value / magnitude);
+}
+
 // ============================================================================
 // LanceDB Provider
 // ============================================================================
@@ -104,6 +113,7 @@ class MemoryDB {
 
     const fullEntry: MemoryEntry = {
       ...entry,
+      vector: sanitizeAndNormalizeEmbedding(entry.vector),
       id: randomUUID(),
       createdAt: Date.now(),
     };
@@ -115,7 +125,8 @@ class MemoryDB {
   async search(vector: number[], limit = 5, minScore = 0.5): Promise<MemorySearchResult[]> {
     await this.ensureInitialized();
 
-    const results = await this.table!.vectorSearch(vector).limit(limit).toArray();
+    const normalizedQuery = sanitizeAndNormalizeEmbedding(vector);
+    const results = await this.table!.vectorSearch(normalizedQuery).limit(limit).toArray();
 
     // LanceDB uses L2 distance by default; convert to similarity score
     const mapped = results.map((row) => {
@@ -174,7 +185,7 @@ class Embeddings {
       model: this.model,
       input: text,
     });
-    return response.data[0].embedding;
+    return sanitizeAndNormalizeEmbedding(response.data[0].embedding);
   }
 }
 

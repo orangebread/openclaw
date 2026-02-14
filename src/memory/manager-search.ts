@@ -142,7 +142,6 @@ export async function searchKeyword(params: {
   snippetMaxChars: number;
   sourceFilter: { sql: string; params: SearchSource[] };
   buildFtsQuery: (raw: string) => string | null;
-  bm25RankToScore: (rank: number) => number;
 }): Promise<Array<SearchRowResult & { textScore: number }>> {
   if (params.limit <= 0) {
     return [];
@@ -171,8 +170,8 @@ export async function searchKeyword(params: {
     rank: number;
   }>;
 
-  return rows.map((row) => {
-    const textScore = params.bm25RankToScore(row.rank);
+  return rows.map((row, index) => {
+    const textScore = 1 / (1 + index);
     return {
       id: row.id,
       path: row.path,
