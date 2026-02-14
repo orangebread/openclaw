@@ -7,14 +7,21 @@ import {
   ErrorCodes,
   errorShape,
   formatValidationErrors,
+  validateWorkspaceDeleteParams,
   validateWorkspaceListParams,
   validateWorkspaceReadParams,
+  validateWorkspaceUploadParams,
+  validateWorkspaceWriteParams,
+  type WorkspaceDeleteResult,
   type WorkspaceEntry,
   type WorkspaceListResult,
   type WorkspaceReadResult,
+  type WorkspaceUploadResult,
+  type WorkspaceWriteResult,
 } from "../protocol/index.js";
 
-const ALLOWED_ROOTS = new Set(["notes", "links", "review"]);
+const ALLOWED_ROOTS = new Set(["notes", "links", "review", "images"]);
+const WRITABLE_ROOTS = new Set(["notes", "links", "images"]);
 
 const DEFAULT_MAX_DEPTH = 4;
 const MAX_DEPTH_CAP = 6;
@@ -25,6 +32,9 @@ const MAX_ENTRIES_CAP = 1000;
 const DEFAULT_MAX_BYTES = 200_000;
 const MAX_BYTES_CAP = 500_000;
 
+const MAX_WRITE_BYTES = 500_000;
+const MAX_UPLOAD_BYTES = 10_000_000;
+
 const WINDOWS_ABS_RE = /^[a-zA-Z]:[\\/]/;
 const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 
@@ -32,7 +42,16 @@ const CONTENT_TYPES_BY_EXT: Record<string, string> = {
   ".md": "text/markdown",
   ".txt": "text/plain",
   ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
 };
+
+const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json"]);
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"]);
 
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -43,6 +62,7 @@ function clampInt(value: unknown, fallback: number, min: number, max: number): n
 
 function normalizeWorkspacePath(
   input: string,
+  opts?: { allowedRoots?: Set<string> },
 ): { ok: true; path: string; segments: string[] } | { ok: false; error: string } {
   const raw = String(input ?? "").trim();
   if (!raw) {
@@ -68,7 +88,8 @@ function normalizeWorkspacePath(
     return { ok: false, error: "invalid path" };
   }
   const root = parts[0];
-  if (!root || !ALLOWED_ROOTS.has(root)) {
+  const roots = opts?.allowedRoots ?? ALLOWED_ROOTS;
+  if (!root || !roots.has(root)) {
     return { ok: false, error: "disallowed path" };
   }
   return { ok: true, path: parts.join("/"), segments: parts };
@@ -91,7 +112,12 @@ async function assertNoSymlinkChain(workspaceRoot: string, segments: string[]) {
   let current = path.resolve(workspaceRoot);
   for (const segment of segments) {
     current = path.join(current, segment);
-    const st = await fs.lstat(current);
+    let st: import("node:fs").Stats;
+    try {
+      st = await fs.lstat(current);
+    } catch {
+      return;
+    }
     if (st.isSymbolicLink()) {
       throw new Error("symlinks not supported");
     }
@@ -127,6 +153,10 @@ function sortEntriesDeterministic(entries: WorkspaceEntry[]) {
     }
     return 0;
   });
+}
+
+function isImageContentType(contentType: string): boolean {
+  return contentType.startsWith("image/");
 }
 
 export const workspaceHandlers: GatewayRequestHandlers = {
@@ -309,6 +339,21 @@ export const workspaceHandlers: GatewayRequestHandlers = {
         return;
       }
 
+      if (isImageContentType(contentType)) {
+        const imageCap = Math.min(MAX_UPLOAD_BYTES, maxBytes);
+        const buf = await fs.readFile(resolved.abs);
+        const truncated = buf.length > imageCap;
+        const slice = truncated ? buf.subarray(0, imageCap) : buf;
+        const result: WorkspaceReadResult = {
+          path: normalized.path,
+          contentType,
+          truncated,
+          content: slice.toString("base64"),
+        };
+        respond(true, result, undefined);
+        return;
+      }
+
       const handle = await fs.open(resolved.abs, "r");
       try {
         const toRead = Math.min(Math.max(0, Math.trunc(st.size)), maxBytes + 1);
@@ -331,6 +376,290 @@ export const workspaceHandlers: GatewayRequestHandlers = {
         false,
         undefined,
         errorShape(ErrorCodes.INVALID_REQUEST, toSafeWorkspaceError(err, "workspace.read failed")),
+      );
+    }
+  },
+  "workspace.write": async ({ params, respond }) => {
+    if (!validateWorkspaceWriteParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid workspace.write params: ${formatValidationErrors(validateWorkspaceWriteParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const p = params;
+    const agentId = String(p.agentId ?? "").trim();
+    const normalized = normalizeWorkspacePath(String(p.path ?? ""), {
+      allowedRoots: WRITABLE_ROOTS,
+    });
+    if (!agentId) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "agentId required"));
+      return;
+    }
+    if (!normalized.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, normalized.error));
+      return;
+    }
+
+    const ext = path.extname(normalized.path).toLowerCase();
+    if (!TEXT_EXTENSIONS.has(ext)) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "only .md, .txt, and .json files are writable"),
+      );
+      return;
+    }
+
+    const content = String(p.content ?? "");
+    const contentBytes = Buffer.byteLength(content, "utf8");
+    if (contentBytes > MAX_WRITE_BYTES) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `content exceeds ${MAX_WRITE_BYTES} byte limit`),
+      );
+      return;
+    }
+
+    const cfg = loadConfig();
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+    const workspaceRoot = path.resolve(workspaceDir);
+    const resolved = resolveWorkspaceAbsolute(workspaceRoot, normalized.path);
+    if (!resolved.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, resolved.error));
+      return;
+    }
+
+    try {
+      await assertNoSymlinkChain(workspaceRoot, normalized.segments);
+
+      let created = false;
+      try {
+        const st = await fs.lstat(resolved.abs);
+        if (st.isSymbolicLink()) {
+          respond(
+            false,
+            undefined,
+            errorShape(ErrorCodes.INVALID_REQUEST, "symlinks not supported"),
+          );
+          return;
+        }
+        if (st.isDirectory()) {
+          respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "path is a directory"));
+          return;
+        }
+      } catch (err) {
+        const code = (err as { code?: unknown } | null)?.code;
+        if (code === "ENOENT") {
+          created = true;
+        } else {
+          throw err;
+        }
+      }
+
+      if (p.createDirs || created) {
+        await fs.mkdir(path.dirname(resolved.abs), { recursive: true });
+      }
+
+      await fs.writeFile(resolved.abs, content, "utf-8");
+
+      const result: WorkspaceWriteResult = {
+        path: normalized.path,
+        sizeBytes: contentBytes,
+        created,
+      };
+      respond(true, result, undefined);
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, toSafeWorkspaceError(err, "workspace.write failed")),
+      );
+    }
+  },
+  "workspace.delete": async ({ params, respond }) => {
+    if (!validateWorkspaceDeleteParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid workspace.delete params: ${formatValidationErrors(validateWorkspaceDeleteParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const p = params;
+    const agentId = String(p.agentId ?? "").trim();
+    const normalized = normalizeWorkspacePath(String(p.path ?? ""), {
+      allowedRoots: WRITABLE_ROOTS,
+    });
+    if (!agentId) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "agentId required"));
+      return;
+    }
+    if (!normalized.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, normalized.error));
+      return;
+    }
+
+    // Disallow deleting root directories themselves
+    if (normalized.segments.length <= 1) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "cannot delete root directory"),
+      );
+      return;
+    }
+
+    const cfg = loadConfig();
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+    const workspaceRoot = path.resolve(workspaceDir);
+    const resolved = resolveWorkspaceAbsolute(workspaceRoot, normalized.path);
+    if (!resolved.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, resolved.error));
+      return;
+    }
+
+    try {
+      await assertNoSymlinkChain(workspaceRoot, normalized.segments);
+      const st = await fs.lstat(resolved.abs);
+      if (st.isSymbolicLink()) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "symlinks not supported"));
+        return;
+      }
+      if (!st.isFile()) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "can only delete files"));
+        return;
+      }
+
+      await fs.unlink(resolved.abs);
+
+      const result: WorkspaceDeleteResult = {
+        path: normalized.path,
+        deleted: true,
+      };
+      respond(true, result, undefined);
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          toSafeWorkspaceError(err, "workspace.delete failed"),
+        ),
+      );
+    }
+  },
+  "workspace.upload": async ({ params, respond }) => {
+    if (!validateWorkspaceUploadParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid workspace.upload params: ${formatValidationErrors(validateWorkspaceUploadParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const p = params;
+    const agentId = String(p.agentId ?? "").trim();
+    if (!agentId) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "agentId required"));
+      return;
+    }
+
+    const dirNormalized = normalizeWorkspacePath(String(p.dir ?? ""), {
+      allowedRoots: new Set(["images"]),
+    });
+    if (!dirNormalized.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, dirNormalized.error));
+      return;
+    }
+
+    const fileName = String(p.fileName ?? "").trim();
+    if (!fileName || fileName.includes("/") || fileName.includes("\\")) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid fileName"));
+      return;
+    }
+    if (fileName.startsWith(".") || fileName === "." || fileName === "..") {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid fileName"));
+      return;
+    }
+
+    const ext = path.extname(fileName).toLowerCase();
+    if (!IMAGE_EXTENSIONS.has(ext)) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `unsupported image type: ${ext || "(none)"}`),
+      );
+      return;
+    }
+
+    let buf: Buffer;
+    try {
+      buf = Buffer.from(String(p.content ?? ""), "base64");
+    } catch {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid base64 content"));
+      return;
+    }
+
+    if (buf.length > MAX_UPLOAD_BYTES) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `upload exceeds ${MAX_UPLOAD_BYTES} byte limit`),
+      );
+      return;
+    }
+
+    const filePath = `${dirNormalized.path}/${fileName}`;
+    const fileNormalized = normalizeWorkspacePath(filePath);
+    if (!fileNormalized.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, fileNormalized.error));
+      return;
+    }
+
+    const cfg = loadConfig();
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+    const workspaceRoot = path.resolve(workspaceDir);
+    const resolved = resolveWorkspaceAbsolute(workspaceRoot, fileNormalized.path);
+    if (!resolved.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, resolved.error));
+      return;
+    }
+
+    try {
+      await fs.mkdir(path.dirname(resolved.abs), { recursive: true });
+      await fs.writeFile(resolved.abs, buf);
+
+      const mimeType =
+        typeof p.mimeType === "string" && p.mimeType.trim()
+          ? p.mimeType.trim()
+          : (CONTENT_TYPES_BY_EXT[ext] ?? "application/octet-stream");
+
+      const result: WorkspaceUploadResult = {
+        path: fileNormalized.path,
+        sizeBytes: buf.length,
+        mimeType,
+      };
+      respond(true, result, undefined);
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          toSafeWorkspaceError(err, "workspace.upload failed"),
+        ),
       );
     }
   },

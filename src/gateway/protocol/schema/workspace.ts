@@ -50,3 +50,58 @@ export const WorkspaceReadResultSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+export const WorkspaceWriteParamsSchema = Type.Object(
+  {
+    agentId: NonEmptyString,
+    path: NonEmptyString,
+    content: Type.String({ maxLength: 500_000 }),
+    createDirs: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+export const WorkspaceWriteResultSchema = Type.Object(
+  {
+    path: NonEmptyString,
+    sizeBytes: Type.Integer({ minimum: 0 }),
+    created: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+
+export const WorkspaceDeleteParamsSchema = Type.Object(
+  {
+    agentId: NonEmptyString,
+    path: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const WorkspaceDeleteResultSchema = Type.Object(
+  {
+    path: NonEmptyString,
+    deleted: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+
+export const WorkspaceUploadParamsSchema = Type.Object(
+  {
+    agentId: NonEmptyString,
+    dir: NonEmptyString,
+    fileName: NonEmptyString,
+    content: Type.String(),
+    mimeType: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const WorkspaceUploadResultSchema = Type.Object(
+  {
+    path: NonEmptyString,
+    sizeBytes: Type.Integer({ minimum: 0 }),
+    mimeType: NonEmptyString,
+  },
+  { additionalProperties: false },
+);

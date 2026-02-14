@@ -122,7 +122,7 @@ describe("workspace.*", () => {
   it("returns UNSUPPORTED for disallowed file types", async () => {
     const respond = vi.fn();
     await workspaceHandlers["workspace.read"]({
-      params: { agentId: "main", path: "notes/image.png", maxBytes: 10 },
+      params: { agentId: "main", path: "notes/archive.zip", maxBytes: 10 },
       respond,
       context: {} as unknown as WorkspaceReadHandlerArgs["context"],
       client: null,

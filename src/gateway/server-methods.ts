@@ -10,6 +10,7 @@ import { chatHandlers } from "./server-methods/chat.js";
 import { configHandlers } from "./server-methods/config.js";
 import { connectHandlers } from "./server-methods/connect.js";
 import { cronHandlers } from "./server-methods/cron.js";
+import { dataHandlers } from "./server-methods/data.js";
 import { deviceHandlers } from "./server-methods/devices.js";
 import { doctorHandlers } from "./server-methods/doctor.js";
 import { execApprovalsHandlers } from "./server-methods/exec-approvals.js";
@@ -104,6 +105,9 @@ const WRITE_METHODS = new Set([
   "chat.send",
   "chat.abort",
   "browser.request",
+  "workspace.write",
+  "workspace.delete",
+  "workspace.upload",
 ]);
 
 function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["client"]) {
@@ -156,6 +160,7 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
   }
   if (
     method.startsWith("config.") ||
+    method.startsWith("data.") ||
     method.startsWith("wizard.") ||
     method.startsWith("update.") ||
     method === "gateway.restart" ||
@@ -198,6 +203,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...modelsHandlers,
   ...doctorHandlers,
   ...configHandlers,
+  ...dataHandlers,
   ...wizardHandlers,
   ...talkHandlers,
   ...ttsHandlers,

@@ -114,6 +114,10 @@ import {
   DoctorFixParamsSchema,
   type DoctorFixResult,
   DoctorFixResultSchema,
+  type DataImportApplyParams,
+  DataImportApplyParamsSchema,
+  type DataImportCancelParams,
+  DataImportCancelParamsSchema,
   type DoctorIssue,
   DoctorIssueSchema,
   type ConfigPatchParams,
@@ -281,6 +285,18 @@ import {
   WorkspaceReadParamsSchema,
   type WorkspaceReadResult,
   WorkspaceReadResultSchema,
+  type WorkspaceWriteParams,
+  WorkspaceWriteParamsSchema,
+  type WorkspaceWriteResult,
+  WorkspaceWriteResultSchema,
+  type WorkspaceDeleteParams,
+  WorkspaceDeleteParamsSchema,
+  type WorkspaceDeleteResult,
+  WorkspaceDeleteResultSchema,
+  type WorkspaceUploadParams,
+  WorkspaceUploadParamsSchema,
+  type WorkspaceUploadResult,
+  WorkspaceUploadResultSchema,
   type WizardCancelParams,
   WizardCancelParamsSchema,
   type WizardCurrentParams,
@@ -400,6 +416,12 @@ export const validateGatewayRestartParams = ajv.compile<GatewayRestartParams>(
 export const validateConfigSchemaParams = ajv.compile<ConfigSchemaParams>(ConfigSchemaParamsSchema);
 export const validateDoctorPlanParams = ajv.compile<DoctorPlanParams>(DoctorPlanParamsSchema);
 export const validateDoctorFixParams = ajv.compile<DoctorFixParams>(DoctorFixParamsSchema);
+export const validateDataImportApplyParams = ajv.compile<DataImportApplyParams>(
+  DataImportApplyParamsSchema,
+);
+export const validateDataImportCancelParams = ajv.compile<DataImportCancelParams>(
+  DataImportCancelParamsSchema,
+);
 export const validateWizardStartParams = ajv.compile<WizardStartParams>(WizardStartParamsSchema);
 export const validateWizardNextParams = ajv.compile<WizardNextParams>(WizardNextParamsSchema);
 export const validateWizardCancelParams = ajv.compile<WizardCancelParams>(WizardCancelParamsSchema);
@@ -500,6 +522,15 @@ export const validateWorkspaceListParams =
   ajv.compile<WorkspaceListParams>(WorkspaceListParamsSchema);
 export const validateWorkspaceReadParams =
   ajv.compile<WorkspaceReadParams>(WorkspaceReadParamsSchema);
+export const validateWorkspaceWriteParams = ajv.compile<WorkspaceWriteParams>(
+  WorkspaceWriteParamsSchema,
+);
+export const validateWorkspaceDeleteParams = ajv.compile<WorkspaceDeleteParams>(
+  WorkspaceDeleteParamsSchema,
+);
+export const validateWorkspaceUploadParams = ajv.compile<WorkspaceUploadParams>(
+  WorkspaceUploadParamsSchema,
+);
 
 export function formatValidationErrors(errors: ErrorObject[] | null | undefined) {
   if (!errors?.length) {
@@ -582,6 +613,8 @@ export {
   DoctorPlanResultSchema,
   DoctorFixParamsSchema,
   DoctorFixResultSchema,
+  DataImportApplyParamsSchema,
+  DataImportCancelParamsSchema,
   AuthFlowListParamsSchema,
   AuthFlowListResultSchema,
   AuthFlowStartParamsSchema,
@@ -619,6 +652,12 @@ export {
   WorkspaceListResultSchema,
   WorkspaceReadParamsSchema,
   WorkspaceReadResultSchema,
+  WorkspaceWriteParamsSchema,
+  WorkspaceWriteResultSchema,
+  WorkspaceDeleteParamsSchema,
+  WorkspaceDeleteResultSchema,
+  WorkspaceUploadParamsSchema,
+  WorkspaceUploadResultSchema,
   AgentSummarySchema,
   AgentsFileEntrySchema,
   AgentsCreateParamsSchema,
@@ -698,6 +737,8 @@ export type {
   DoctorPlanResult,
   DoctorFixParams,
   DoctorFixResult,
+  DataImportApplyParams,
+  DataImportCancelParams,
   AuthFlowListParams,
   AuthFlowListResult,
   AuthFlowStartParams,
@@ -752,6 +793,12 @@ export type {
   WorkspaceListResult,
   WorkspaceReadParams,
   WorkspaceReadResult,
+  WorkspaceWriteParams,
+  WorkspaceWriteResult,
+  WorkspaceDeleteParams,
+  WorkspaceDeleteResult,
+  WorkspaceUploadParams,
+  WorkspaceUploadResult,
   SkillsStatusParams,
   SkillsBinsParams,
   SkillsBinsResult,

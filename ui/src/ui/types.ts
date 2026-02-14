@@ -998,3 +998,20 @@ export type WorkspaceReadResult = {
   truncated: boolean;
   content: string;
 };
+
+export type WorkspaceWriteResult = {
+  path: string;
+  sizeBytes: number;
+  created: boolean;
+};
+
+export type WorkspaceDeleteResult = {
+  path: string;
+  deleted: boolean;
+};
+
+export type WorkspaceUploadResult = {
+  path: string;
+  sizeBytes: number;
+  mimeType: string;
+};

@@ -91,6 +91,12 @@ import type {
   CronUpdateParamsSchema,
 } from "./cron.js";
 import type {
+  DataImportApplyParamsSchema,
+  DataImportApplyResultSchema,
+  DataImportCancelParamsSchema,
+  DataImportCancelResultSchema,
+} from "./data.js";
+import type {
   DevicePairApproveParamsSchema,
   DevicePairListParamsSchema,
   DevicePairRejectParamsSchema,
@@ -184,6 +190,12 @@ import type {
   WorkspaceListResultSchema,
   WorkspaceReadParamsSchema,
   WorkspaceReadResultSchema,
+  WorkspaceWriteParamsSchema,
+  WorkspaceWriteResultSchema,
+  WorkspaceDeleteParamsSchema,
+  WorkspaceDeleteResultSchema,
+  WorkspaceUploadParamsSchema,
+  WorkspaceUploadResultSchema,
 } from "./workspace.js";
 
 export type ConnectParams = Static<typeof ConnectParamsSchema>;
@@ -249,6 +261,10 @@ export type DoctorIssue = Static<typeof DoctorIssueSchema>;
 export type DoctorPlanResult = Static<typeof DoctorPlanResultSchema>;
 export type DoctorFixParams = Static<typeof DoctorFixParamsSchema>;
 export type DoctorFixResult = Static<typeof DoctorFixResultSchema>;
+export type DataImportApplyParams = Static<typeof DataImportApplyParamsSchema>;
+export type DataImportApplyResult = Static<typeof DataImportApplyResultSchema>;
+export type DataImportCancelParams = Static<typeof DataImportCancelParamsSchema>;
+export type DataImportCancelResult = Static<typeof DataImportCancelResultSchema>;
 export type WizardStartParams = Static<typeof WizardStartParamsSchema>;
 export type WizardNextParams = Static<typeof WizardNextParamsSchema>;
 export type WizardCancelParams = Static<typeof WizardCancelParamsSchema>;
@@ -295,6 +311,12 @@ export type WorkspaceEntry = Static<typeof WorkspaceEntrySchema>;
 export type WorkspaceListResult = Static<typeof WorkspaceListResultSchema>;
 export type WorkspaceReadParams = Static<typeof WorkspaceReadParamsSchema>;
 export type WorkspaceReadResult = Static<typeof WorkspaceReadResultSchema>;
+export type WorkspaceWriteParams = Static<typeof WorkspaceWriteParamsSchema>;
+export type WorkspaceWriteResult = Static<typeof WorkspaceWriteResultSchema>;
+export type WorkspaceDeleteParams = Static<typeof WorkspaceDeleteParamsSchema>;
+export type WorkspaceDeleteResult = Static<typeof WorkspaceDeleteResultSchema>;
+export type WorkspaceUploadParams = Static<typeof WorkspaceUploadParamsSchema>;
+export type WorkspaceUploadResult = Static<typeof WorkspaceUploadResultSchema>;
 export type ModelChoice = Static<typeof ModelChoiceSchema>;
 export type ModelsListParams = Static<typeof ModelsListParamsSchema>;
 export type ModelsListResult = Static<typeof ModelsListResultSchema>;

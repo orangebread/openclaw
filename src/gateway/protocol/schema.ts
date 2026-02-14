@@ -4,6 +4,7 @@ export * from "./schema/auth-profiles.js";
 export * from "./schema/auth-flow.js";
 export * from "./schema/channels.js";
 export * from "./schema/config.js";
+export * from "./schema/data.js";
 export * from "./schema/doctor.js";
 export * from "./schema/cron.js";
 export * from "./schema/error-codes.js";

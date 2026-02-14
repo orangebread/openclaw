@@ -91,6 +91,12 @@ import {
   CronUpdateParamsSchema,
 } from "./cron.js";
 import {
+  DataImportApplyParamsSchema,
+  DataImportApplyResultSchema,
+  DataImportCancelParamsSchema,
+  DataImportCancelResultSchema,
+} from "./data.js";
+import {
   DevicePairApproveParamsSchema,
   DevicePairListParamsSchema,
   DevicePairRejectParamsSchema,
@@ -188,6 +194,12 @@ import {
   WorkspaceListResultSchema,
   WorkspaceReadParamsSchema,
   WorkspaceReadResultSchema,
+  WorkspaceWriteParamsSchema,
+  WorkspaceWriteResultSchema,
+  WorkspaceDeleteParamsSchema,
+  WorkspaceDeleteResultSchema,
+  WorkspaceUploadParamsSchema,
+  WorkspaceUploadResultSchema,
 } from "./workspace.js";
 
 export const ProtocolSchemas: Record<string, TSchema> = {
@@ -256,6 +268,10 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   DoctorPlanResult: DoctorPlanResultSchema,
   DoctorFixParams: DoctorFixParamsSchema,
   DoctorFixResult: DoctorFixResultSchema,
+  DataImportApplyParams: DataImportApplyParamsSchema,
+  DataImportApplyResult: DataImportApplyResultSchema,
+  DataImportCancelParams: DataImportCancelParamsSchema,
+  DataImportCancelResult: DataImportCancelResultSchema,
   WizardStartParams: WizardStartParamsSchema,
   WizardNextParams: WizardNextParamsSchema,
   WizardCancelParams: WizardCancelParamsSchema,
@@ -349,6 +365,12 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   WorkspaceListResult: WorkspaceListResultSchema,
   WorkspaceReadParams: WorkspaceReadParamsSchema,
   WorkspaceReadResult: WorkspaceReadResultSchema,
+  WorkspaceWriteParams: WorkspaceWriteParamsSchema,
+  WorkspaceWriteResult: WorkspaceWriteResultSchema,
+  WorkspaceDeleteParams: WorkspaceDeleteParamsSchema,
+  WorkspaceDeleteResult: WorkspaceDeleteResultSchema,
+  WorkspaceUploadParams: WorkspaceUploadParamsSchema,
+  WorkspaceUploadResult: WorkspaceUploadResultSchema,
 };
 
 export const PROTOCOL_VERSION = 3 as const;
