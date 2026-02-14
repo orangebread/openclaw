@@ -1,6 +1,8 @@
 import type { Command } from "commander";
 import { dashboardCommand } from "../../commands/dashboard.js";
 import { doctorCommand } from "../../commands/doctor.js";
+import { exportCommand } from "../../commands/export.js";
+import { importCommand } from "../../commands/import.js";
 import { resetCommand } from "../../commands/reset.js";
 import { uninstallCommand } from "../../commands/uninstall.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -103,6 +105,44 @@ export function registerMaintenanceCommands(program: Command) {
           workspace: Boolean(opts.workspace),
           app: Boolean(opts.app),
           all: Boolean(opts.all),
+          yes: Boolean(opts.yes),
+          nonInteractive: Boolean(opts.nonInteractive),
+          dryRun: Boolean(opts.dryRun),
+        });
+      });
+    });
+
+  program
+    .command("export")
+    .argument("[output]", "Output archive path")
+    .description("Export all config, workspaces, and sessions to a portable archive")
+    .option("--yes", "Skip confirmation prompts", false)
+    .option("--non-interactive", "Disable prompts (requires --yes)", false)
+    .option("--dry-run", "Show what would be exported", false)
+    .action(async (output: string | undefined, opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await exportCommand(defaultRuntime, {
+          output,
+          yes: Boolean(opts.yes),
+          nonInteractive: Boolean(opts.nonInteractive),
+          dryRun: Boolean(opts.dryRun),
+        });
+      });
+    });
+
+  program
+    .command("import")
+    .argument("<archive>", "Path to export archive")
+    .description("Import config, workspaces, and sessions from an export archive")
+    .option("--no-backup", "Skip backup of existing state", false)
+    .option("--yes", "Skip confirmation prompts", false)
+    .option("--non-interactive", "Disable prompts (requires --yes)", false)
+    .option("--dry-run", "Show what would be imported", false)
+    .action(async (archive: string, opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await importCommand(defaultRuntime, {
+          archive,
+          backup: opts.backup,
           yes: Boolean(opts.yes),
           nonInteractive: Boolean(opts.nonInteractive),
           dryRun: Boolean(opts.dryRun),
