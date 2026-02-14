@@ -4,7 +4,7 @@ import path from "node:path";
 import type { GatewayRequestHandlers } from "./types.js";
 import { resolveDefaultAgentWorkspaceDir } from "../../agents/workspace.js";
 import { collectWorkspaceDirs, isPathWithin } from "../../commands/cleanup-utils.js";
-import { dirExists, fileExists, rewriteConfigPaths } from "../../commands/export-import-utils.js";
+import { dirExists, rewriteConfigPaths } from "../../commands/export-import-utils.js";
 import { loadConfig, resolveConfigPath, resolveStateDir } from "../../config/config.js";
 import { resolveHomeDir } from "../../utils.js";
 import { getPendingUpload, removePendingUpload } from "../data-http.js";
