@@ -234,6 +234,54 @@ export function resolveSessionDisplayName(
   return key;
 }
 
+type AgentModelWriteTarget = {
+  path: Array<string | number>;
+  existing: unknown;
+};
+
+export function resolveAgentModelWriteTarget(
+  configForm: Record<string, unknown> | null,
+  agentId: string,
+  defaultAgentId: string | null,
+): AgentModelWriteTarget | null {
+  if (!configForm) {
+    return null;
+  }
+
+  const agents = (configForm as { agents?: unknown }).agents;
+  if (!agents || typeof agents !== "object" || Array.isArray(agents)) {
+    return null;
+  }
+
+  const agentConfig = agents as {
+    defaults?: { model?: unknown };
+    list?: Array<{ id?: string; model?: unknown }>;
+  };
+
+  if (defaultAgentId && agentId === defaultAgentId) {
+    return {
+      path: ["agents", "defaults", "model"],
+      existing: agentConfig.defaults?.model,
+    };
+  }
+
+  const list = agentConfig.list;
+  if (!Array.isArray(list)) {
+    return null;
+  }
+  const index = list.findIndex(
+    (entry) => entry && typeof entry.id === "string" && entry.id === agentId,
+  );
+  if (index < 0) {
+    return null;
+  }
+
+  return {
+    path: ["agents", "list", index, "model"],
+    existing: list[index]?.model,
+  };
+}
+
 function resolveSessionOptions(
   sessionKey: string,
   sessions: SessionsListResult | null,

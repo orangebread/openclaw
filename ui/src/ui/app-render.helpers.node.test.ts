@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionsListResult } from "./types.ts";
-import { resolveSessionDisplayName } from "./app-render.helpers.ts";
+import { resolveAgentModelWriteTarget, resolveSessionDisplayName } from "./app-render.helpers.ts";
 
 type SessionRow = SessionsListResult["sessions"][number];
 
@@ -75,5 +75,63 @@ describe("resolveSessionDisplayName", () => {
     expect(resolveSessionDisplayName("k", row({ key: "k", displayName: "  My Chat  " }))).toBe(
       "My Chat (k)",
     );
+  });
+});
+
+describe("resolveAgentModelWriteTarget", () => {
+  it("writes default agent model to agents.defaults.model", () => {
+    const target = resolveAgentModelWriteTarget(
+      {
+        agents: {
+          defaults: {
+            model: { primary: "openrouter/auto" },
+          },
+        },
+      },
+      "main",
+      "main",
+    );
+
+    expect(target).toEqual({
+      path: ["agents", "defaults", "model"],
+      existing: { primary: "openrouter/auto" },
+    });
+  });
+
+  it("writes non-default agent model to agents.list index", () => {
+    const target = resolveAgentModelWriteTarget(
+      {
+        agents: {
+          defaults: {
+            model: { primary: "openrouter/auto" },
+          },
+          list: [{ id: "worker", model: "anthropic/claude-sonnet-4-5" }],
+        },
+      },
+      "worker",
+      "main",
+    );
+
+    expect(target).toEqual({
+      path: ["agents", "list", 0, "model"],
+      existing: "anthropic/claude-sonnet-4-5",
+    });
+  });
+
+  it("returns null for non-default agent missing from agents.list", () => {
+    const target = resolveAgentModelWriteTarget(
+      {
+        agents: {
+          defaults: {
+            model: { primary: "openrouter/auto" },
+          },
+          list: [],
+        },
+      },
+      "worker",
+      "main",
+    );
+
+    expect(target).toBeNull();
   });
 });

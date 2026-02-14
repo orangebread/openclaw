@@ -549,31 +549,53 @@ function capitalizeProvider(provider: string): string {
 
 function buildAvailableProviders(
   catalogModels: ModelChoice[],
-  authProfiles: AuthProfileSummary[],
   configForm: Record<string, unknown> | null,
+  authProfiles: AuthProfileSummary[],
 ): string[] {
-  const now = Date.now();
-  const authenticatedProviders = new Set<string>();
-  if (Array.isArray(authProfiles) && authProfiles.length > 0) {
-    for (const p of authProfiles) {
-      const cooldown = p.cooldownUntil ?? 0;
-      const disabled = p.disabledUntil ?? 0;
-      if (Math.max(cooldown, disabled) <= now) {
-        authenticatedProviders.add(p.provider.toLowerCase());
+  // Start from providers that have configured credentials.
+  const credentialProviders = new Set<string>();
+  for (const profile of authProfiles) {
+    if (profile.provider) {
+      credentialProviders.add(profile.provider.toLowerCase());
+    }
+  }
+
+  // If credentials exist, restrict to those providers (from catalog + config).
+  // If no credentials exist at all, fall back to showing all catalog providers
+  // so the UI isn't empty before any credentials are added.
+  if (credentialProviders.size > 0) {
+    const providerSet = new Set<string>();
+
+    for (const entry of catalogModels) {
+      const provider = entry.provider.toLowerCase();
+      if (credentialProviders.has(provider)) {
+        providerSet.add(provider);
       }
     }
+
+    // Include providers from configured models only if they have credentials.
+    const configured = resolveConfiguredModels(configForm);
+    for (const option of configured) {
+      const provider = extractProviderFromModel(option.value);
+      if (provider && credentialProviders.has(provider.toLowerCase())) {
+        providerSet.add(provider.toLowerCase());
+      }
+    }
+
+    // Also include credential providers even if no catalog models exist for them
+    // (user may have added a custom provider key).
+    for (const cp of credentialProviders) {
+      providerSet.add(cp);
+    }
+
+    return Array.from(providerSet).toSorted();
   }
 
+  // Fallback: no credentials configured yet — show all catalog providers.
   const providerSet = new Set<string>();
   for (const entry of catalogModels) {
-    const provider = entry.provider.toLowerCase();
-    if (authenticatedProviders.size > 0 && !authenticatedProviders.has(provider)) {
-      continue;
-    }
-    providerSet.add(provider);
+    providerSet.add(entry.provider.toLowerCase());
   }
-
-  // Include providers from configured models.
   const configured = resolveConfiguredModels(configForm);
   for (const option of configured) {
     const provider = extractProviderFromModel(option.value);
@@ -581,7 +603,6 @@ function buildAvailableProviders(
       providerSet.add(provider.toLowerCase());
     }
   }
-
   return Array.from(providerSet).toSorted();
 }
 
@@ -1196,7 +1217,7 @@ function renderAgentOverview(params: {
     : [];
 
   // Available providers for provider-first selection.
-  const availableProviders = buildAvailableProviders(catalogModels, authProfiles, configForm);
+  const availableProviders = buildAvailableProviders(catalogModels, configForm, authProfiles);
   // Ensure current provider is in the list (edge case: model from non-catalog provider).
   if (textProvider && !availableProviders.includes(textProvider.toLowerCase())) {
     availableProviders.unshift(textProvider.toLowerCase());
@@ -2708,6 +2729,10 @@ function renderAgentSkills(params: {
       )
     : rawSkills;
   const groups = groupSkills(filtered);
+  const activeSkills = rawSkills.filter((skill) => {
+    const enabled = usingAllowlist ? allowSet.has(skill.name) : true;
+    return enabled && skill.eligible;
+  });
   const enabledCount = usingAllowlist
     ? rawSkills.filter((skill) => allowSet.has(skill.name)).length
     : rawSkills.length;
@@ -2749,6 +2774,20 @@ function renderAgentSkills(params: {
           </button>
         </div>
       </div>
+
+      ${
+        activeSkills.length > 0
+          ? html`
+              <div class="chip-row" style="margin-top: 12px;">
+                ${activeSkills.map(
+                  (skill) => html`
+                    <span class="chip chip-ok">${skill.emoji ? `${skill.emoji} ` : ""}${skill.name}</span>
+                  `,
+                )}
+              </div>
+            `
+          : nothing
+      }
 
       ${
         !params.configForm
@@ -2830,9 +2869,8 @@ function renderAgentSkillGroup(
     onToggle: (agentId: string, skillName: string, enabled: boolean) => void;
   },
 ) {
-  const collapsedByDefault = group.id === "workspace" || group.id === "built-in";
   return html`
-    <details class="agent-skills-group" ?open=${!collapsedByDefault}>
+    <details class="agent-skills-group" open>
       <summary class="agent-skills-header">
         <span>${group.label}</span>
         <span class="muted">${group.skills.length}</span>

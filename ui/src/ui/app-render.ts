@@ -5,7 +5,12 @@ import type { UsageState } from "./controllers/usage.ts";
 import type { KnowledgeBaseProps } from "./views/knowledge-base.ts";
 import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 import { refreshChatAvatar } from "./app-chat.ts";
-import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
+import {
+  renderChatControls,
+  renderTab,
+  renderThemeToggle,
+  resolveAgentModelWriteTarget,
+} from "./app-render.helpers.ts";
 import { scheduleLogsScroll } from "./app-scroll.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
@@ -1344,30 +1349,20 @@ export function renderApp(state: AppViewState) {
                   updateConfigFormValue(state, ["agents", "list", index, "skills"], []);
                 },
                 onModelChange: (agentId, modelId) => {
-                  if (!configValue) {
-                    return;
-                  }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
-                  if (!Array.isArray(list)) {
-                    return;
-                  }
-                  const index = list.findIndex(
-                    (entry) =>
-                      entry &&
-                      typeof entry === "object" &&
-                      "id" in entry &&
-                      (entry as { id?: string }).id === agentId,
+                  const target = resolveAgentModelWriteTarget(
+                    configValue,
+                    agentId,
+                    state.agentsList?.defaultId ?? null,
                   );
-                  if (index < 0) {
+                  if (!target) {
                     return;
                   }
-                  const basePath = ["agents", "list", index, "model"];
+                  const basePath = target.path;
                   if (!modelId) {
                     removeConfigFormValue(state, basePath);
                     return;
                   }
-                  const entry = list[index] as { model?: unknown };
-                  const existing = entry?.model;
+                  const existing = target.existing;
                   if (existing && typeof existing === "object" && !Array.isArray(existing)) {
                     const fallbacks = (existing as { fallbacks?: unknown }).fallbacks;
                     const next = {
@@ -1380,27 +1375,17 @@ export function renderApp(state: AppViewState) {
                   }
                 },
                 onModelFallbacksChange: (agentId, fallbacks) => {
-                  if (!configValue) {
-                    return;
-                  }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
-                  if (!Array.isArray(list)) {
-                    return;
-                  }
-                  const index = list.findIndex(
-                    (entry) =>
-                      entry &&
-                      typeof entry === "object" &&
-                      "id" in entry &&
-                      (entry as { id?: string }).id === agentId,
+                  const target = resolveAgentModelWriteTarget(
+                    configValue,
+                    agentId,
+                    state.agentsList?.defaultId ?? null,
                   );
-                  if (index < 0) {
+                  if (!target) {
                     return;
                   }
-                  const basePath = ["agents", "list", index, "model"];
-                  const entry = list[index] as { model?: unknown };
+                  const basePath = target.path;
                   const normalized = fallbacks.map((name) => name.trim()).filter(Boolean);
-                  const existing = entry.model;
+                  const existing = target.existing;
                   const resolvePrimary = () => {
                     if (typeof existing === "string") {
                       return existing.trim() || null;
