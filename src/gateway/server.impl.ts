@@ -157,6 +157,41 @@ export type GatewayServerOptions = {
   ) => Promise<void>;
 };
 
+/**
+ * If the gateway auth token was resolved from an env var (e.g. launchd
+ * `OPENCLAW_GATEWAY_TOKEN`) but is not present in the config file, persist
+ * it so that all consumers — browser Control UI, CLI tools, UI form — can
+ * access the token without relying on process-level env inheritance.
+ */
+async function persistEnvGatewayTokenIfMissing(
+  logger: ReturnType<typeof createSubsystemLogger>,
+): Promise<void> {
+  const envToken = process.env.OPENCLAW_GATEWAY_TOKEN ?? process.env.CLAWDBOT_GATEWAY_TOKEN;
+  if (!envToken) {
+    return;
+  }
+  try {
+    const snapshot = await readConfigFileSnapshot();
+    const configToken = snapshot.config?.gateway?.auth?.token;
+    if (configToken) {
+      return; // config already has a token
+    }
+    await writeConfigFile({
+      ...snapshot.config,
+      gateway: {
+        ...snapshot.config?.gateway,
+        auth: {
+          ...snapshot.config?.gateway?.auth,
+          token: envToken,
+        },
+      },
+    });
+    logger.info("gateway: persisted auth token from environment to config");
+  } catch (err) {
+    logger.warn(`gateway: failed to persist auth token to config: ${String(err)}`);
+  }
+}
+
 export async function startGatewayServer(
   port = 18789,
   opts: GatewayServerOptions = {},
@@ -221,6 +256,11 @@ export async function startGatewayServer(
       log.warn(`gateway: failed to persist plugin auto-enable changes: ${String(err)}`);
     }
   }
+
+  // Persist env-resolved gateway auth token to config if missing.
+  // Prevents desync between launchd env vars and the config file so that
+  // all consumers (browser UI, CLI tools) can access the token.
+  await persistEnvGatewayTokenIfMissing(log);
 
   const cfgAtStart = loadConfig();
   const diagnosticsEnabled = isDiagnosticsEnabled(cfgAtStart);

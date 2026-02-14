@@ -1,11 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { GatewayRequestHandlers } from "./types.js";
-import {
-  listAgentIds,
-  resolveAgentDir,
-  resolveAgentWorkspaceDir,
-} from "../../agents/agent-scope.js";
+import { resolveAgentDir, resolveAgentWorkspaceDir } from "../../agents/agent-scope.js";
 import {
   DEFAULT_AGENTS_FILENAME,
   DEFAULT_BOOTSTRAP_FILENAME,
@@ -133,8 +129,9 @@ async function listAgentFiles(workspaceDir: string) {
 
 function resolveAgentIdOrError(agentIdRaw: string, cfg: ReturnType<typeof loadConfig>) {
   const agentId = normalizeAgentId(agentIdRaw);
-  const allowed = new Set(listAgentIds(cfg));
-  if (!allowed.has(agentId)) {
+  // Check both config entries and disk-discovered agents (the UI lists both).
+  const known = listAgentsForGateway(cfg);
+  if (!known.agents.some((a) => a.id === agentId)) {
     return null;
   }
   return agentId;
@@ -271,7 +268,9 @@ export const agentsHandlers: GatewayRequestHandlers = {
 
     const cfg = loadConfig();
     const agentId = normalizeAgentId(String(params.agentId ?? ""));
-    if (findAgentEntryIndex(listAgentEntries(cfg), agentId) < 0) {
+    // Check both config entries and disk-discovered agents (the UI lists both).
+    const knownAgents = listAgentsForGateway(cfg);
+    if (!knownAgents.agents.some((a) => a.id === agentId)) {
       respond(
         false,
         undefined,
@@ -338,7 +337,9 @@ export const agentsHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    if (findAgentEntryIndex(listAgentEntries(cfg), agentId) < 0) {
+    // Check both config entries and disk-discovered agents (the UI lists both).
+    const knownAgents = listAgentsForGateway(cfg);
+    if (!knownAgents.agents.some((a) => a.id === agentId)) {
       respond(
         false,
         undefined,
@@ -351,16 +352,15 @@ export const agentsHandlers: GatewayRequestHandlers = {
     const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
     const agentDir = resolveAgentDir(cfg, agentId);
     const sessionsDir = resolveSessionTranscriptsDirForAgent(agentId);
+    const agentRootDir = path.dirname(sessionsDir);
 
     const result = pruneAgentConfig(cfg, agentId);
     await writeConfigFile(result.config);
 
     if (deleteFiles) {
-      await Promise.all([
-        moveToTrashBestEffort(workspaceDir),
-        moveToTrashBestEffort(agentDir),
-        moveToTrashBestEffort(sessionsDir),
-      ]);
+      for (const target of [workspaceDir, agentDir, sessionsDir, agentRootDir]) {
+        await moveToTrashBestEffort(target);
+      }
     }
 
     respond(true, { ok: true, agentId, removedBindings: result.removedBindings }, undefined);

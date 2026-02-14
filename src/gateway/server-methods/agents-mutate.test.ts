@@ -242,6 +242,12 @@ describe("agents.update", () => {
     mocks.loadConfigReturn = {};
     mocks.findAgentEntryIndex.mockReturnValue(0);
     mocks.applyAgentConfig.mockImplementation((_cfg, _opts) => ({}));
+    mocks.listAgentsForGateway.mockReturnValue({
+      defaultId: "main",
+      mainKey: "agent:main:main",
+      scope: "global",
+      agents: [{ id: "main" }, { id: "test-agent" }],
+    });
   });
 
   it("updates an existing agent successfully", async () => {
@@ -256,7 +262,12 @@ describe("agents.update", () => {
   });
 
   it("rejects updating a nonexistent agent", async () => {
-    mocks.findAgentEntryIndex.mockReturnValue(-1);
+    mocks.listAgentsForGateway.mockReturnValue({
+      defaultId: "main",
+      mainKey: "agent:main:main",
+      scope: "global",
+      agents: [{ id: "main" }],
+    });
 
     const { respond, promise } = makeCall("agents.update", {
       agentId: "nonexistent",
@@ -298,6 +309,12 @@ describe("agents.delete", () => {
     mocks.loadConfigReturn = {};
     mocks.findAgentEntryIndex.mockReturnValue(0);
     mocks.pruneAgentConfig.mockReturnValue({ config: {}, removedBindings: 2 });
+    mocks.listAgentsForGateway.mockReturnValue({
+      defaultId: "main",
+      mainKey: "agent:main:main",
+      scope: "global",
+      agents: [{ id: "main" }, { id: "test-agent" }],
+    });
   });
 
   it("deletes an existing agent and trashes files by default", async () => {
@@ -314,6 +331,22 @@ describe("agents.delete", () => {
     expect(mocks.writeConfigFile).toHaveBeenCalled();
     // moveToTrashBestEffort calls fs.access then movePathToTrash for each dir
     expect(mocks.movePathToTrash).toHaveBeenCalled();
+    expect(mocks.movePathToTrash).toHaveBeenCalledWith("/transcripts");
+  });
+
+  it("deletes disk-discovered agents even when not present in config list", async () => {
+    mocks.pruneAgentConfig.mockReturnValue({ config: {}, removedBindings: 0 });
+
+    const { respond, promise } = makeCall("agents.delete", {
+      agentId: "test-agent",
+    });
+    await promise;
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      { ok: true, agentId: "test-agent", removedBindings: 0 },
+      undefined,
+    );
   });
 
   it("skips file deletion when deleteFiles is false", async () => {
@@ -345,7 +378,12 @@ describe("agents.delete", () => {
   });
 
   it("rejects deleting a nonexistent agent", async () => {
-    mocks.findAgentEntryIndex.mockReturnValue(-1);
+    mocks.listAgentsForGateway.mockReturnValue({
+      defaultId: "main",
+      mainKey: "agent:main:main",
+      scope: "global",
+      agents: [{ id: "main" }],
+    });
 
     const { respond, promise } = makeCall("agents.delete", {
       agentId: "ghost",

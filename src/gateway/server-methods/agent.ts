@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import type { GatewayRequestHandlers } from "./types.js";
-import { listAgentIds } from "../../agents/agent-scope.js";
 import { agentCommand } from "../../commands/agent.js";
 import { loadConfig } from "../../config/config.js";
 import {
@@ -38,7 +37,7 @@ import {
   validateAgentParams,
   validateAgentWaitParams,
 } from "../protocol/index.js";
-import { loadSessionEntry } from "../session-utils.js";
+import { listAgentsForGateway, loadSessionEntry } from "../session-utils.js";
 import { formatForLog } from "../ws-log.js";
 import { waitForAgentJob } from "./agent-job.js";
 import { injectTimestamp, timestampOptsFromConfig } from "./agent-timestamp.js";
@@ -171,8 +170,9 @@ export const agentHandlers: GatewayRequestHandlers = {
     const agentIdRaw = typeof request.agentId === "string" ? request.agentId.trim() : "";
     const agentId = agentIdRaw ? normalizeAgentId(agentIdRaw) : undefined;
     if (agentId) {
-      const knownAgents = listAgentIds(cfg);
-      if (!knownAgents.includes(agentId)) {
+      // Check both config entries and disk-discovered agents (the UI lists both).
+      const known = listAgentsForGateway(cfg);
+      if (!known.agents.some((a) => a.id === agentId)) {
         respond(
           false,
           undefined,

@@ -1,10 +1,6 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import type { GatewayRequestHandlers } from "./types.js";
-import {
-  listAgentIds,
-  resolveAgentWorkspaceDir,
-  resolveDefaultAgentId,
-} from "../../agents/agent-scope.js";
+import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { installSkill } from "../../agents/skills-install.js";
 import { buildWorkspaceSkillStatus } from "../../agents/skills-status.js";
 import { loadWorkspaceSkillEntries, type SkillEntry } from "../../agents/skills.js";
@@ -21,6 +17,7 @@ import {
   validateSkillsStatusParams,
   validateSkillsUpdateParams,
 } from "../protocol/index.js";
+import { listAgentsForGateway } from "../session-utils.js";
 
 function listWorkspaceDirs(cfg: OpenClawConfig): string[] {
   const dirs = new Set<string>();
@@ -84,8 +81,9 @@ export const skillsHandlers: GatewayRequestHandlers = {
     const agentIdRaw = typeof params?.agentId === "string" ? params.agentId.trim() : "";
     const agentId = agentIdRaw ? normalizeAgentId(agentIdRaw) : resolveDefaultAgentId(cfg);
     if (agentIdRaw) {
-      const knownAgents = listAgentIds(cfg);
-      if (!knownAgents.includes(agentId)) {
+      // Check both config entries and disk-discovered agents (the UI lists both).
+      const known = listAgentsForGateway(cfg);
+      if (!known.agents.some((a) => a.id === agentId)) {
         respond(
           false,
           undefined,
