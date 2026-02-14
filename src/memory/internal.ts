@@ -51,7 +51,16 @@ export function isMemoryPath(relPath: string): boolean {
   if (normalized === "MEMORY.md" || normalized === "memory.md") {
     return true;
   }
-  return normalized.startsWith("memory/");
+  if (normalized.startsWith("memory/")) {
+    return true;
+  }
+  if (normalized.startsWith("notes/")) {
+    return true;
+  }
+  if (normalized.startsWith("links/")) {
+    return true;
+  }
+  return false;
 }
 
 async function walkDir(dir: string, files: string[]) {
@@ -99,12 +108,18 @@ export async function listMemoryFiles(
 
   await addMarkdownFile(memoryFile);
   await addMarkdownFile(altMemoryFile);
-  try {
-    const dirStat = await fs.lstat(memoryDir);
-    if (!dirStat.isSymbolicLink() && dirStat.isDirectory()) {
-      await walkDir(memoryDir, result);
-    }
-  } catch {}
+  for (const subDir of [
+    memoryDir,
+    path.join(workspaceDir, "notes"),
+    path.join(workspaceDir, "links"),
+  ]) {
+    try {
+      const dirStat = await fs.lstat(subDir);
+      if (!dirStat.isSymbolicLink() && dirStat.isDirectory()) {
+        await walkDir(subDir, result);
+      }
+    } catch {}
+  }
 
   const normalizedExtraPaths = normalizeExtraMemoryPaths(workspaceDir, extraPaths);
   if (normalizedExtraPaths.length > 0) {

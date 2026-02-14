@@ -841,6 +841,8 @@ export class MemoryIndexManager implements MemorySearchManager {
       path.join(this.workspaceDir, "MEMORY.md"),
       path.join(this.workspaceDir, "memory.md"),
       path.join(this.workspaceDir, "memory"),
+      path.join(this.workspaceDir, "notes"),
+      path.join(this.workspaceDir, "links"),
       ...additionalPaths,
     ]);
     this.watcher = chokidar.watch(Array.from(watchPaths), {
