@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { truncateUtf16Safe } from "../utils.js";
+import { bm25RankToScore as defaultBm25RankToScore } from "./hybrid.js";
 import { cosineSimilarity, parseEmbedding } from "./internal.js";
 
 const vectorToBlob = (embedding: number[]): Buffer =>
@@ -142,6 +143,7 @@ export async function searchKeyword(params: {
   snippetMaxChars: number;
   sourceFilter: { sql: string; params: SearchSource[] };
   buildFtsQuery: (raw: string) => string | null;
+  bm25RankToScore?: (rank: number) => number;
 }): Promise<Array<SearchRowResult & { textScore: number }>> {
   if (params.limit <= 0) {
     return [];
@@ -170,8 +172,12 @@ export async function searchKeyword(params: {
     rank: number;
   }>;
 
+  const bm25RankToScore = params.bm25RankToScore ?? defaultBm25RankToScore;
+
   return rows.map((row, index) => {
-    const textScore = 1 / (1 + index);
+    // SQLite FTS5's bm25() score is a floating-point weight (often negative).
+    // We want a stable reciprocal score by *rank order* instead.
+    const textScore = bm25RankToScore(index);
     return {
       id: row.id,
       path: row.path,

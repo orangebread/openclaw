@@ -27,7 +27,7 @@ describe("loadDotEnv", () => {
     delete process.env.FOO;
     delete process.env.BAR;
 
-    loadDotEnv({ quiet: true });
+    loadDotEnv({ quiet: true, skipCwd: false });
 
     expect(process.env.FOO).toBe("from-cwd");
     expect(process.env.BAR).toBe("1");
@@ -63,7 +63,7 @@ describe("loadDotEnv", () => {
 
     process.chdir(cwdDir);
 
-    loadDotEnv({ quiet: true });
+    loadDotEnv({ quiet: true, skipCwd: false });
 
     expect(process.env.FOO).toBe("from-shell");
 

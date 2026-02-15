@@ -7,32 +7,24 @@ import type { PluginCandidate } from "./discovery.js";
 import { loadPluginManifestRegistry } from "./manifest-registry.js";
 
 const tempDirs: string[] = [];
-const EMPTY_PLUGIN_SCHEMA = { type: "object", additionalProperties: false, properties: {} };
 
 function makeTempDir() {
-  const dir = path.join(os.tmpdir(), `openclaw-plugin-${randomUUID()}`);
+  const dir = path.join(os.tmpdir(), `openclaw-manifest-registry-${randomUUID()}`);
   fs.mkdirSync(dir, { recursive: true });
   tempDirs.push(dir);
   return dir;
 }
 
-function writeManifest(dir: string, id: string) {
-  fs.writeFileSync(
-    path.join(dir, "openclaw.plugin.json"),
-    JSON.stringify(
-      {
-        id,
-        configSchema: EMPTY_PLUGIN_SCHEMA,
-      },
-      null,
-      2,
-    ),
-    "utf-8",
-  );
+function writeManifest(dir: string, manifest: Record<string, unknown>) {
+  fs.writeFileSync(path.join(dir, "openclaw.plugin.json"), JSON.stringify(manifest), "utf-8");
 }
 
 afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop();
+    if (!dir) {
+      break;
+    }
     try {
       fs.rmSync(dir, { recursive: true, force: true });
     } catch {
@@ -42,83 +34,146 @@ afterEach(() => {
 });
 
 describe("loadPluginManifestRegistry", () => {
-  it("does not warn about duplicate ids for disabled-by-default candidates", () => {
-    const pluginId = "msteams";
-    const globalDir = makeTempDir();
-    const bundledDir = makeTempDir();
-    writeManifest(globalDir, pluginId);
-    writeManifest(bundledDir, pluginId);
+  it("emits duplicate warning for truly distinct plugins with same id", () => {
+    const dirA = makeTempDir();
+    const dirB = makeTempDir();
+    const manifest = { id: "test-plugin", configSchema: { type: "object" } };
+    writeManifest(dirA, manifest);
+    writeManifest(dirB, manifest);
 
     const candidates: PluginCandidate[] = [
       {
-        idHint: pluginId,
-        source: path.join(globalDir, "index.ts"),
-        rootDir: globalDir,
-        origin: "global",
+        idHint: "test-plugin",
+        source: path.join(dirA, "index.ts"),
+        rootDir: dirA,
+        origin: "bundled",
       },
       {
-        idHint: pluginId,
-        source: path.join(bundledDir, "index.ts"),
-        rootDir: bundledDir,
-        origin: "bundled",
+        idHint: "test-plugin",
+        source: path.join(dirB, "index.ts"),
+        rootDir: dirB,
+        origin: "global",
       },
     ];
 
     const registry = loadPluginManifestRegistry({
-      config: {},
       candidates,
-      diagnostics: [],
       cache: false,
     });
 
-    expect(
-      registry.diagnostics.some(
-        (d) => d.level === "warn" && d.message.includes("duplicate plugin id"),
-      ),
-    ).toBe(false);
+    const duplicateWarnings = registry.diagnostics.filter(
+      (d) => d.level === "warn" && d.message?.includes("duplicate plugin id"),
+    );
+    expect(duplicateWarnings.length).toBe(1);
   });
 
-  it("warns about duplicate ids when the later candidate would be enabled", () => {
-    const pluginId = "msteams";
-    const globalDir = makeTempDir();
-    const bundledDir = makeTempDir();
-    writeManifest(globalDir, pluginId);
-    writeManifest(bundledDir, pluginId);
+  it("suppresses duplicate warning when candidates share the same physical directory via symlink", () => {
+    const realDir = makeTempDir();
+    const manifest = { id: "feishu", configSchema: { type: "object" } };
+    writeManifest(realDir, manifest);
+
+    // Create a symlink pointing to the same directory
+    const symlinkParent = makeTempDir();
+    const symlinkPath = path.join(symlinkParent, "feishu-link");
+    try {
+      fs.symlinkSync(realDir, symlinkPath, "junction");
+    } catch {
+      // On systems where symlinks are not supported (e.g. restricted Windows),
+      // skip this test gracefully.
+      return;
+    }
 
     const candidates: PluginCandidate[] = [
       {
-        idHint: pluginId,
-        source: path.join(globalDir, "index.ts"),
-        rootDir: globalDir,
-        origin: "global",
+        idHint: "feishu",
+        source: path.join(realDir, "index.ts"),
+        rootDir: realDir,
+        origin: "bundled",
       },
       {
-        idHint: pluginId,
-        source: path.join(bundledDir, "index.ts"),
-        rootDir: bundledDir,
+        idHint: "feishu",
+        source: path.join(symlinkPath, "index.ts"),
+        rootDir: symlinkPath,
         origin: "bundled",
       },
     ];
 
     const registry = loadPluginManifestRegistry({
-      config: {
-        plugins: {
-          entries: {
-            [pluginId]: {
-              enabled: true,
-            },
-          },
-        },
-      },
       candidates,
-      diagnostics: [],
       cache: false,
     });
 
-    expect(
-      registry.diagnostics.some(
-        (d) => d.level === "warn" && d.message.includes("duplicate plugin id"),
-      ),
-    ).toBe(true);
+    const duplicateWarnings = registry.diagnostics.filter(
+      (d) => d.level === "warn" && d.message?.includes("duplicate plugin id"),
+    );
+    expect(duplicateWarnings.length).toBe(0);
+  });
+
+  it("suppresses duplicate warning when candidates have identical rootDir paths", () => {
+    const dir = makeTempDir();
+    const manifest = { id: "same-path-plugin", configSchema: { type: "object" } };
+    writeManifest(dir, manifest);
+
+    const candidates: PluginCandidate[] = [
+      {
+        idHint: "same-path-plugin",
+        source: path.join(dir, "a.ts"),
+        rootDir: dir,
+        origin: "bundled",
+      },
+      {
+        idHint: "same-path-plugin",
+        source: path.join(dir, "b.ts"),
+        rootDir: dir,
+        origin: "global",
+      },
+    ];
+
+    const registry = loadPluginManifestRegistry({
+      candidates,
+      cache: false,
+    });
+
+    const duplicateWarnings = registry.diagnostics.filter(
+      (d) => d.level === "warn" && d.message?.includes("duplicate plugin id"),
+    );
+    expect(duplicateWarnings.length).toBe(0);
+  });
+
+  it("prefers higher-precedence origins for the same physical directory (config > workspace > global > bundled)", () => {
+    const dir = makeTempDir();
+    fs.mkdirSync(path.join(dir, "sub"), { recursive: true });
+    const manifest = { id: "precedence-plugin", configSchema: { type: "object" } };
+    writeManifest(dir, manifest);
+
+    // Use a different-but-equivalent path representation without requiring symlinks.
+    const altDir = path.join(dir, "sub", "..");
+
+    const candidates: PluginCandidate[] = [
+      {
+        idHint: "precedence-plugin",
+        source: path.join(dir, "index.ts"),
+        rootDir: dir,
+        origin: "bundled",
+      },
+      {
+        idHint: "precedence-plugin",
+        source: path.join(altDir, "index.ts"),
+        rootDir: altDir,
+        origin: "config",
+      },
+    ];
+
+    const registry = loadPluginManifestRegistry({
+      candidates,
+      cache: false,
+    });
+
+    const duplicateWarnings = registry.diagnostics.filter(
+      (d) => d.level === "warn" && d.message?.includes("duplicate plugin id"),
+    );
+    expect(duplicateWarnings.length).toBe(0);
+    expect(registry.plugins.length).toBe(1);
+    expect(registry.plugins[0]?.origin).toBe("config");
   });
 });

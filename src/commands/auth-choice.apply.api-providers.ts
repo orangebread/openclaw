@@ -6,6 +6,8 @@ import {
   normalizeApiKeyInput,
   validateApiKeyInput,
 } from "./auth-choice.api-key.js";
+import { applyAuthChoiceHuggingface } from "./auth-choice.apply.huggingface.js";
+import { applyAuthChoiceOpenRouter } from "./auth-choice.apply.openrouter.js";
 import { applyDefaultModelChoice } from "./auth-choice.default-model.js";
 import {
   applyGoogleGeminiModelDefault,
@@ -27,8 +29,6 @@ import {
   applyMoonshotProviderConfigCn,
   applyOpencodeZenConfig,
   applyOpencodeZenProviderConfig,
-  applyOpenrouterConfig,
-  applyOpenrouterProviderConfig,
   applySyntheticConfig,
   applySyntheticProviderConfig,
   applyTogetherConfig,
@@ -46,7 +46,6 @@ import {
   QIANFAN_DEFAULT_MODEL_REF,
   KIMI_CODING_MODEL_REF,
   MOONSHOT_DEFAULT_MODEL_REF,
-  OPENROUTER_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
   VENICE_DEFAULT_MODEL_REF,
@@ -59,7 +58,6 @@ import {
   setKimiCodingApiKey,
   setMoonshotApiKey,
   setOpencodeZenApiKey,
-  setOpenrouterApiKey,
   setSyntheticApiKey,
   setTogetherApiKey,
   setVeniceApiKey,
@@ -120,6 +118,8 @@ export async function applyAuthChoiceApiProviders(
       authChoice = "venice-api-key";
     } else if (params.opts.tokenProvider === "together") {
       authChoice = "together-api-key";
+    } else if (params.opts.tokenProvider === "huggingface") {
+      authChoice = "huggingface-api-key";
     } else if (params.opts.tokenProvider === "opencode") {
       authChoice = "opencode-zen";
     } else if (params.opts.tokenProvider === "qianfan") {
@@ -128,82 +128,7 @@ export async function applyAuthChoiceApiProviders(
   }
 
   if (authChoice === "openrouter-api-key") {
-    const store = ensureAuthProfileStore(params.agentDir, {
-      allowKeychainPrompt: false,
-    });
-    const profileOrder = resolveAuthProfileOrder({
-      cfg: nextConfig,
-      store,
-      provider: "openrouter",
-    });
-    const existingProfileId = profileOrder.find((profileId) => Boolean(store.profiles[profileId]));
-    const existingCred = existingProfileId ? store.profiles[existingProfileId] : undefined;
-    let profileId = "openrouter:default";
-    let mode: "api_key" | "oauth" | "token" = "api_key";
-    let hasCredential = false;
-
-    if (existingProfileId && existingCred?.type) {
-      profileId = existingProfileId;
-      mode =
-        existingCred.type === "oauth"
-          ? "oauth"
-          : existingCred.type === "token"
-            ? "token"
-            : "api_key";
-      hasCredential = true;
-    }
-
-    if (!hasCredential && params.opts?.token && params.opts?.tokenProvider === "openrouter") {
-      await setOpenrouterApiKey(normalizeApiKeyInput(params.opts.token), params.agentDir);
-      hasCredential = true;
-    }
-
-    if (!hasCredential) {
-      const envKey = resolveEnvApiKey("openrouter");
-      if (envKey) {
-        const useExisting = await params.prompter.confirm({
-          message: `Use existing OPENROUTER_API_KEY (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
-          initialValue: true,
-        });
-        if (useExisting) {
-          await setOpenrouterApiKey(envKey.apiKey, params.agentDir);
-          hasCredential = true;
-        }
-      }
-    }
-
-    if (!hasCredential) {
-      const key = await params.prompter.text({
-        message: "Enter OpenRouter API key",
-        validate: validateApiKeyInput,
-        sensitive: true,
-      });
-      await setOpenrouterApiKey(normalizeApiKeyInput(String(key ?? "")), params.agentDir);
-      hasCredential = true;
-    }
-
-    if (hasCredential) {
-      nextConfig = applyAuthProfileConfig(nextConfig, {
-        profileId,
-        provider: "openrouter",
-        mode,
-      });
-    }
-    {
-      const applied = await applyDefaultModelChoice({
-        config: nextConfig,
-        setDefaultModel: params.setDefaultModel,
-        defaultModel: OPENROUTER_DEFAULT_MODEL_REF,
-        applyDefaultConfig: applyOpenrouterConfig,
-        applyProviderConfig: applyOpenrouterProviderConfig,
-        noteDefault: OPENROUTER_DEFAULT_MODEL_REF,
-        noteAgentModel,
-        prompter: params.prompter,
-      });
-      nextConfig = applied.config;
-      agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
-    }
-    return { config: nextConfig, agentModelOverride };
+    return applyAuthChoiceOpenRouter(params);
   }
 
   if (authChoice === "litellm-api-key") {
@@ -296,7 +221,6 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Vercel AI Gateway API key",
         validate: validateApiKeyInput,
-        sensitive: true,
       });
       await setVercelAiGatewayApiKey(normalizeApiKeyInput(String(key ?? "")), params.agentDir);
     }
@@ -444,7 +368,6 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Moonshot API key",
         validate: validateApiKeyInput,
-        sensitive: true,
       });
       await setMoonshotApiKey(normalizeApiKeyInput(String(key ?? "")), params.agentDir);
     }
@@ -552,7 +475,6 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Kimi Coding API key",
         validate: validateApiKeyInput,
-        sensitive: true,
       });
       await setKimiCodingApiKey(normalizeApiKeyInput(String(key ?? "")), params.agentDir);
     }
@@ -601,7 +523,6 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Gemini API key",
         validate: validateApiKeyInput,
-        sensitive: true,
       });
       await setGeminiApiKey(normalizeApiKeyInput(String(key ?? "")), params.agentDir);
     }
@@ -670,7 +591,6 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Z.AI API key",
         validate: validateApiKeyInput,
-        sensitive: true,
       });
       apiKey = normalizeApiKeyInput(String(key ?? ""));
       await setZaiApiKey(apiKey, params.agentDir);
@@ -768,7 +688,6 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Xiaomi API key",
         validate: validateApiKeyInput,
-        sensitive: true,
       });
       await setXiaomiApiKey(normalizeApiKeyInput(String(key ?? "")), params.agentDir);
     }
@@ -801,7 +720,6 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Synthetic API key",
         validate: (value) => (value?.trim() ? undefined : "Required"),
-        sensitive: true,
       });
       await setSyntheticApiKey(String(key ?? "").trim(), params.agentDir);
     }
@@ -861,7 +779,6 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter Venice AI API key",
         validate: validateApiKeyInput,
-        sensitive: true,
       });
       await setVeniceApiKey(normalizeApiKeyInput(String(key ?? "")), params.agentDir);
     }
@@ -919,7 +836,6 @@ export async function applyAuthChoiceApiProviders(
       const key = await params.prompter.text({
         message: "Enter OpenCode Zen API key",
         validate: validateApiKeyInput,
-        sensitive: true,
       });
       await setOpencodeZenApiKey(normalizeApiKeyInput(String(key ?? "")), params.agentDir);
     }
@@ -1001,6 +917,10 @@ export async function applyAuthChoiceApiProviders(
       agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
     }
     return { config: nextConfig, agentModelOverride };
+  }
+
+  if (authChoice === "huggingface-api-key") {
+    return applyAuthChoiceHuggingface({ ...params, authChoice });
   }
 
   if (authChoice === "qianfan-api-key") {

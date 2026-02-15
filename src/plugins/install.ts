@@ -9,22 +9,21 @@ import {
   resolveArchiveKind,
   resolvePackedRootDir,
 } from "../infra/archive.js";
+import { installPackageDir } from "../infra/install-package-dir.js";
+import { validateRegistryNpmSpec } from "../infra/npm-registry-spec.js";
 import { runCommandWithTimeout } from "../process/exec.js";
-import { scanDirectoryWithSummary } from "../security/skill-scanner.js";
+import * as skillScanner from "../security/skill-scanner.js";
 import { CONFIG_DIR, resolveUserPath } from "../utils.js";
 
 type PluginInstallLogger = {
   info?: (message: string) => void;
   warn?: (message: string) => void;
-  stdout?: (chunk: string) => void;
-  stderr?: (chunk: string) => void;
 };
 
 type PackageManifest = {
   name?: string;
   version?: string;
   dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
 } & Partial<Record<typeof MANIFEST_KEY, { extensions?: string[] }>>;
 
 export type InstallPluginResult =
@@ -87,39 +86,6 @@ function extensionUsesSkippedScannerPath(entry: string): boolean {
       segment === "node_modules" ||
       (segment.startsWith(".") && segment !== "." && segment !== ".."),
   );
-}
-
-function stripWorkspaceDevDependencies(manifest: PackageManifest): {
-  manifest: PackageManifest;
-  removed: string[];
-} {
-  const devDependencies = manifest.devDependencies;
-  if (!devDependencies || typeof devDependencies !== "object") {
-    return { manifest, removed: [] };
-  }
-
-  const nextDevDependencies: Record<string, string> = {};
-  const removed: string[] = [];
-  for (const [name, version] of Object.entries(devDependencies)) {
-    if (typeof version === "string" && version.trim().startsWith("workspace:")) {
-      removed.push(name);
-      continue;
-    }
-    nextDevDependencies[name] = version;
-  }
-
-  if (removed.length === 0) {
-    return { manifest, removed };
-  }
-
-  const nextManifest: PackageManifest = { ...manifest };
-  if (Object.keys(nextDevDependencies).length === 0) {
-    delete nextManifest.devDependencies;
-  } else {
-    nextManifest.devDependencies = nextDevDependencies;
-  }
-
-  return { manifest: nextManifest, removed };
 }
 
 async function ensureOpenClawExtensions(manifest: PackageManifest) {
@@ -232,7 +198,7 @@ async function installPluginFromPackageDir(params: {
 
   // Scan plugin source for dangerous code patterns (warn-only; never blocks install)
   try {
-    const scanSummary = await scanDirectoryWithSummary(params.packageDir, {
+    const scanSummary = await skillScanner.scanDirectoryWithSummary(params.packageDir, {
       includeFiles: forcedScanEntries,
     });
     if (scanSummary.critical > 0) {
@@ -283,91 +249,32 @@ async function installPluginFromPackageDir(params: {
     };
   }
 
-  logger.info?.(`Installing to ${targetDir}…`);
-  let backupDir: string | null = null;
-  if (mode === "update" && (await fileExists(targetDir))) {
-    backupDir = `${targetDir}.backup-${Date.now()}`;
-    await fs.rename(targetDir, backupDir);
-  }
-  try {
-    // Never copy a workspace `node_modules/` into the plugin install directory.
-    // pnpm/Bun often use symlink forests that break when moved (example: missing deps at runtime
-    // even though `node_modules/<dep>` exists as a dead symlink). Instead we install deps fresh
-    // (when declared in package.json) after copying source files.
-    const copyFilter = (src: string) => {
-      const rel = path.relative(packageDir, src);
-      if (!rel || rel === ".") {
-        return true;
-      }
-      const segments = rel.split(path.sep).filter(Boolean);
-      if (segments.includes("node_modules")) {
-        return false;
-      }
-      if (segments[0] === ".git") {
-        return false;
-      }
-      return true;
-    };
-
-    await fs.cp(packageDir, targetDir, { recursive: true, filter: copyFilter });
-  } catch (err) {
-    if (backupDir) {
-      await fs.rm(targetDir, { recursive: true, force: true }).catch(() => undefined);
-      await fs.rename(backupDir, targetDir).catch(() => undefined);
-    }
-    return { ok: false, error: `failed to copy plugin: ${String(err)}` };
-  }
-
-  for (const entry of extensions) {
-    const resolvedEntry = path.resolve(targetDir, entry);
-    if (!isPathInside(targetDir, resolvedEntry)) {
-      logger.warn?.(`extension entry escapes plugin directory: ${entry}`);
-      continue;
-    }
-    if (!(await fileExists(resolvedEntry))) {
-      logger.warn?.(`extension entry not found: ${entry}`);
-    }
-  }
-
   const deps = manifest.dependencies ?? {};
   const hasDeps = Object.keys(deps).length > 0;
-  const sanitized = stripWorkspaceDevDependencies(manifest);
-  if (sanitized.removed.length > 0) {
-    const targetManifestPath = path.join(targetDir, "package.json");
-    await fs.writeFile(
-      targetManifestPath,
-      `${JSON.stringify(sanitized.manifest, null, 2)}\n`,
-      "utf-8",
-    );
-    logger.info?.(
-      `Stripped workspace devDependencies before npm install: ${sanitized.removed.join(", ")}`,
-    );
-  }
-  if (hasDeps) {
-    logger.info?.("Installing plugin dependencies…");
-    const npmRes = await runCommandWithTimeout(
-      ["npm", "install", "--omit=dev", "--silent", "--ignore-scripts"],
-      {
-        timeoutMs: Math.max(timeoutMs, 300_000),
-        cwd: targetDir,
-        onStdout: (chunk) => logger.stdout?.(chunk),
-        onStderr: (chunk) => logger.stderr?.(chunk),
-      },
-    );
-    if (npmRes.code !== 0) {
-      if (backupDir) {
-        await fs.rm(targetDir, { recursive: true, force: true }).catch(() => undefined);
-        await fs.rename(backupDir, targetDir).catch(() => undefined);
+  const installRes = await installPackageDir({
+    sourceDir: params.packageDir,
+    targetDir,
+    mode,
+    timeoutMs,
+    logger,
+    copyErrorPrefix: "failed to copy plugin",
+    hasDeps,
+    depsLogMessage: "Installing plugin dependencies…",
+    afterCopy: async () => {
+      for (const entry of extensions) {
+        const resolvedEntry = path.resolve(targetDir, entry);
+        if (!isPathInside(targetDir, resolvedEntry)) {
+          logger.warn?.(`extension entry escapes plugin directory: ${entry}`);
+          continue;
+        }
+        if (!(await fileExists(resolvedEntry))) {
+          logger.warn?.(`extension entry not found: ${entry}`);
+        }
       }
-      return {
-        ok: false,
-        error: `npm install failed: ${npmRes.stderr.trim() || npmRes.stdout.trim()}`,
-      };
-    }
-  }
-
-  if (backupDir) {
-    await fs.rm(backupDir, { recursive: true, force: true }).catch(() => undefined);
+    },
+  });
+  if (!installRes.ok) {
+    return installRes;
   }
 
   return {
@@ -403,37 +310,41 @@ export async function installPluginFromArchive(params: {
   }
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-plugin-"));
-  const extractDir = path.join(tmpDir, "extract");
-  await fs.mkdir(extractDir, { recursive: true });
-
-  logger.info?.(`Extracting ${archivePath}…`);
   try {
-    await extractArchive({
-      archivePath,
-      destDir: extractDir,
+    const extractDir = path.join(tmpDir, "extract");
+    await fs.mkdir(extractDir, { recursive: true });
+
+    logger.info?.(`Extracting ${archivePath}…`);
+    try {
+      await extractArchive({
+        archivePath,
+        destDir: extractDir,
+        timeoutMs,
+        logger,
+      });
+    } catch (err) {
+      return { ok: false, error: `failed to extract archive: ${String(err)}` };
+    }
+
+    let packageDir = "";
+    try {
+      packageDir = await resolvePackedRootDir(extractDir);
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+
+    return await installPluginFromPackageDir({
+      packageDir,
+      extensionsDir: params.extensionsDir,
       timeoutMs,
       logger,
+      mode,
+      dryRun: params.dryRun,
+      expectedPluginId: params.expectedPluginId,
     });
-  } catch (err) {
-    return { ok: false, error: `failed to extract archive: ${String(err)}` };
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
   }
-
-  let packageDir = "";
-  try {
-    packageDir = await resolvePackedRootDir(extractDir);
-  } catch (err) {
-    return { ok: false, error: String(err) };
-  }
-
-  return await installPluginFromPackageDir({
-    packageDir,
-    extensionsDir: params.extensionsDir,
-    timeoutMs,
-    logger,
-    mode,
-    dryRun: params.dryRun,
-    expectedPluginId: params.expectedPluginId,
-  });
 }
 
 export async function installPluginFromDir(params: {
@@ -537,19 +448,21 @@ export async function installPluginFromNpmSpec(params: {
   const dryRun = params.dryRun ?? false;
   const expectedPluginId = params.expectedPluginId;
   const spec = params.spec.trim();
-  if (!spec) {
-    return { ok: false, error: "missing npm spec" };
+  const specError = validateRegistryNpmSpec(spec);
+  if (specError) {
+    return { ok: false, error: specError };
   }
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-npm-pack-"));
   try {
     logger.info?.(`Downloading ${spec}…`);
-    const res = await runCommandWithTimeout(["npm", "pack", spec], {
+    const res = await runCommandWithTimeout(["npm", "pack", spec, "--ignore-scripts"], {
       timeoutMs: Math.max(timeoutMs, 300_000),
       cwd: tmpDir,
-      env: { COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
-      onStdout: (chunk) => logger.stdout?.(chunk),
-      onStderr: (chunk) => logger.stderr?.(chunk),
+      env: {
+        COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+        NPM_CONFIG_IGNORE_SCRIPTS: "true",
+      },
     });
     if (res.code !== 0) {
       return {
@@ -578,9 +491,7 @@ export async function installPluginFromNpmSpec(params: {
       expectedPluginId,
     });
   } finally {
-    if (!dryRun) {
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
-    }
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 

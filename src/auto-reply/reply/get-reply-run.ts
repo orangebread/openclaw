@@ -224,7 +224,10 @@ export async function runPreparedReply(
     ? baseBodyFinal
     : [inboundUserContext, baseBodyFinal].filter(Boolean).join("\n\n");
   const baseBodyTrimmed = baseBodyForPrompt.trim();
-  if (!baseBodyTrimmed) {
+  const hasMediaAttachment = Boolean(
+    sessionCtx.MediaPath || (sessionCtx.MediaPaths && sessionCtx.MediaPaths.length > 0),
+  );
+  if (!baseBodyTrimmed && !hasMediaAttachment) {
     await typing.onReplyStart();
     logVerbose("Inbound body empty after normalization; skipping agent run");
     typing.cleanup();
@@ -232,8 +235,13 @@ export async function runPreparedReply(
       text: "I didn't receive any text in your message. Please resend or add a caption.",
     };
   }
+  // When the user sends media without text, provide a minimal body so the agent
+  // run proceeds and the image/document is injected by the embedded runner.
+  const effectiveBaseBody = baseBodyTrimmed
+    ? baseBodyForPrompt
+    : "[User sent media without caption]";
   let prefixedBodyBase = await applySessionHints({
-    baseBody: baseBodyForPrompt,
+    baseBody: effectiveBaseBody,
     abortedLastRun,
     sessionEntry,
     sessionStore,
@@ -340,7 +348,7 @@ export async function runPreparedReply(
     sessionEntry,
     resolveSessionFilePathOptions({ agentId, storePath }),
   );
-  const queueBodyBase = [threadContextNote, baseBodyForPrompt].filter(Boolean).join("\n\n");
+  const queueBodyBase = [threadContextNote, effectiveBaseBody].filter(Boolean).join("\n\n");
   const queuedBody = mediaNote
     ? [mediaNote, mediaReplyHint, queueBodyBase].filter(Boolean).join("\n").trim()
     : queueBodyBase;
