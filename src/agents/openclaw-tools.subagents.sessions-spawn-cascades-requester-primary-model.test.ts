@@ -82,7 +82,10 @@ describe("openclaw-tools: subagents", () => {
       modelApplied: true,
     });
 
-    const patchCall = calls.find((call) => call.method === "sessions.patch");
+    const patchCall = calls.find(
+      (call) =>
+        call.method === "sessions.patch" && (call.params as Record<string, unknown>)?.model != null,
+    );
     expect(patchCall?.params).toMatchObject({
       model: "openai/gpt-5",
     });
@@ -135,7 +138,10 @@ describe("openclaw-tools: subagents", () => {
       modelApplied: true,
     });
 
-    const patchCall = calls.find((call) => call.method === "sessions.patch");
+    const patchCall = calls.find(
+      (call) =>
+        call.method === "sessions.patch" && (call.params as Record<string, unknown>)?.model != null,
+    );
     expect(patchCall?.params).toMatchObject({
       model: "anthropic/claude-sonnet-4-5",
     });

@@ -51,6 +51,7 @@ vi.mock("./body.js", () => ({
 
 vi.mock("./groups.js", () => ({
   buildGroupIntro: vi.fn().mockReturnValue(""),
+  buildGroupChatContext: vi.fn().mockReturnValue(""),
 }));
 
 vi.mock("./inbound-meta.js", () => ({

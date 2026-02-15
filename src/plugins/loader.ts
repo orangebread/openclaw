@@ -92,15 +92,18 @@ function formatPluginLoadError(err: unknown, pluginRootDir: string): string {
   return `${base} (missing "${missingModule}" in "${pluginRootDir}/node_modules"; run: cd "${pluginRootDir}" && npm install --omit=dev --silent --ignore-scripts${reinstallHint})`;
 }
 
-const resolvePluginSdkAlias = (): string | null => {
+const resolvePluginSdkAliasFile = (params: {
+  srcFile: string;
+  distFile: string;
+}): string | null => {
   try {
     const modulePath = fileURLToPath(import.meta.url);
     const isProduction = process.env.NODE_ENV === "production";
     const isTest = process.env.VITEST || process.env.NODE_ENV === "test";
     let cursor = path.dirname(modulePath);
     for (let i = 0; i < 6; i += 1) {
-      const srcCandidate = path.join(cursor, "src", "plugin-sdk", "index.ts");
-      const distCandidate = path.join(cursor, "dist", "plugin-sdk", "index.js");
+      const srcCandidate = path.join(cursor, "src", "plugin-sdk", params.srcFile);
+      const distCandidate = path.join(cursor, "dist", "plugin-sdk", params.distFile);
       const orderedCandidates = isProduction
         ? isTest
           ? [distCandidate, srcCandidate]
@@ -123,35 +126,11 @@ const resolvePluginSdkAlias = (): string | null => {
   return null;
 };
 
+const resolvePluginSdkAlias = (): string | null =>
+  resolvePluginSdkAliasFile({ srcFile: "index.ts", distFile: "index.js" });
+
 const resolvePluginSdkAccountIdAlias = (): string | null => {
-  try {
-    const modulePath = fileURLToPath(import.meta.url);
-    const isProduction = process.env.NODE_ENV === "production";
-    const isTest = process.env.VITEST || process.env.NODE_ENV === "test";
-    let cursor = path.dirname(modulePath);
-    for (let i = 0; i < 6; i += 1) {
-      const srcCandidate = path.join(cursor, "src", "plugin-sdk", "account-id.ts");
-      const distCandidate = path.join(cursor, "dist", "plugin-sdk", "account-id.js");
-      const orderedCandidates = isProduction
-        ? isTest
-          ? [distCandidate, srcCandidate]
-          : [distCandidate]
-        : [srcCandidate, distCandidate];
-      for (const candidate of orderedCandidates) {
-        if (fs.existsSync(candidate)) {
-          return candidate;
-        }
-      }
-      const parent = path.dirname(cursor);
-      if (parent === cursor) {
-        break;
-      }
-      cursor = parent;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
+  return resolvePluginSdkAliasFile({ srcFile: "account-id.ts", distFile: "account-id.js" });
 };
 
 function buildCacheKey(params: {

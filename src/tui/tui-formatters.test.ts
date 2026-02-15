@@ -45,6 +45,24 @@ describe("extractTextFromMessage", () => {
     expect(text).toBe("first\nsecond");
   });
 
+  it("preserves internal newlines for string content", () => {
+    const text = extractTextFromMessage({
+      role: "assistant",
+      content: "Line 1\nLine 2\nLine 3",
+    });
+
+    expect(text).toBe("Line 1\nLine 2\nLine 3");
+  });
+
+  it("preserves internal newlines for text blocks", () => {
+    const text = extractTextFromMessage({
+      role: "assistant",
+      content: [{ type: "text", text: "Line 1\nLine 2\nLine 3" }],
+    });
+
+    expect(text).toBe("Line 1\nLine 2\nLine 3");
+  });
+
   it("places thinking before content when included", () => {
     const text = extractTextFromMessage(
       {
@@ -132,6 +150,14 @@ describe("sanitizeRenderableText", () => {
     const sanitized = sanitizeRenderableText(input);
     const longestSegment = Math.max(...sanitized.split(/\s+/).map((segment) => segment.length));
 
-    expect(longestSegment).toBeLessThanOrEqual(64);
+    expect(longestSegment).toBeLessThanOrEqual(32);
+  });
+
+  it("breaks moderately long unbroken tokens to protect narrow terminals", () => {
+    const input = "b".repeat(90);
+    const sanitized = sanitizeRenderableText(input);
+    const longestSegment = Math.max(...sanitized.split(/\s+/).map((segment) => segment.length));
+
+    expect(longestSegment).toBeLessThanOrEqual(32);
   });
 });
