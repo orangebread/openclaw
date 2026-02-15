@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../config/config.js";
+import { createOpenClawCodingTools } from "../pi-tools.js";
 import { createHostSandboxFsBridge } from "../test-helpers/host-sandbox-fs-bridge.js";
 import { __testing, createImageTool, resolveImageModelConfigForTool } from "./image-tool.js";
 
@@ -118,175 +119,6 @@ describe("image tool implicit imageModel config", () => {
     });
   });
 
-  it("prefers per-agent imageModel over agents.defaults.imageModel", async () => {
-    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
-    const cfg: OpenClawConfig = {
-      agents: {
-        defaults: {
-          model: { primary: "openai/gpt-5.2" },
-          imageModel: { primary: "openai/gpt-5-mini" },
-        },
-        list: [{ id: "work", imageModel: { primary: "minimax/MiniMax-VL-01" } }],
-      },
-    };
-    expect(resolveImageModelConfigForTool({ cfg, agentId: "work", agentDir })).toEqual({
-      primary: "minimax/MiniMax-VL-01",
-    });
-  });
-
-  it("uses per-agent primary model when inferring an image model", async () => {
-    vi.stubEnv("MINIMAX_API_KEY", "minimax-test");
-    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
-    const cfg: OpenClawConfig = {
-      agents: {
-        defaults: { model: { primary: "openai/gpt-5.2" } },
-        list: [{ id: "work", model: { primary: "minimax/MiniMax-M2.1" } }],
-      },
-    };
-    expect(resolveImageModelConfigForTool({ cfg, agentId: "work", agentDir })).toEqual({
-      primary: "minimax/MiniMax-VL-01",
-    });
-  });
-
-  it("enforces locked image auth profile cooldown and provider matching", async () => {
-    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
-    await writeAuthProfiles(agentDir, {
-      version: 1,
-      profiles: {
-        "anthropic:work": { type: "api_key", provider: "anthropic", key: "sk-test" },
-        "openrouter:work": { type: "api_key", provider: "openrouter", key: "sk-test" },
-      },
-      usageStats: {
-        "anthropic:work": { cooldownUntil: Date.now() + 60_000 },
-      },
-    });
-
-    const cfg: OpenClawConfig = {
-      agents: {
-        defaults: { model: { primary: "anthropic/claude-opus-4-5" } },
-        list: [
-          {
-            id: "work",
-            authProfileId: "anthropic:work",
-            imageAuthProfileId: "openrouter:work",
-          },
-        ],
-      },
-    };
-
-    expect(() =>
-      __testing.resolveLockedImageAuthProfileId({
-        cfg,
-        agentId: "work",
-        agentDir,
-        provider: "anthropic",
-      }),
-    ).toThrow(/provider/);
-
-    expect(() =>
-      __testing.resolveLockedImageAuthProfileId({
-        cfg: {
-          ...cfg,
-          agents: {
-            ...cfg.agents,
-            list: [{ id: "work", authProfileId: "anthropic:work" }],
-          },
-        },
-        agentId: "work",
-        agentDir,
-        provider: "anthropic",
-      }),
-    ).toThrow(/cooldown/);
-
-    expect(
-      __testing.resolveLockedImageAuthProfileId({
-        cfg: {
-          ...cfg,
-          agents: {
-            ...cfg.agents,
-            list: [{ id: "work", authProfileId: "anthropic:work" }],
-          },
-        },
-        agentId: "work",
-        agentDir,
-        provider: "openrouter",
-      }),
-    ).toBeUndefined();
-  });
-
-  it("blocks image.model overrides that change provider when locked image creds are in effect", async () => {
-    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
-    await writeAuthProfiles(agentDir, {
-      version: 1,
-      profiles: {
-        "openai:txt": { type: "api_key", provider: "openai", key: "sk-test" },
-        "openai:img": { type: "api_key", provider: "openai", key: "sk-test" },
-      },
-    });
-
-    const cfgInherited: OpenClawConfig = {
-      agents: {
-        defaults: {
-          model: { primary: "openai/gpt-5.2" },
-          imageModel: { primary: "openai/gpt-5-mini" },
-        },
-        list: [{ id: "work", authProfileId: "openai:txt" }],
-      },
-    };
-
-    expect(() =>
-      __testing.assertImageModelOverrideAllowed({
-        cfg: cfgInherited,
-        agentId: "work",
-        agentDir,
-        imageModelConfig: { primary: "openai/gpt-5-mini" },
-        modelOverride: "anthropic/claude-opus-4-5",
-      }),
-    ).toThrow(/overrides that change provider/i);
-
-    const cfgExplicit: OpenClawConfig = {
-      agents: {
-        defaults: {
-          model: { primary: "openai/gpt-5.2" },
-          imageModel: { primary: "openai/gpt-5-mini" },
-        },
-        list: [{ id: "work", imageAuthProfileId: "openai:img" }],
-      },
-    };
-
-    expect(() =>
-      __testing.assertImageModelOverrideAllowed({
-        cfg: cfgExplicit,
-        agentId: "work",
-        agentDir,
-        imageModelConfig: { primary: "openai/gpt-5-mini" },
-        modelOverride: "openai/gpt-5.2",
-      }),
-    ).not.toThrow();
-
-    // Inheritance rule: if the image provider differs from the text lock provider,
-    // treat credentials as auto and allow provider-changing overrides.
-    const cfgNoInherit: OpenClawConfig = {
-      agents: {
-        defaults: {
-          model: { primary: "openai/gpt-5.2" },
-          imageModel: { primary: "minimax/MiniMax-VL-01" },
-        },
-        list: [{ id: "work", authProfileId: "openai:txt" }],
-      },
-    };
-
-    expect(() =>
-      __testing.assertImageModelOverrideAllowed({
-        cfg: cfgNoInherit,
-        agentId: "work",
-        agentDir,
-        imageModelConfig: { primary: "minimax/MiniMax-VL-01" },
-        modelOverride: "anthropic/claude-opus-4-5",
-      }),
-    ).not.toThrow();
-  });
-
   it("keeps image tool available when primary model supports images (for explicit requests)", async () => {
     // When the primary model supports images, we still keep the tool available
     // because images are auto-injected into prompts. The tool description is
@@ -317,6 +149,133 @@ describe("image tool implicit imageModel config", () => {
     expect(tool?.description).toContain(
       "Only use this tool when the image was NOT already provided",
     );
+  });
+
+  it("allows workspace images outside default local media roots", async () => {
+    const workspaceParent = await fs.mkdtemp(
+      path.join(process.cwd(), ".openclaw-workspace-image-"),
+    );
+    try {
+      const workspaceDir = path.join(workspaceParent, "workspace");
+      await fs.mkdir(workspaceDir, { recursive: true });
+      const imagePath = path.join(workspaceDir, "photo.png");
+      const pngB64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/woAAn8B9FD5fHAAAAAASUVORK5CYII=";
+      await fs.writeFile(imagePath, Buffer.from(pngB64, "base64"));
+
+      const fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers(),
+        json: async () => ({
+          content: "ok",
+          base_resp: { status_code: 0, status_msg: "" },
+        }),
+      });
+      // @ts-expect-error partial global
+      global.fetch = fetch;
+      vi.stubEnv("MINIMAX_API_KEY", "minimax-test");
+
+      const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
+      const cfg: OpenClawConfig = {
+        agents: {
+          defaults: {
+            model: { primary: "minimax/MiniMax-M2.1" },
+            imageModel: { primary: "minimax/MiniMax-VL-01" },
+          },
+        },
+      };
+
+      const withoutWorkspace = createImageTool({ config: cfg, agentDir });
+      expect(withoutWorkspace).not.toBeNull();
+      if (!withoutWorkspace) {
+        throw new Error("expected image tool");
+      }
+      await expect(
+        withoutWorkspace.execute("t0", {
+          prompt: "Describe the image.",
+          image: imagePath,
+        }),
+      ).rejects.toThrow(/Local media path is not under an allowed directory/i);
+
+      const withWorkspace = createImageTool({ config: cfg, agentDir, workspaceDir });
+      expect(withWorkspace).not.toBeNull();
+      if (!withWorkspace) {
+        throw new Error("expected image tool");
+      }
+
+      await expect(
+        withWorkspace.execute("t1", {
+          prompt: "Describe the image.",
+          image: imagePath,
+        }),
+      ).resolves.toMatchObject({
+        content: [{ type: "text", text: "ok" }],
+      });
+
+      expect(fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      await fs.rm(workspaceParent, { recursive: true, force: true });
+    }
+  });
+
+  it("allows workspace images via createOpenClawCodingTools default workspace root", async () => {
+    const workspaceParent = await fs.mkdtemp(
+      path.join(process.cwd(), ".openclaw-workspace-image-"),
+    );
+    try {
+      const workspaceDir = path.join(workspaceParent, "workspace");
+      await fs.mkdir(workspaceDir, { recursive: true });
+      const imagePath = path.join(workspaceDir, "photo.png");
+      const pngB64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/woAAn8B9FD5fHAAAAAASUVORK5CYII=";
+      await fs.writeFile(imagePath, Buffer.from(pngB64, "base64"));
+
+      const fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers(),
+        json: async () => ({
+          content: "ok",
+          base_resp: { status_code: 0, status_msg: "" },
+        }),
+      });
+      // @ts-expect-error partial global
+      global.fetch = fetch;
+      vi.stubEnv("MINIMAX_API_KEY", "minimax-test");
+
+      const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-image-"));
+      const cfg: OpenClawConfig = {
+        agents: {
+          defaults: {
+            model: { primary: "minimax/MiniMax-M2.1" },
+            imageModel: { primary: "minimax/MiniMax-VL-01" },
+          },
+        },
+      };
+
+      const tools = createOpenClawCodingTools({ config: cfg, agentDir });
+      const tool = tools.find((candidate) => candidate.name === "image");
+      expect(tool).not.toBeNull();
+      if (!tool) {
+        throw new Error("expected image tool");
+      }
+
+      await expect(
+        tool.execute("t1", {
+          prompt: "Describe the image.",
+          image: imagePath,
+        }),
+      ).resolves.toMatchObject({
+        content: [{ type: "text", text: "ok" }],
+      });
+
+      expect(fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      await fs.rm(workspaceParent, { recursive: true, force: true });
+    }
   });
 
   it("sandboxes image paths like the read tool", async () => {
@@ -468,7 +427,7 @@ describe("image tool MiniMax VLM routing", () => {
 
     expect(fetch).toHaveBeenCalledTimes(1);
     const [url, init] = fetch.mock.calls[0];
-    expect(String(url)).toBe("https://api.minimax.chat/v1/coding_plan/vlm");
+    expect(String(url)).toBe("https://api.minimax.io/v1/coding_plan/vlm");
     expect(init?.method).toBe("POST");
     expect(String((init?.headers as Record<string, string>)?.Authorization)).toBe(
       "Bearer minimax-test",

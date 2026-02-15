@@ -5,25 +5,16 @@ import type { OpenClawConfig } from "../../config/config.js";
 import type { SandboxFsBridge } from "../sandbox/fs-bridge.js";
 import type { AnyAgentTool } from "./common.js";
 import { resolveUserPath } from "../../utils.js";
-import { loadWebMedia } from "../../web/media.js";
-import { resolveAgentAuthProfileId, resolveAgentImageAuthProfileId } from "../agent-scope.js";
-import {
-  ensureAuthProfileStore,
-  isProfileInCooldown,
-  listProfilesForProvider,
-} from "../auth-profiles.js";
+import { getDefaultLocalRoots, loadWebMedia } from "../../web/media.js";
+import { ensureAuthProfileStore, listProfilesForProvider } from "../auth-profiles.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../defaults.js";
 import { minimaxUnderstandImage } from "../minimax-vlm.js";
 import { getApiKeyForModel, requireApiKey, resolveEnvApiKey } from "../model-auth.js";
 import { runWithImageModelFallback } from "../model-fallback.js";
-import {
-  normalizeProviderId,
-  parseModelRef,
-  resolveConfiguredModelRef,
-  resolveDefaultModelForAgent,
-} from "../model-selection.js";
+import { resolveConfiguredModelRef } from "../model-selection.js";
 import { ensureOpenClawModelsJson } from "../models-config.js";
 import { discoverAuthStorage, discoverModels } from "../pi-model-discovery.js";
+import { normalizeWorkspaceDir } from "../workspace-dir.js";
 import {
   coerceImageAssistantText,
   coerceImageModelConfig,
@@ -39,8 +30,6 @@ const ANTHROPIC_IMAGE_FALLBACK = "anthropic/claude-opus-4-5";
 export const __testing = {
   decodeDataUrl,
   coerceImageAssistantText,
-  resolveLockedImageAuthProfileId,
-  assertImageModelOverrideAllowed,
   resolveImageToolMaxTokens,
 } as const;
 
@@ -55,150 +44,10 @@ function resolveImageToolMaxTokens(modelMaxTokens: number | undefined, requested
   return Math.min(requestedMaxTokens, modelMaxTokens);
 }
 
-function resolveLockedImageAuthProfileId(params: {
-  cfg?: OpenClawConfig;
-  agentId?: string;
-  agentDir: string;
-  provider: string;
-}): string | undefined {
-  if (!params.cfg || !params.agentId) {
-    return undefined;
-  }
-
-  const store = ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false });
-  const providerKey = normalizeProviderId(params.provider);
-
-  const checkLocked = (profileId: string, label: string): string | undefined => {
-    const profile = store.profiles[profileId];
-    if (!profile) {
-      throw new Error(`Locked auth profile "${profileId}" not found (${label}).`);
-    }
-    if (normalizeProviderId(profile.provider) !== providerKey) {
-      if (label === "inherited") {
-        return undefined;
-      }
-      throw new Error(
-        `Locked auth profile "${profileId}" is for provider "${profile.provider}", not "${params.provider}".`,
-      );
-    }
-    if (isProfileInCooldown(store, profileId)) {
-      throw new Error(
-        `Auth profile "${profileId}" is currently unavailable (cooldown/disabled). Unlock/change the profile or wait until the cooldown expires.`,
-      );
-    }
-    return profileId;
-  };
-
-  const imageLocked = resolveAgentImageAuthProfileId(params.cfg, params.agentId);
-  if (imageLocked) {
-    return checkLocked(imageLocked, "image");
-  }
-
-  const inherited = resolveAgentAuthProfileId(params.cfg, params.agentId);
-  if (inherited) {
-    return checkLocked(inherited, "inherited");
-  }
-
-  return undefined;
-}
-
-function resolveProviderFromModelRef(raw: string): string | null {
-  const parsed = parseModelRef(raw, DEFAULT_PROVIDER);
-  return parsed?.provider ?? null;
-}
-
-function resolveLockedImageProviderInEffect(params: {
-  cfg?: OpenClawConfig;
-  agentId?: string;
-  agentDir: string;
-  imageModelConfig: ImageModelConfig;
-}): { provider: string; reason: "image" | "inherited" } | null {
-  if (!params.cfg || !params.agentId) {
-    return null;
-  }
-
-  const store = ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false });
-
-  const imageLocked = resolveAgentImageAuthProfileId(params.cfg, params.agentId);
-  if (imageLocked) {
-    const profile = store.profiles[imageLocked];
-    if (!profile) {
-      throw new Error(`Locked auth profile "${imageLocked}" not found (image).`);
-    }
-    return { provider: profile.provider, reason: "image" };
-  }
-
-  const inherited = resolveAgentAuthProfileId(params.cfg, params.agentId);
-  if (!inherited) {
-    return null;
-  }
-  const baseProvider = resolveProviderFromModelRef(params.imageModelConfig.primary ?? "");
-  if (!baseProvider) {
-    return null;
-  }
-  const profile = store.profiles[inherited];
-  if (!profile) {
-    throw new Error(`Locked auth profile "${inherited}" not found (inherited).`);
-  }
-  if (normalizeProviderId(profile.provider) !== normalizeProviderId(baseProvider)) {
-    return null;
-  }
-  return { provider: baseProvider, reason: "inherited" };
-}
-
-function assertImageModelOverrideAllowed(params: {
-  cfg?: OpenClawConfig;
-  agentId?: string;
-  agentDir: string;
-  imageModelConfig: ImageModelConfig;
-  modelOverride?: string;
-}): void {
-  const raw = params.modelOverride?.trim();
-  if (!raw) {
-    return;
-  }
-
-  const overrideProvider = resolveProviderFromModelRef(raw);
-  if (!overrideProvider) {
-    return;
-  }
-
-  const locked = resolveLockedImageProviderInEffect({
-    cfg: params.cfg,
-    agentId: params.agentId,
-    agentDir: params.agentDir,
-    imageModelConfig: params.imageModelConfig,
-  });
-  if (!locked) {
-    return;
-  }
-
-  if (normalizeProviderId(overrideProvider) !== normalizeProviderId(locked.provider)) {
-    throw new Error(
-      `Locked image credentials are in effect for provider "${locked.provider}" (${locked.reason}). image.model overrides that change provider are not allowed.`,
-    );
-  }
-
-  // Ensure the locked credential still matches (provider + cooldown/disabled checks).
-  resolveLockedImageAuthProfileId({
-    cfg: params.cfg,
-    agentId: params.agentId,
-    agentDir: params.agentDir,
-    provider: overrideProvider,
-  });
-}
-
-function resolveDefaultModelRef(
-  cfg?: OpenClawConfig,
-  agentId?: string,
-): {
+function resolveDefaultModelRef(cfg?: OpenClawConfig): {
   provider: string;
   model: string;
 } {
-  if (cfg && agentId) {
-    const resolved = resolveDefaultModelForAgent({ cfg, agentId });
-    return { provider: resolved.provider, model: resolved.model };
-  }
   if (cfg) {
     const resolved = resolveConfiguredModelRef({
       cfg,
@@ -230,19 +79,18 @@ function hasAuthForProvider(params: { provider: string; agentDir: string }): boo
  */
 export function resolveImageModelConfigForTool(params: {
   cfg?: OpenClawConfig;
-  agentId?: string;
   agentDir: string;
 }): ImageModelConfig | null {
   // Note: We intentionally do NOT gate based on primarySupportsImages here.
   // Even when the primary model supports images, we keep the tool available
   // because images are auto-injected into prompts (see attempt.ts detectAndLoadPromptImages).
   // The tool description is adjusted via modelHasVision to discourage redundant usage.
-  const explicit = coerceImageModelConfig(params.cfg, params.agentId);
+  const explicit = coerceImageModelConfig(params.cfg);
   if (explicit.primary?.trim() || (explicit.fallbacks?.length ?? 0) > 0) {
     return explicit;
   }
 
-  const primary = resolveDefaultModelRef(params.cfg, params.agentId);
+  const primary = resolveDefaultModelRef(params.cfg);
   const openaiOk = hasAuthForProvider({
     provider: "openai",
     agentDir: params.agentDir,
@@ -390,7 +238,6 @@ async function resolveSandboxedImagePath(params: {
 
 async function runImagePrompt(params: {
   cfg?: OpenClawConfig;
-  agentId?: string;
   agentDir: string;
   imageModelConfig: ImageModelConfig;
   modelOverride?: string;
@@ -431,16 +278,9 @@ async function runImagePrompt(params: {
       if (!model.input?.includes("image")) {
         throw new Error(`Model does not support images: ${provider}/${modelId}`);
       }
-      const lockedProfileId = resolveLockedImageAuthProfileId({
-        cfg: effectiveCfg,
-        agentId: params.agentId,
-        agentDir: params.agentDir,
-        provider: model.provider,
-      });
       const apiKeyInfo = await getApiKeyForModel({
         model,
         cfg: effectiveCfg,
-        profileId: lockedProfileId,
         agentDir: params.agentDir,
       });
       const apiKey = requireApiKey(apiKeyInfo, model.provider);
@@ -485,8 +325,8 @@ async function runImagePrompt(params: {
 
 export function createImageTool(options?: {
   config?: OpenClawConfig;
-  agentId?: string;
   agentDir?: string;
+  workspaceDir?: string;
   sandbox?: ImageSandboxConfig;
   /** If true, the model has native vision capability and images in the prompt are auto-injected */
   modelHasVision?: boolean;
@@ -501,7 +341,6 @@ export function createImageTool(options?: {
   }
   const imageModelConfig = resolveImageModelConfigForTool({
     cfg: options?.config,
-    agentId: options?.agentId,
     agentDir,
   });
   if (!imageModelConfig) {
@@ -513,6 +352,15 @@ export function createImageTool(options?: {
   const description = options?.modelHasVision
     ? "Analyze an image with a vision model. Only use this tool when the image was NOT already provided in the user's message. Images mentioned in the prompt are automatically visible to you."
     : "Analyze an image with the configured image model (agents.defaults.imageModel). Provide a prompt and image path or URL.";
+
+  const localRoots = (() => {
+    const roots = getDefaultLocalRoots();
+    const workspaceDir = normalizeWorkspaceDir(options?.workspaceDir);
+    if (!workspaceDir) {
+      return roots;
+    }
+    return Array.from(new Set([...roots, workspaceDir]));
+  })();
 
   return {
     label: "Image",
@@ -564,13 +412,6 @@ export function createImageTool(options?: {
           : DEFAULT_PROMPT;
       const modelOverride =
         typeof record.model === "string" && record.model.trim() ? record.model.trim() : undefined;
-      assertImageModelOverrideAllowed({
-        cfg: options?.config,
-        agentId: options?.agentId,
-        agentDir,
-        imageModelConfig,
-        modelOverride,
-      });
       const maxBytesMb = typeof record.maxBytesMb === "number" ? record.maxBytesMb : undefined;
       const maxBytes = pickMaxBytes(options?.config, maxBytesMb);
 
@@ -611,10 +452,14 @@ export function createImageTool(options?: {
         : sandboxConfig
           ? await loadWebMedia(resolvedPath ?? resolvedImage, {
               maxBytes,
+              sandboxValidated: true,
               readFile: (filePath) =>
                 sandboxConfig.bridge.readFile({ filePath, cwd: sandboxConfig.root }),
             })
-          : await loadWebMedia(resolvedPath ?? resolvedImage, maxBytes);
+          : await loadWebMedia(resolvedPath ?? resolvedImage, {
+              maxBytes,
+              localRoots,
+            });
       if (media.kind !== "image") {
         throw new Error(`Unsupported media type: ${media.kind}`);
       }
@@ -626,7 +471,6 @@ export function createImageTool(options?: {
       const base64 = media.buffer.toString("base64");
       const result = await runImagePrompt({
         cfg: options?.config,
-        agentId: options?.agentId,
         agentDir,
         imageModelConfig,
         modelOverride,

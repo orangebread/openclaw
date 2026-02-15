@@ -24,7 +24,7 @@ describe("node.invoke approval bypass", () => {
   let port: number;
 
   beforeAll(async () => {
-    const started = await startServerWithClient("test-token", { controlUiEnabled: true });
+    const started = await startServerWithClient("secret", { controlUiEnabled: true });
     server = started.server;
     port = started.port;
   });
@@ -36,7 +36,7 @@ describe("node.invoke approval bypass", () => {
   const connectOperator = async (scopes: string[]) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     await new Promise<void>((resolve) => ws.once("open", resolve));
-    const res = await connectReq(ws, { token: "test-token", scopes });
+    const res = await connectReq(ws, { token: "secret", scopes });
     expect(res.ok).toBe(true);
     return ws;
   };
@@ -56,12 +56,12 @@ describe("node.invoke approval bypass", () => {
       role: "operator",
       scopes,
       signedAtMs,
-      token: "test-token",
+      token: "secret",
     });
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     await new Promise<void>((resolve) => ws.once("open", resolve));
     const res = await connectReq(ws, {
-      token: "test-token",
+      token: "secret",
       scopes,
       device: {
         id: deviceId!,
@@ -83,7 +83,7 @@ describe("node.invoke approval bypass", () => {
     const client = new GatewayClient({
       url: `ws://127.0.0.1:${port}`,
       connectDelayMs: 0,
-      token: "test-token",
+      token: "secret",
       role: "node",
       clientName: GATEWAY_CLIENT_NAMES.NODE_HOST,
       clientVersion: "1.0.0",
@@ -124,6 +124,41 @@ describe("node.invoke approval bypass", () => {
     return client;
   };
 
+  test("rejects rawCommand/command mismatch before forwarding to node", async () => {
+    let sawInvoke = false;
+    const node = await connectLinuxNode(() => {
+      sawInvoke = true;
+    });
+    const ws = await connectOperator(["operator.write"]);
+
+    const nodes = await rpcReq<{ nodes?: Array<{ nodeId: string; connected?: boolean }> }>(
+      ws,
+      "node.list",
+      {},
+    );
+    expect(nodes.ok).toBe(true);
+    const nodeId = nodes.payload?.nodes?.find((n) => n.connected)?.nodeId ?? "";
+    expect(nodeId).toBeTruthy();
+
+    const res = await rpcReq(ws, "node.invoke", {
+      nodeId,
+      command: "system.run",
+      params: {
+        command: ["uname", "-a"],
+        rawCommand: "echo hi",
+      },
+      idempotencyKey: crypto.randomUUID(),
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error?.message ?? "").toContain("rawCommand does not match command");
+
+    await sleep(50);
+    expect(sawInvoke).toBe(false);
+
+    ws.close();
+    node.stop();
+  });
+
   test("rejects injecting approved/approvalDecision without approval id", async () => {
     let sawInvoke = false;
     const node = await connectLinuxNode(() => {
@@ -155,6 +190,38 @@ describe("node.invoke approval bypass", () => {
     expect(res.error?.message ?? "").toContain("params.runId");
 
     // Ensure the node didn't receive the invoke (gateway should fail early).
+    await sleep(50);
+    expect(sawInvoke).toBe(false);
+
+    ws.close();
+    node.stop();
+  });
+
+  test("rejects invoking system.execApprovals.set via node.invoke", async () => {
+    let sawInvoke = false;
+    const node = await connectLinuxNode(() => {
+      sawInvoke = true;
+    });
+    const ws = await connectOperator(["operator.write"]);
+
+    const nodes = await rpcReq<{ nodes?: Array<{ nodeId: string; connected?: boolean }> }>(
+      ws,
+      "node.list",
+      {},
+    );
+    expect(nodes.ok).toBe(true);
+    const nodeId = nodes.payload?.nodes?.find((n) => n.connected)?.nodeId ?? "";
+    expect(nodeId).toBeTruthy();
+
+    const res = await rpcReq(ws, "node.invoke", {
+      nodeId,
+      command: "system.execApprovals.set",
+      params: { file: { version: 1, agents: {} }, baseHash: "nope" },
+      idempotencyKey: crypto.randomUUID(),
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error?.message ?? "").toContain("exec.approvals.node");
+
     await sleep(50);
     expect(sawInvoke).toBe(false);
 

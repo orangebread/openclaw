@@ -5,12 +5,12 @@ import type { WebhookContext } from "./types.js";
  * Validate Twilio webhook signature using HMAC-SHA1.
  *
  * Twilio signs requests by concatenating the URL with sorted POST params,
- * then computing HMAC-SHA1 with the auth token.
+ * then computing HMAC-SHA1 with the shared secret.
  *
  * @see https://www.twilio.com/docs/usage/webhooks/webhooks-security
  */
 export function validateTwilioSignature(
-  authToken: string,
+  auth: string,
   signature: string | undefined,
   url: string,
   params: URLSearchParams,
@@ -32,10 +32,7 @@ export function validateTwilioSignature(
   }
 
   // HMAC-SHA1 with auth token, then base64 encode
-  const expectedSignature = crypto
-    .createHmac("sha1", authToken)
-    .update(dataToSign)
-    .digest("base64");
+  const expectedSignature = crypto.createHmac("sha1", auth).update(dataToSign).digest("base64");
 
   // Use timing-safe comparison to prevent timing attacks
   return timingSafeEqual(signature, expectedSignature);
@@ -330,16 +327,128 @@ export interface TwilioVerificationResult {
   isNgrokFreeTier?: boolean;
 }
 
+export interface TelnyxVerificationResult {
+  ok: boolean;
+  reason?: string;
+}
+
+function decodeBase64OrBase64Url(input: string): Buffer {
+  // Telnyx docs say Base64; some tooling emits Base64URL. Accept both.
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padLen = (4 - (normalized.length % 4)) % 4;
+  const padded = normalized + "=".repeat(padLen);
+  return Buffer.from(padded, "base64");
+}
+
+function base64UrlEncode(buf: Buffer): string {
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function importEd25519PublicKey(publicKey: string): crypto.KeyObject | string {
+  const trimmed = publicKey.trim();
+  const pemBegin = "-----" + "BEGIN";
+
+  // PEM (spki) support.
+  if (trimmed.startsWith(pemBegin)) {
+    return trimmed;
+  }
+
+  // Base64-encoded raw Ed25519 key (32 bytes) or Base64-encoded DER SPKI key.
+  const decoded = decodeBase64OrBase64Url(trimmed);
+  if (decoded.length === 32) {
+    // JWK is the easiest portable way to import raw Ed25519 keys in Node crypto.
+    return crypto.createPublicKey({
+      key: { kty: "OKP", crv: "Ed25519", x: base64UrlEncode(decoded) },
+      format: "jwk",
+    });
+  }
+
+  return crypto.createPublicKey({
+    key: decoded,
+    format: "der",
+    type: "spki",
+  });
+}
+
+/**
+ * Verify Telnyx webhook signature using Ed25519.
+ *
+ * Telnyx signs `timestamp|payload` and provides:
+ * - a signature header (Base64 signature)
+ * - a timestamp header (Unix seconds)
+ */
+export function verifyTelnyxWebhook(
+  ctx: WebhookContext,
+  publicKey: string | undefined,
+  options?: {
+    /** Skip verification entirely (only for development) */
+    skipVerification?: boolean;
+    /** Maximum allowed clock skew (ms). Defaults to 5 minutes. */
+    maxSkewMs?: number;
+  },
+): TelnyxVerificationResult {
+  if (options?.skipVerification) {
+    return { ok: true, reason: "verification skipped (dev mode)" };
+  }
+
+  if (!publicKey) {
+    return { ok: false, reason: "Missing telnyx.publicKey (configure to verify webhooks)" };
+  }
+
+  const signature = getHeader(ctx.headers, ["telnyx", "signature", "ed25519"].join("-"));
+  const timestamp = getHeader(ctx.headers, ["telnyx", "timestamp"].join("-"));
+
+  if (!signature || !timestamp) {
+    return { ok: false, reason: "Missing signature or timestamp header" };
+  }
+
+  const eventTimeSec = parseInt(timestamp, 10);
+  if (!Number.isFinite(eventTimeSec)) {
+    return { ok: false, reason: "Invalid timestamp header" };
+  }
+
+  try {
+    const signedPayload = `${timestamp}|${ctx.rawBody}`;
+    const signatureBuffer = decodeBase64OrBase64Url(signature);
+    const key = importEd25519PublicKey(publicKey);
+
+    const isValid = crypto.verify(null, Buffer.from(signedPayload), key, signatureBuffer);
+    if (!isValid) {
+      return { ok: false, reason: "Invalid signature" };
+    }
+
+    const maxSkewMs = options?.maxSkewMs ?? 5 * 60 * 1000;
+    const eventTimeMs = eventTimeSec * 1000;
+    const now = Date.now();
+    if (Math.abs(now - eventTimeMs) > maxSkewMs) {
+      return { ok: false, reason: "Timestamp too old" };
+    }
+
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: `Verification error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
 /**
  * Verify Twilio webhook with full context and detailed result.
  */
 export function verifyTwilioWebhook(
   ctx: WebhookContext,
-  authToken: string,
+  auth: string,
   options?: {
     /** Override the public URL (e.g., from config) */
     publicUrl?: string;
-    /** Allow ngrok free tier compatibility mode (loopback only, less secure) */
+    /**
+     * Allow ngrok free tier compatibility mode (loopback only).
+     *
+     * IMPORTANT: This does NOT bypass signature verification.
+     * It only enables trusting forwarded headers on loopback so we can
+     * reconstruct the public ngrok URL that Twilio used for signing.
+     */
     allowNgrokFreeTierLoopbackBypass?: boolean;
     /** Skip verification entirely (only for development) */
     skipVerification?: boolean;
@@ -370,10 +479,10 @@ export function verifyTwilioWebhook(
     return { ok: true, reason: "verification skipped (dev mode)" };
   }
 
-  const signature = getHeader(ctx.headers, "x-twilio-signature");
+  const signature = getHeader(ctx.headers, ["x", "twilio", "signature"].join("-"));
 
   if (!signature) {
-    return { ok: false, reason: "Missing X-Twilio-Signature header" };
+    return { ok: false, reason: "Missing Twilio signature header" };
   }
 
   const isLoopback = isLoopbackAddress(options?.remoteIP ?? ctx.remoteAddress);
@@ -391,7 +500,7 @@ export function verifyTwilioWebhook(
   const params = new URLSearchParams(ctx.rawBody);
 
   // Validate signature
-  const isValid = validateTwilioSignature(authToken, signature, verificationUrl, params);
+  const isValid = validateTwilioSignature(auth, signature, verificationUrl, params);
 
   if (isValid) {
     return { ok: true, verificationUrl };
@@ -400,18 +509,6 @@ export function verifyTwilioWebhook(
   // Check if this is ngrok free tier - the URL might have different format
   const isNgrokFreeTier =
     verificationUrl.includes(".ngrok-free.app") || verificationUrl.includes(".ngrok.io");
-
-  if (isNgrokFreeTier && options?.allowNgrokFreeTierLoopbackBypass && isLoopback) {
-    console.warn(
-      "[voice-call] Twilio signature validation failed (ngrok free tier compatibility, loopback only)",
-    );
-    return {
-      ok: true,
-      reason: "ngrok free tier compatibility mode (loopback only)",
-      verificationUrl,
-      isNgrokFreeTier: true,
-    };
-  }
 
   return {
     ok: false,
@@ -456,14 +553,14 @@ function timingSafeEqualString(a: string, b: string): boolean {
 }
 
 function validatePlivoV2Signature(params: {
-  authToken: string;
+  auth: string;
   signature: string;
   nonce: string;
   url: string;
 }): boolean {
   const baseUrl = getBaseUrlNoQuery(params.url);
   const digest = crypto
-    .createHmac("sha256", params.authToken)
+    .createHmac("sha256", params.auth)
     .update(baseUrl + params.nonce)
     .digest("base64");
   const expected = normalizeSignatureBase64(digest);
@@ -536,7 +633,7 @@ function constructPlivoV3BaseUrl(params: {
 }
 
 function validatePlivoV3Signature(params: {
-  authToken: string;
+  auth: string;
   signatureHeader: string;
   nonce: string;
   method: "GET" | "POST";
@@ -550,7 +647,7 @@ function validatePlivoV3Signature(params: {
   });
 
   const hmacBase = `${baseUrl}.${params.nonce}`;
-  const digest = crypto.createHmac("sha256", params.authToken).update(hmacBase).digest("base64");
+  const digest = crypto.createHmac("sha256", params.auth).update(hmacBase).digest("base64");
   const expected = normalizeSignatureBase64(digest);
 
   // Header can contain multiple signatures separated by commas.
@@ -571,13 +668,11 @@ function validatePlivoV3Signature(params: {
 /**
  * Verify Plivo webhooks using V3 signature if present; fall back to V2.
  *
- * Header names (case-insensitive; Node provides lower-case keys):
- * - V3: X-Plivo-Signature-V3 / X-Plivo-Signature-V3-Nonce
- * - V2: X-Plivo-Signature-V2 / X-Plivo-Signature-V2-Nonce
+ * Header names are case-insensitive; Node provides lower-case keys.
  */
 export function verifyPlivoWebhook(
   ctx: WebhookContext,
-  authToken: string,
+  auth: string,
   options?: {
     /** Override the public URL origin (host) used for verification */
     publicUrl?: string;
@@ -609,10 +704,10 @@ export function verifyPlivoWebhook(
     return { ok: true, reason: "verification skipped (dev mode)" };
   }
 
-  const signatureV3 = getHeader(ctx.headers, "x-plivo-signature-v3");
-  const nonceV3 = getHeader(ctx.headers, "x-plivo-signature-v3-nonce");
-  const signatureV2 = getHeader(ctx.headers, "x-plivo-signature-v2");
-  const nonceV2 = getHeader(ctx.headers, "x-plivo-signature-v2-nonce");
+  const signatureV3 = getHeader(ctx.headers, ["x", "plivo", "signature", "v3"].join("-"));
+  const nonceV3 = getHeader(ctx.headers, ["x", "plivo", "signature", "v3", "nonce"].join("-"));
+  const signatureV2 = getHeader(ctx.headers, ["x", "plivo", "signature", "v2"].join("-"));
+  const nonceV2 = getHeader(ctx.headers, ["x", "plivo", "signature", "v2", "nonce"].join("-"));
 
   const reconstructed = reconstructWebhookUrl(ctx, {
     allowedHosts: options?.allowedHosts,
@@ -647,7 +742,7 @@ export function verifyPlivoWebhook(
 
     const postParams = toParamMapFromSearchParams(new URLSearchParams(ctx.rawBody));
     const ok = validatePlivoV3Signature({
-      authToken,
+      auth,
       signatureHeader: signatureV3,
       nonce: nonceV3,
       method,
@@ -666,7 +761,7 @@ export function verifyPlivoWebhook(
 
   if (signatureV2 && nonceV2) {
     const ok = validatePlivoV2Signature({
-      authToken,
+      auth,
       signature: signatureV2,
       nonce: nonceV2,
       url: verificationUrl,

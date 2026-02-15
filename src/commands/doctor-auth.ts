@@ -149,7 +149,7 @@ export async function maybeRemoveDeprecatedCliAuthProfiles(
     return cfg;
   }
 
-  const updated = await updateAuthProfileStoreWithLock({
+  await updateAuthProfileStoreWithLock({
     updater: (nextStore) => {
       let mutated = false;
       for (const id of deprecated) {
@@ -186,9 +186,6 @@ export async function maybeRemoveDeprecatedCliAuthProfiles(
       return mutated;
     },
   });
-  if (!updated.ok) {
-    note(`Failed to update auth-profiles.json: ${updated.error.message}`, "Auth profiles");
-  }
 
   const pruned = pruneAuthProfiles(cfg, deprecated);
   if (pruned.changed) {

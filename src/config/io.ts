@@ -575,20 +575,12 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
       if (validated.warnings.length > 0) {
         const details = validated.warnings
-          .map((iss) => ({
-            path: iss.path || "<root>",
-            message: iss.message,
-          }))
-          .toSorted((a, b) => a.path.localeCompare(b.path) || a.message.localeCompare(b.message))
-          .map((iss) => `- ${iss.path}: ${iss.message}`)
+          .map((iss) => `- ${iss.path || "<root>"}: ${iss.message}`)
           .join("\n");
-        const last = loggedConfigWarnings.get(configPath);
-        if (last !== details) {
+        if (loggedConfigWarnings.get(configPath) !== details) {
           loggedConfigWarnings.set(configPath, details);
-          deps.logger.warn(`Config warnings:\n${details}`);
+          deps.logger.warn(`Config warnings:\\n${details}`);
         }
-      } else {
-        loggedConfigWarnings.delete(configPath);
       }
       warnIfConfigFromFuture(validated.config, deps.logger);
       const cfg = applyModelDefaults(
@@ -865,7 +857,10 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       const details = validated.warnings
         .map((warning) => `- ${warning.path}: ${warning.message}`)
         .join("\n");
-      deps.logger.warn(`Config warnings:\n${details}`);
+      if (loggedConfigWarnings.get(configPath) !== details) {
+        loggedConfigWarnings.set(configPath, details);
+        deps.logger.warn(`Config warnings:\n${details}`);
+      }
     }
 
     // Restore ${VAR} env var references that were resolved during config loading.

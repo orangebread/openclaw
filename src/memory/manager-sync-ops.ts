@@ -55,12 +55,36 @@ const EMBEDDING_CACHE_TABLE = "embedding_cache";
 const SESSION_DIRTY_DEBOUNCE_MS = 5000;
 const SESSION_DELTA_READ_CHUNK_BYTES = 64 * 1024;
 const VECTOR_LOAD_TIMEOUT_MS = 30_000;
-const DEGRADED_SYNC_COOLDOWN_MS = 10 * 60_000;
+const IGNORED_MEMORY_WATCH_DIR_NAMES = new Set([
+  ".git",
+  "node_modules",
+  ".pnpm-store",
+  ".venv",
+  "venv",
+  ".tox",
+  "__pycache__",
+]);
 
 const log = createSubsystemLogger("memory");
 
+function shouldIgnoreMemoryWatchPath(watchPath: string): boolean {
+  const normalized = path.normalize(watchPath);
+  const parts = normalized.split(path.sep).map((segment) => segment.trim().toLowerCase());
+  return parts.some((segment) => IGNORED_MEMORY_WATCH_DIR_NAMES.has(segment));
+}
+
 class MemoryManagerSyncOps {
   [key: string]: any;
+
+  private shouldPauseSyncOnEmbeddingAuthError(message: string): boolean {
+    if (!/embed|embedding|embeddings/i.test(message)) {
+      return false;
+    }
+    return /(insufficient[_ ]quota|quota|billing|invalid api key|unauthorized|forbidden|401|403)/i.test(
+      message,
+    );
+  }
+
   private async ensureVectorReady(dimensions?: number): Promise<boolean> {
     if (!this.vector.enabled) {
       return false;
@@ -264,24 +288,32 @@ class MemoryManagerSyncOps {
     if (!this.sources.has("memory") || !this.settings.sync.watch || this.watcher) {
       return;
     }
-    const additionalPaths = normalizeExtraMemoryPaths(this.workspaceDir, this.settings.extraPaths)
-      .map((entry) => {
-        try {
-          const stat = fsSync.lstatSync(entry);
-          return stat.isSymbolicLink() ? null : entry;
-        } catch {
-          return null;
-        }
-      })
-      .filter((entry): entry is string => Boolean(entry));
     const watchPaths = new Set<string>([
       path.join(this.workspaceDir, "MEMORY.md"),
       path.join(this.workspaceDir, "memory.md"),
-      path.join(this.workspaceDir, "memory"),
-      ...additionalPaths,
+      path.join(this.workspaceDir, "memory", "**", "*.md"),
     ]);
+    const additionalPaths = normalizeExtraMemoryPaths(this.workspaceDir, this.settings.extraPaths);
+    for (const entry of additionalPaths) {
+      try {
+        const stat = fsSync.lstatSync(entry);
+        if (stat.isSymbolicLink()) {
+          continue;
+        }
+        if (stat.isDirectory()) {
+          watchPaths.add(path.join(entry, "**", "*.md"));
+          continue;
+        }
+        if (stat.isFile() && entry.toLowerCase().endsWith(".md")) {
+          watchPaths.add(entry);
+        }
+      } catch {
+        // Skip missing/unreadable additional paths.
+      }
+    }
     this.watcher = chokidar.watch(Array.from(watchPaths), {
       ignoreInitial: true,
+      ignored: (watchPath) => shouldIgnoreMemoryWatchPath(String(watchPath)),
       awaitWriteFinish: {
         stabilityThreshold: this.settings.sync.watchDebounceMs,
         pollInterval: 100,
@@ -724,15 +756,15 @@ class MemoryManagerSyncOps {
     force?: boolean;
     progress?: (update: MemorySyncProgressUpdate) => void;
   }) {
-    const now = Date.now();
-    if (this.degradedUntilMs && this.degradedUntilMs > now) {
-      if (!params?.force) {
-        return;
-      }
+    if (!params?.force && this.degradedUntilMs > Date.now()) {
+      return;
+    }
+
+    const clearDegraded = () => {
       this.degradedUntilMs = 0;
       this.degradedReason = undefined;
       this.degradedProvider = undefined;
-    }
+    };
 
     const progress = params?.progress ? this.createSyncProgress(params.progress) : undefined;
     if (progress) {
@@ -755,14 +787,24 @@ class MemoryManagerSyncOps {
       (vectorReady && !meta?.vectorDims);
     try {
       if (needsFullReindex) {
-        await this.runSafeReindex({
-          reason: params?.reason,
-          force: params?.force,
-          progress: progress ?? undefined,
-        });
-        this.degradedUntilMs = 0;
-        this.degradedReason = undefined;
-        this.degradedProvider = undefined;
+        if (
+          process.env.OPENCLAW_TEST_FAST === "1" &&
+          process.env.OPENCLAW_TEST_MEMORY_UNSAFE_REINDEX === "1"
+        ) {
+          await this.runUnsafeReindex({
+            reason: params?.reason,
+            force: params?.force,
+            progress: progress ?? undefined,
+          });
+        } else {
+          await this.runSafeReindex({
+            reason: params?.reason,
+            force: params?.force,
+            progress: progress ?? undefined,
+          });
+        }
+
+        clearDegraded();
         return;
       }
 
@@ -785,20 +827,14 @@ class MemoryManagerSyncOps {
         this.sessionsDirty = false;
       }
 
-      this.degradedUntilMs = 0;
-      this.degradedReason = undefined;
-      this.degradedProvider = undefined;
+      clearDegraded();
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
 
-      if (!params?.force && this.shouldDegradeOnEmbeddingError(reason)) {
-        this.degradedUntilMs = Date.now() + DEGRADED_SYNC_COOLDOWN_MS;
+      if (!params?.force && this.shouldPauseSyncOnEmbeddingAuthError(reason)) {
+        this.degradedUntilMs = Date.now() + 10 * 60_000;
         this.degradedReason = reason;
-        this.degradedProvider = this.provider.id;
-        log.warn("memory sync: pausing after embeddings error", {
-          untilMs: this.degradedUntilMs,
-          reason,
-        });
+        this.degradedProvider = this.provider?.id;
         return;
       }
 
@@ -818,12 +854,6 @@ class MemoryManagerSyncOps {
 
   private shouldFallbackOnError(message: string): boolean {
     return /embedding|embeddings|batch/i.test(message);
-  }
-
-  private shouldDegradeOnEmbeddingError(message: string): boolean {
-    return /(insufficient[_ ]quota|exceeded your current quota|quota exceeded|invalid[_ ]api[_ ]key|invalid api key|unauthorized|authentication|must be made with a secret key)/i.test(
-      message,
-    );
   }
 
   private resolveBatchConfig(): {
@@ -992,6 +1022,51 @@ class MemoryManagerSyncOps {
       restoreOriginalState();
       throw err;
     }
+  }
+
+  private async runUnsafeReindex(params: {
+    reason?: string;
+    force?: boolean;
+    progress?: MemorySyncProgressState;
+  }): Promise<void> {
+    // Perf: for test runs, skip atomic temp-db swapping. The index is isolated
+    // under the per-test HOME anyway, and this cuts substantial fs+sqlite churn.
+    this.resetIndex();
+
+    const shouldSyncMemory = this.sources.has("memory");
+    const shouldSyncSessions = this.shouldSyncSessions(
+      { reason: params.reason, force: params.force },
+      true,
+    );
+
+    if (shouldSyncMemory) {
+      await this.syncMemoryFiles({ needsFullReindex: true, progress: params.progress });
+      this.dirty = false;
+    }
+
+    if (shouldSyncSessions) {
+      await this.syncSessionFiles({ needsFullReindex: true, progress: params.progress });
+      this.sessionsDirty = false;
+      this.sessionsDirtyFiles.clear();
+    } else if (this.sessionsDirtyFiles.size > 0) {
+      this.sessionsDirty = true;
+    } else {
+      this.sessionsDirty = false;
+    }
+
+    const nextMeta: MemoryIndexMeta = {
+      model: this.provider.model,
+      provider: this.provider.id,
+      providerKey: this.providerKey,
+      chunkTokens: this.settings.chunking.tokens,
+      chunkOverlap: this.settings.chunking.overlap,
+    };
+    if (this.vector.available && this.vector.dims) {
+      nextMeta.vectorDims = this.vector.dims;
+    }
+
+    this.writeMeta(nextMeta);
+    this.pruneEmbeddingCacheIfNeeded();
   }
 
   private resetIndex() {

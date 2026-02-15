@@ -212,9 +212,8 @@ function buildSkillStatus(
       Boolean(
         process.env[envName] ||
         skillConfig?.env?.[envName] ||
-        (skillConfig?.apiKey && entry.metadata?.primaryEnv === envName) ||
-        eligibility?.hasEnv?.(envName),
-      ),
+        (skillConfig?.apiKey && entry.metadata?.primaryEnv === envName),
+      ) || Boolean(eligibility?.hasEnv?.(envName)),
     isConfigSatisfied: (pathStr) => isConfigPathTruthy(config, pathStr),
   });
   const eligible = !disabled && !blockedByAllowlist && requirementsSatisfied;

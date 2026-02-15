@@ -13,11 +13,7 @@ import { AUTH_STORE_LOCK_OPTIONS, log } from "./constants.js";
 import { formatAuthDoctorHint } from "./doctor.js";
 import { ensureAuthStoreFile, resolveAuthStorePath } from "./paths.js";
 import { suggestOAuthProfileIdForLegacyDefault } from "./repair.js";
-import {
-  ensureAuthProfileStore,
-  saveAuthProfileStore,
-  updateAuthProfileStoreWithLock,
-} from "./store.js";
+import { ensureAuthProfileStore, saveAuthProfileStore } from "./store.js";
 
 const OAUTH_PROVIDER_IDS = new Set<string>(getOAuthProviders().map((provider) => provider.id));
 
@@ -241,16 +237,8 @@ export async function resolveApiKeyForProfile(params: {
         const mainCred = mainStore.profiles[profileId];
         if (mainCred?.type === "oauth" && Date.now() < mainCred.expires) {
           // Main agent has fresh credentials - copy them to this agent and use them
-          const copied = await updateAuthProfileStoreWithLock({
-            agentDir: params.agentDir,
-            updater: (store) => {
-              store.profiles[profileId] = { ...mainCred };
-              return true;
-            },
-          });
-          if (copied.ok) {
-            refreshedStore.profiles[profileId] = { ...mainCred };
-          }
+          refreshedStore.profiles[profileId] = { ...mainCred };
+          saveAuthProfileStore(refreshedStore, params.agentDir);
           log.info("inherited fresh OAuth credentials from main agent", {
             profileId,
             agentDir: params.agentDir,

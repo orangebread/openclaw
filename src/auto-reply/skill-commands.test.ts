@@ -11,8 +11,8 @@ vi.mock("./commands-registry.js", () => ({
 vi.mock("../infra/skills-remote.js", () => ({
   getRemoteSkillEligibility: () => ({}),
   buildSkillEligibility: () => ({
-    remote: {},
-    hasEnv: () => false,
+    remote: undefined,
+    hasEnv: () => true,
   }),
 }));
 

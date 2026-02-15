@@ -3,31 +3,31 @@ import { restoreEnvVarRefs } from "./env-preserve.js";
 
 describe("restoreEnvVarRefs", () => {
   const env = {
-    ANTHROPIC_API_KEY: "anthropic-test-key-123",
-    OPENAI_API_KEY: "openai-test-key-123",
+    ANTHROPIC_API_KEY: "anthropic-key-real",
+    OPENAI_API_KEY: "openai-key-real",
     MY_TOKEN: "tok-12345",
   } as unknown as NodeJS.ProcessEnv;
 
   it("restores a simple ${VAR} reference when value matches", () => {
-    const incoming = { apiKey: "anthropic-test-key-123" };
+    const incoming = { apiKey: "anthropic-key-real" };
     const parsed = { apiKey: "${ANTHROPIC_API_KEY}" };
     const result = restoreEnvVarRefs(incoming, parsed, env);
     expect(result).toEqual({ apiKey: "${ANTHROPIC_API_KEY}" });
   });
 
   it("keeps new value when caller intentionally changed it", () => {
-    const incoming = { apiKey: "anthropic-test-key-changed" };
+    const incoming = { apiKey: "anthropic-key-changed" };
     const parsed = { apiKey: "${ANTHROPIC_API_KEY}" };
     const result = restoreEnvVarRefs(incoming, parsed, env);
-    expect(result).toEqual({ apiKey: "anthropic-test-key-changed" });
+    expect(result).toEqual({ apiKey: "anthropic-key-changed" });
   });
 
   it("handles nested objects", () => {
     const incoming = {
       models: {
         providers: {
-          anthropic: { apiKey: "anthropic-test-key-123" },
-          openai: { apiKey: "openai-test-key-123" },
+          anthropic: { apiKey: "anthropic-key-real" },
+          openai: { apiKey: "openai-key-real" },
         },
       },
     };
@@ -51,7 +51,7 @@ describe("restoreEnvVarRefs", () => {
   });
 
   it("preserves new keys not in parsed", () => {
-    const incoming = { apiKey: "anthropic-test-key-123", newField: "hello" };
+    const incoming = { apiKey: "anthropic-key-real", newField: "hello" };
     const parsed = { apiKey: "${ANTHROPIC_API_KEY}" };
     const result = restoreEnvVarRefs(incoming, parsed, env);
     expect(result).toEqual({ apiKey: "${ANTHROPIC_API_KEY}", newField: "hello" });
@@ -65,14 +65,14 @@ describe("restoreEnvVarRefs", () => {
   });
 
   it("handles arrays", () => {
-    const incoming = ["anthropic-test-key-123", "literal"];
+    const incoming = ["anthropic-key-real", "literal"];
     const parsed = ["${ANTHROPIC_API_KEY}", "literal"];
     const result = restoreEnvVarRefs(incoming, parsed, env);
     expect(result).toEqual(["${ANTHROPIC_API_KEY}", "literal"]);
   });
 
   it("handles null/undefined parsed gracefully", () => {
-    const incoming = { apiKey: "anthropic-test-key-123" };
+    const incoming = { apiKey: "anthropic-key-real" };
     expect(restoreEnvVarRefs(incoming, null, env)).toEqual(incoming);
     expect(restoreEnvVarRefs(incoming, undefined, env)).toEqual(incoming);
   });
@@ -102,10 +102,10 @@ describe("restoreEnvVarRefs", () => {
   });
 
   it("does not restore when parsed value has no env var pattern", () => {
-    const incoming = { apiKey: "anthropic-test-key-123" };
-    const parsed = { apiKey: "anthropic-test-key-123" };
+    const incoming = { apiKey: "anthropic-key-real" };
+    const parsed = { apiKey: "anthropic-key-real" };
     const result = restoreEnvVarRefs(incoming, parsed, env);
-    expect(result).toEqual({ apiKey: "anthropic-test-key-123" });
+    expect(result).toEqual({ apiKey: "anthropic-key-real" });
   });
 
   // Edge case: env mutation between read and write (Greptile comment #1)

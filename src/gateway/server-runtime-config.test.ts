@@ -79,9 +79,6 @@ describe("resolveGatewayRuntimeConfig", () => {
 
   describe("token/password auth modes", () => {
     it("should reject token mode without token configured", async () => {
-      const prevToken = process.env.OPENCLAW_GATEWAY_TOKEN;
-      delete process.env.OPENCLAW_GATEWAY_TOKEN;
-
       const cfg = {
         gateway: {
           bind: "lan" as const,
@@ -91,19 +88,12 @@ describe("resolveGatewayRuntimeConfig", () => {
         },
       };
 
-      try {
-        await expect(
-          resolveGatewayRuntimeConfig({
-            cfg,
-            port: 18789,
-          }),
-        ).rejects.toThrow("gateway auth mode is token, but no token was configured");
-      } finally {
-        delete process.env.OPENCLAW_GATEWAY_TOKEN;
-        if (typeof prevToken === "string") {
-          process.env.OPENCLAW_GATEWAY_TOKEN = prevToken;
-        }
-      }
+      await expect(
+        resolveGatewayRuntimeConfig({
+          cfg,
+          port: 18789,
+        }),
+      ).rejects.toThrow("gateway auth mode is token, but no token was configured");
     });
 
     it("should allow lan binding with token", async () => {

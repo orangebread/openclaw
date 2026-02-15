@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let testPort = 0;
 let prevGatewayPort: string | undefined;
+let prevGatewayToken: string | undefined;
+let prevGatewayPassword: string | undefined;
 
 const pwMocks = vi.hoisted(() => ({
   cookiesGetViaPlaywright: vi.fn(async () => ({
@@ -38,12 +40,6 @@ vi.mock("../config/config.js", async (importOriginal) => {
   return {
     ...actual,
     loadConfig: () => ({
-      gateway: {
-        auth: {
-          mode: "token",
-          token: "browser-control-secret",
-        },
-      },
       browser: {
         enabled: true,
         evaluateEnabled: false,
@@ -56,10 +52,6 @@ vi.mock("../config/config.js", async (importOriginal) => {
     writeConfigFile: vi.fn(async () => {}),
   };
 });
-
-const AUTH_HEADERS = {
-  Authorization: "Bearer browser-control-secret",
-};
 
 vi.mock("./pw-ai-module.js", () => ({
   getPwAiModule: vi.fn(async () => pwMocks),
@@ -92,6 +84,10 @@ describe("browser control evaluate gating", () => {
     testPort = await getFreePort();
     prevGatewayPort = process.env.OPENCLAW_GATEWAY_PORT;
     process.env.OPENCLAW_GATEWAY_PORT = String(testPort - 2);
+    prevGatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+    prevGatewayPassword = process.env.OPENCLAW_GATEWAY_PASSWORD;
+    delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    delete process.env.OPENCLAW_GATEWAY_PASSWORD;
 
     pwMocks.cookiesGetViaPlaywright.mockClear();
     pwMocks.storageGetViaPlaywright.mockClear();
@@ -107,6 +103,16 @@ describe("browser control evaluate gating", () => {
     } else {
       process.env.OPENCLAW_GATEWAY_PORT = prevGatewayPort;
     }
+    if (prevGatewayToken === undefined) {
+      delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    } else {
+      process.env.OPENCLAW_GATEWAY_TOKEN = prevGatewayToken;
+    }
+    if (prevGatewayPassword === undefined) {
+      delete process.env.OPENCLAW_GATEWAY_PASSWORD;
+    } else {
+      process.env.OPENCLAW_GATEWAY_PASSWORD = prevGatewayPassword;
+    }
 
     await stopBrowserControlServer();
   });
@@ -118,16 +124,14 @@ describe("browser control evaluate gating", () => {
 
     const evalRes = (await realFetch(`${base}/act`, {
       method: "POST",
-      headers: { ...AUTH_HEADERS, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind: "evaluate", fn: "() => 1" }),
     }).then((r) => r.json())) as { error?: string };
 
     expect(evalRes.error).toContain("browser.evaluateEnabled=false");
     expect(pwMocks.evaluateViaPlaywright).not.toHaveBeenCalled();
 
-    const cookiesRes = (await realFetch(`${base}/cookies`, { headers: AUTH_HEADERS }).then((r) =>
-      r.json(),
-    )) as {
+    const cookiesRes = (await realFetch(`${base}/cookies`).then((r) => r.json())) as {
       ok: boolean;
       cookies?: Array<{ name: string }>;
     };
@@ -138,9 +142,9 @@ describe("browser control evaluate gating", () => {
       targetId: "tab-1",
     });
 
-    const storageRes = (await realFetch(`${base}/storage/local?key=token`, {
-      headers: AUTH_HEADERS,
-    }).then((r) => r.json())) as {
+    const storageRes = (await realFetch(`${base}/storage/local?key=token`).then((r) =>
+      r.json(),
+    )) as {
       ok: boolean;
       values?: Record<string, string>;
     };

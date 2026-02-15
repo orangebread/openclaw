@@ -30,7 +30,7 @@ vi.mock("../../process/command-queue.js", () => ({
 
 vi.mock("../../routing/session-key.js", () => ({
   normalizeMainKey: vi.fn().mockReturnValue("main"),
-  normalizeAgentId: vi.fn().mockImplementation((value?: string) => (value ?? "main").toLowerCase()),
+  normalizeAgentId: vi.fn().mockImplementation((agentId: string) => agentId),
 }));
 
 vi.mock("../../utils/provider-utils.js", () => ({

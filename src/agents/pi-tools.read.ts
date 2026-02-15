@@ -179,13 +179,10 @@ export function patchToolSchemaForClaudeCompatibility(tool: AnyAgentTool): AnyAg
       properties[alias] = properties[original];
       changed = true;
     }
-    // Keep "path" required in schema guidance so models are less likely to emit empty read/write/edit calls.
-    if (original !== "path") {
-      const idx = required.indexOf(original);
-      if (idx !== -1) {
-        required.splice(idx, 1);
-        changed = true;
-      }
+    const idx = required.indexOf(original);
+    if (idx !== -1) {
+      required.splice(idx, 1);
+      changed = true;
     }
   }
 
@@ -255,7 +252,7 @@ export function wrapToolParamNormalization(
   };
 }
 
-function wrapSandboxPathGuard(tool: AnyAgentTool, root: string): AnyAgentTool {
+export function wrapToolWorkspaceRootGuard(tool: AnyAgentTool, root: string): AnyAgentTool {
   return {
     ...tool,
     execute: async (toolCallId, args, signal, onUpdate) => {
@@ -281,27 +278,21 @@ export function createSandboxedReadTool(params: SandboxToolParams) {
   const base = createReadTool(params.root, {
     operations: createSandboxReadOperations(params),
   }) as unknown as AnyAgentTool;
-  return wrapSandboxPathGuard(createOpenClawReadTool(base), params.root);
+  return createOpenClawReadTool(base);
 }
 
 export function createSandboxedWriteTool(params: SandboxToolParams) {
   const base = createWriteTool(params.root, {
     operations: createSandboxWriteOperations(params),
   }) as unknown as AnyAgentTool;
-  return wrapSandboxPathGuard(
-    wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.write),
-    params.root,
-  );
+  return wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.write);
 }
 
 export function createSandboxedEditTool(params: SandboxToolParams) {
   const base = createEditTool(params.root, {
     operations: createSandboxEditOperations(params),
   }) as unknown as AnyAgentTool;
-  return wrapSandboxPathGuard(
-    wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.edit),
-    params.root,
-  );
+  return wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.edit);
 }
 
 export function createOpenClawReadTool(base: AnyAgentTool): AnyAgentTool {

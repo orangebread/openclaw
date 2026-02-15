@@ -50,13 +50,14 @@ import { sanitizeToolUseResultPairing } from "../session-transcript-repair.js";
 import { acquireSessionWriteLock } from "../session-write-lock.js";
 import { detectRuntimeShell } from "../shell-utils.js";
 import {
-  applySkillEnvOverridesFromSnapshotWithAuth,
-  applySkillEnvOverridesWithAuth,
+  applySkillEnvOverrides,
+  applySkillEnvOverridesFromSnapshot,
   loadWorkspaceSkillEntries,
   resolveSkillsPromptForRun,
   type SkillSnapshot,
 } from "../skills.js";
 import { resolveTranscriptPolicy } from "../transcript-policy.js";
+import { compactWithSafetyTimeout } from "./compaction-safety-timeout.js";
 import { buildEmbeddedExtensionPaths } from "./extensions.js";
 import {
   logToolSchemasForGoogle,
@@ -107,7 +108,7 @@ export type CompactEmbeddedPiSessionParams = {
   reasoningLevel?: ReasoningLevel;
   bashElevated?: ExecElevatedDefaults;
   customInstructions?: string;
-  trigger?: "overflow" | "manual" | "cache_ttl" | "safeguard";
+  trigger?: "overflow" | "manual";
   diagId?: string;
   attempt?: number;
   maxAttempts?: number;
@@ -338,15 +339,13 @@ export async function compactEmbeddedPiSessionDirect(
       ? loadWorkspaceSkillEntries(effectiveWorkspace)
       : [];
     restoreSkillEnv = params.skillsSnapshot
-      ? await applySkillEnvOverridesFromSnapshotWithAuth({
+      ? applySkillEnvOverridesFromSnapshot({
           snapshot: params.skillsSnapshot,
           config: params.config,
-          agentDir,
         })
-      : await applySkillEnvOverridesWithAuth({
+      : applySkillEnvOverrides({
           skills: skillEntries ?? [],
           config: params.config,
-          agentDir,
         });
     const skillsPrompt = resolveSkillsPromptForRun({
       skillsSnapshot: params.skillsSnapshot,
@@ -634,7 +633,9 @@ export async function compactEmbeddedPiSessionDirect(
         }
 
         const compactStartedAt = Date.now();
-        const result = await session.compact(params.customInstructions);
+        const result = await compactWithSafetyTimeout(() =>
+          session.compact(params.customInstructions),
+        );
         // Estimate tokens after compaction by summing token estimates for remaining messages
         let tokensAfter: number | undefined;
         try {

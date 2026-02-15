@@ -1,18 +1,11 @@
-import * as lockfile from "proper-lockfile";
 import type { AuthProfileCredential, AuthProfileStore } from "./types.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
 import { normalizeProviderId } from "../model-selection.js";
-import { AUTH_STORE_LOCK_OPTIONS } from "./constants.js";
-import { ensureAuthStoreFile, resolveAuthStorePath } from "./paths.js";
 import {
   ensureAuthProfileStore,
   saveAuthProfileStore,
   updateAuthProfileStoreWithLock,
 } from "./store.js";
-
-const AUTH_STORE_LOCK_OPTIONS_SYNC = {
-  stale: AUTH_STORE_LOCK_OPTIONS.stale,
-} as const;
 
 export async function setAuthProfileOrder(params: {
   agentDir?: string;
@@ -49,7 +42,7 @@ export async function setAuthProfileOrder(params: {
       store.order[providerKey] = deduped;
       return true;
     },
-  }).then((res) => (res.ok ? res.store : null));
+  });
 }
 
 export function upsertAuthProfile(params: {
@@ -68,28 +61,9 @@ export function upsertAuthProfile(params: {
       : params.credential.type === "token"
         ? { ...params.credential, token: normalizeSecretInput(params.credential.token) }
         : params.credential;
-  const authPath = resolveAuthStorePath(params.agentDir);
-  ensureAuthStoreFile(authPath);
-
-  let release: (() => void) | undefined;
-  try {
-    release = (
-      lockfile as unknown as {
-        lockSync: (path: string, options: typeof AUTH_STORE_LOCK_OPTIONS_SYNC) => () => void;
-      }
-    ).lockSync(authPath, AUTH_STORE_LOCK_OPTIONS_SYNC);
-    const store = ensureAuthProfileStore(params.agentDir);
-    store.profiles[params.profileId] = credential;
-    saveAuthProfileStore(store, params.agentDir);
-  } finally {
-    if (release) {
-      try {
-        release();
-      } catch {
-        // ignore unlock errors
-      }
-    }
-  }
+  const store = ensureAuthProfileStore(params.agentDir);
+  store.profiles[params.profileId] = credential;
+  saveAuthProfileStore(store, params.agentDir);
 }
 
 export async function upsertAuthProfileWithLock(params: {
@@ -97,14 +71,13 @@ export async function upsertAuthProfileWithLock(params: {
   credential: AuthProfileCredential;
   agentDir?: string;
 }): Promise<AuthProfileStore | null> {
-  const result = await updateAuthProfileStoreWithLock({
+  return await updateAuthProfileStoreWithLock({
     agentDir: params.agentDir,
     updater: (store) => {
       store.profiles[params.profileId] = params.credential;
       return true;
     },
   });
-  return result?.ok ? result.store : null;
 }
 
 export function listProfilesForProvider(store: AuthProfileStore, provider: string): string[] {
@@ -132,14 +105,14 @@ export async function markAuthProfileGood(params: {
       return true;
     },
   });
-  if (updated.ok) {
-    store.lastGood = updated.store.lastGood;
+  if (updated) {
+    store.lastGood = updated.lastGood;
     return;
   }
   const profile = store.profiles[profileId];
   if (!profile || profile.provider !== provider) {
     return;
   }
-  // Best-effort only: avoid unlocked writes that could clobber concurrent updates.
   store.lastGood = { ...store.lastGood, [provider]: profileId };
+  saveAuthProfileStore(store, agentDir);
 }

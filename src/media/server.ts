@@ -60,13 +60,19 @@ export function attachMediaRoutes(
       if (mime) {
         res.type(mime);
       }
-      // best-effort single-use cleanup after response ends
-      res.once("finish", () => {
-        setTimeout(() => {
-          fs.rm(realPath).catch(() => {});
-        }, 50);
-      });
       res.send(data);
+      // best-effort single-use cleanup after response ends
+      res.on("finish", () => {
+        const cleanup = () => {
+          void fs.rm(realPath).catch(() => {});
+        };
+        // Tests should not pay for time-based cleanup delays.
+        if (process.env.VITEST || process.env.NODE_ENV === "test") {
+          queueMicrotask(cleanup);
+          return;
+        }
+        setTimeout(cleanup, 50);
+      });
     } catch (err) {
       if (err instanceof SafeOpenError) {
         if (err.code === "invalid-path") {
