@@ -4,6 +4,7 @@ import path from "node:path";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { GatewayRequestHandlers } from "./types.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
+import { normalizeLegacyConfigValues } from "../../commands/doctor-legacy-config.js";
 import { readConfigFileSnapshot, writeConfigFile } from "../../config/config.js";
 import { PLUGIN_MANIFEST_FILENAME } from "../../plugins/manifest.js";
 import { resolveConfigDir, resolveUserPath } from "../../utils.js";
@@ -128,6 +129,22 @@ async function buildDoctorPlan(): Promise<{
     });
   }
 
+  const legacy = normalizeLegacyConfigValues(cfg);
+  if (snapshot.valid && legacy.changes.length > 0) {
+    issues.push({
+      code: "config.legacy.values",
+      level: "warn",
+      message:
+        "Legacy channel DM config keys detected (Slack/Discord). Click Fix to migrate to dmPolicy/allowFrom.",
+      source: snapshot.path,
+      fixable: true,
+      fixHint: legacy.changes
+        .slice(0, 8)
+        .map((line) => `- ${line}`)
+        .join("\n"),
+    });
+  }
+
   const rawLoadPaths = Array.isArray(cfg.plugins?.load?.paths) ? cfg.plugins?.load?.paths : [];
   const missingLoadPaths = rawLoadPaths
     .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
@@ -216,12 +233,30 @@ export const doctorHandlers: GatewayRequestHandlers = {
 
     const plan = await buildDoctorPlan();
     const snapshot = plan.configSnapshot;
-    const cfg = structuredClone(snapshot.config ?? {});
+    let cfg = structuredClone(snapshot.config ?? {});
 
     const fixed: typeof plan.issues = [];
     let configChanged = false;
     let fsChanged = false;
     let backupDir: string | undefined;
+
+    if (snapshot.valid) {
+      const legacy = normalizeLegacyConfigValues(cfg);
+      if (legacy.changes.length > 0) {
+        cfg = legacy.config;
+        configChanged = true;
+        for (const change of legacy.changes) {
+          fixed.push({
+            code: "config.legacy.values",
+            level: "warn",
+            message: change,
+            source: snapshot.path,
+            fixable: true,
+            fixHint: "Migrated",
+          });
+        }
+      }
+    }
 
     if (snapshot.valid && plan.missingLoadPaths.length > 0) {
       const current = Array.isArray(cfg.plugins?.load?.paths) ? cfg.plugins?.load?.paths : [];

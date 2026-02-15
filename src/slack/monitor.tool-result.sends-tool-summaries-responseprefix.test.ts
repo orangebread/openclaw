@@ -66,7 +66,7 @@ describe("monitorSlackProvider tool results", () => {
           channel_type: "im",
         },
       },
-      { ["app" + "Token"]: "x" },
+      { appToken: "x" },
     );
 
     expect(sendMock).not.toHaveBeenCalled();

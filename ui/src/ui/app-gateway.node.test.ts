@@ -1,46 +1,42 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { connectGateway } from "./app-gateway.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-type GatewayClientMock = {
-  start: ReturnType<typeof vi.fn>;
-  stop: ReturnType<typeof vi.fn>;
-  emitClose: (code: number, reason?: string) => void;
-  emitGap: (expected: number, received: number) => void;
-  emitEvent: (evt: { event: string; payload?: unknown; seq?: number }) => void;
-};
+const wsInstances: WebSocketMock[] = [];
 
-const gatewayClientInstances: GatewayClientMock[] = [];
+class WebSocketMock {
+  static OPEN = 1;
+  readonly readyState = WebSocketMock.OPEN;
 
-vi.mock("./gateway.ts", () => {
-  class GatewayBrowserClient {
-    readonly start = vi.fn();
-    readonly stop = vi.fn();
+  private listeners = new Map<string, Array<(ev: unknown) => void>>();
 
-    constructor(
-      private opts: {
-        onClose?: (info: { code: number; reason: string }) => void;
-        onGap?: (info: { expected: number; received: number }) => void;
-        onEvent?: (evt: { event: string; payload?: unknown; seq?: number }) => void;
-      },
-    ) {
-      gatewayClientInstances.push({
-        start: this.start,
-        stop: this.stop,
-        emitClose: (code, reason) => {
-          this.opts.onClose?.({ code, reason: reason ?? "" });
-        },
-        emitGap: (expected, received) => {
-          this.opts.onGap?.({ expected, received });
-        },
-        emitEvent: (evt) => {
-          this.opts.onEvent?.(evt);
-        },
-      });
+  readonly send = vi.fn();
+  readonly close = vi.fn();
+
+  constructor(readonly url: string) {
+    wsInstances.push(this);
+  }
+
+  addEventListener(type: string, handler: (ev: unknown) => void) {
+    const existing = this.listeners.get(type) ?? [];
+    existing.push(handler);
+    this.listeners.set(type, existing);
+  }
+
+  emitMessage(data: unknown) {
+    const handlers = this.listeners.get("message") ?? [];
+    for (const handler of handlers) {
+      handler({ data: JSON.stringify(data) });
     }
   }
 
-  return { GatewayBrowserClient };
-});
+  emitClose(code: number, reason?: string) {
+    const handlers = this.listeners.get("close") ?? [];
+    for (const handler of handlers) {
+      handler({ code, reason: reason ?? "" });
+    }
+  }
+}
+
+const { connectGateway } = await import("./app-gateway.ts");
 
 function createHost() {
   return {
@@ -83,64 +79,110 @@ function createHost() {
 }
 
 describe("connectGateway", () => {
+  let setTimeoutSpy: { mockRestore: () => void } | null = null;
+
   beforeEach(() => {
-    gatewayClientInstances.length = 0;
+    wsInstances.length = 0;
+    setTimeoutSpy?.mockRestore();
+    setTimeoutSpy = vi
+      .spyOn(window, "setTimeout")
+      .mockImplementation(() => 0 as unknown as ReturnType<typeof window.setTimeout>);
+    vi.stubGlobal("WebSocket", WebSocketMock);
+  });
+
+  afterEach(() => {
+    setTimeoutSpy?.mockRestore();
+    setTimeoutSpy = null;
+    vi.unstubAllGlobals();
   });
 
   it("ignores stale client onGap callbacks after reconnect", () => {
     const host = createHost();
 
     connectGateway(host);
-    const firstClient = gatewayClientInstances[0];
+    const firstClient = host.client;
+    const firstWs = wsInstances[0];
     expect(firstClient).toBeDefined();
+    expect(firstWs).toBeDefined();
 
     connectGateway(host);
-    const secondClient = gatewayClientInstances[1];
+    const secondClient = host.client;
+    const secondWs = wsInstances[1];
     expect(secondClient).toBeDefined();
+    expect(secondWs).toBeDefined();
 
-    firstClient.emitGap(10, 13);
+    firstWs.emitMessage({ type: "event", event: "presence", seq: 10, payload: {} });
+    firstWs.emitMessage({ type: "event", event: "presence", seq: 13, payload: {} });
     expect(host.lastError).toBeNull();
 
-    secondClient.emitGap(20, 24);
+    secondWs.emitMessage({ type: "event", event: "presence", seq: 20, payload: {} });
+    secondWs.emitMessage({ type: "event", event: "presence", seq: 24, payload: {} });
     expect(host.lastError).toBe(
-      "event gap detected (expected seq 20, got 24); refresh recommended",
+      "event gap detected (expected seq 21, got 24); refresh recommended",
     );
+
+    firstClient?.stop();
+    secondClient?.stop();
   });
 
   it("ignores stale client onEvent callbacks after reconnect", () => {
     const host = createHost();
 
     connectGateway(host);
-    const firstClient = gatewayClientInstances[0];
+    const firstClient = host.client;
+    const firstWs = wsInstances[0];
     expect(firstClient).toBeDefined();
+    expect(firstWs).toBeDefined();
 
     connectGateway(host);
-    const secondClient = gatewayClientInstances[1];
+    const secondClient = host.client;
+    const secondWs = wsInstances[1];
     expect(secondClient).toBeDefined();
+    expect(secondWs).toBeDefined();
 
-    firstClient.emitEvent({ event: "presence", payload: { presence: [{ host: "stale" }] } });
+    firstWs.emitMessage({
+      type: "event",
+      event: "presence",
+      seq: 1,
+      payload: { presence: [{ host: "stale" }] },
+    });
     expect(host.eventLogBuffer).toHaveLength(0);
 
-    secondClient.emitEvent({ event: "presence", payload: { presence: [{ host: "active" }] } });
+    secondWs.emitMessage({
+      type: "event",
+      event: "presence",
+      seq: 1,
+      payload: { presence: [{ host: "active" }] },
+    });
     expect(host.eventLogBuffer).toHaveLength(1);
     expect(host.eventLogBuffer[0]?.event).toBe("presence");
+
+    firstClient?.stop();
+    secondClient?.stop();
   });
 
   it("ignores stale client onClose callbacks after reconnect", () => {
     const host = createHost();
 
     connectGateway(host);
-    const firstClient = gatewayClientInstances[0];
+    const firstClient = host.client;
+    const firstWs = wsInstances[0];
     expect(firstClient).toBeDefined();
+    expect(firstWs).toBeDefined();
 
     connectGateway(host);
-    const secondClient = gatewayClientInstances[1];
+    const secondClient = host.client;
+    const secondWs = wsInstances[1];
     expect(secondClient).toBeDefined();
+    expect(secondWs).toBeDefined();
 
-    firstClient.emitClose(1005);
+    firstWs.emitClose(1005);
     expect(host.lastError).toBeNull();
 
-    secondClient.emitClose(1005);
+    secondWs.emitClose(1005);
     expect(host.lastError).toBe("disconnected (1005): no reason");
+
+    firstClient?.stop();
+    secondClient?.stop();
   });
 });

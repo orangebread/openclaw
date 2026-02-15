@@ -58,6 +58,12 @@ export function renderChannels(props: ChannelsProps) {
   const doctorPlan = props.doctorPlan;
   const doctorIssues = doctorPlan?.issues ?? [];
   const doctorFixAvailable = doctorPlan?.fixAvailable === true;
+  const doctorHasError = doctorIssues.some((issue) => issue.level === "error");
+  const doctorCalloutClass = doctorHasError ? "danger" : "warning";
+  const doctorTitle = doctorHasError ? "Gateway issues detected" : "Gateway maintenance available";
+  const doctorSubtitle = doctorHasError
+    ? "These can prevent channels from loading or installing."
+    : "Safe config migrations are available.";
 
   const orderedChannels = fullOrder
     .map((key, index) => ({
@@ -112,11 +118,11 @@ export function renderChannels(props: ChannelsProps) {
     ${
       doctorIssues.length
         ? html`
-            <div class="callout danger" style="margin-bottom: 12px;">
+            <div class=${`callout ${doctorCalloutClass}`} style="margin-bottom: 12px;">
               <div class="row" style="justify-content: space-between; align-items: center;">
                 <div>
-                  <strong>Gateway issues detected</strong>
-                  <div class="muted" style="margin-top: 4px;">These can prevent channels from loading or installing.</div>
+                  <strong>${doctorTitle}</strong>
+                  <div class="muted" style="margin-top: 4px;">${doctorSubtitle}</div>
                 </div>
                 <button
                   class="btn"

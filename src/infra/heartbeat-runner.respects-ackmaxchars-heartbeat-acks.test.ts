@@ -514,7 +514,7 @@ describe("resolveHeartbeatIntervalMs", () => {
     {
       title: "passes through accountId for telegram heartbeats",
       heartbeat: { every: "5m", target: "telegram" },
-      telegram: { ["bot" + "Token"]: "x" },
+      telegram: { botToken: "x" },
       expectedAccountId: undefined,
     },
     {
@@ -522,7 +522,7 @@ describe("resolveHeartbeatIntervalMs", () => {
       heartbeat: { every: "5m", target: "telegram" },
       telegram: {
         accounts: {
-          work: { ["bot" + "Token"]: "x" },
+          work: { botToken: "x" },
         },
       },
       expectedAccountId: undefined,
@@ -532,7 +532,7 @@ describe("resolveHeartbeatIntervalMs", () => {
       heartbeat: { every: "5m", target: "telegram", accountId: "work" },
       telegram: {
         accounts: {
-          work: { ["bot" + "Token"]: "x" },
+          work: { botToken: "x" },
         },
       },
       expectedAccountId: "work",
