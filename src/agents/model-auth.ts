@@ -262,6 +262,9 @@ const PROVIDER_ENV_MAP: Record<string, string> = {
   together: "TOGETHER_API_KEY",
   qianfan: "QIANFAN_API_KEY",
   ollama: "OLLAMA_API_KEY",
+  vllm: "VLLM_API_KEY",
+  nvidia: "NVIDIA_API_KEY",
+  huggingface: "HUGGINGFACE_API_KEY",
 };
 
 /**

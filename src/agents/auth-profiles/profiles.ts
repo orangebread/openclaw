@@ -92,6 +92,21 @@ export function upsertAuthProfile(params: {
   }
 }
 
+export async function upsertAuthProfileWithLock(params: {
+  profileId: string;
+  credential: AuthProfileCredential;
+  agentDir?: string;
+}): Promise<AuthProfileStore | null> {
+  const result = await updateAuthProfileStoreWithLock({
+    agentDir: params.agentDir,
+    updater: (store) => {
+      store.profiles[params.profileId] = params.credential;
+      return true;
+    },
+  });
+  return result?.ok ? result.store : null;
+}
+
 export function listProfilesForProvider(store: AuthProfileStore, provider: string): string[] {
   const providerKey = normalizeProviderId(provider);
   return Object.entries(store.profiles)

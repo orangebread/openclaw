@@ -88,6 +88,10 @@ import {
   ChannelsRepairResultSchema,
   type ChannelsLogoutParams,
   ChannelsLogoutParamsSchema,
+  type TalkConfigParams,
+  TalkConfigParamsSchema,
+  type TalkConfigResult,
+  TalkConfigResultSchema,
   type ChannelsStatusParams,
   ChannelsStatusParamsSchema,
   type ChannelsStatusResult,
@@ -429,6 +433,7 @@ export const validateWizardStatusParams = ajv.compile<WizardStatusParams>(Wizard
 export const validateWizardCurrentParams =
   ajv.compile<WizardCurrentParams>(WizardCurrentParamsSchema);
 export const validateTalkModeParams = ajv.compile<TalkModeParams>(TalkModeParamsSchema);
+export const validateTalkConfigParams = ajv.compile<TalkConfigParams>(TalkConfigParamsSchema);
 export const validateChannelsStatusParams = ajv.compile<ChannelsStatusParams>(
   ChannelsStatusParamsSchema,
 );
@@ -642,6 +647,8 @@ export {
   ChannelsInstallResultSchema,
   ChannelsRepairParamsSchema,
   ChannelsRepairResultSchema,
+  TalkConfigParamsSchema,
+  TalkConfigResultSchema,
   ChannelsStatusParamsSchema,
   ChannelsStatusResultSchema,
   ChannelsLogoutParamsSchema,
@@ -758,6 +765,8 @@ export type {
   WizardNextResult,
   WizardStartResult,
   WizardStatusResult,
+  TalkConfigParams,
+  TalkConfigResult,
   TalkModeParams,
   ChannelsCatalogParams,
   ChannelsCatalogResult,

@@ -2,17 +2,13 @@ import type { GatewayRequestHandlers, GatewayRequestOptions } from "./server-met
 import { ErrorCodes, errorShape } from "./protocol/index.js";
 import { agentHandlers } from "./server-methods/agent.js";
 import { agentsHandlers } from "./server-methods/agents.js";
-import { authFlowHandlers } from "./server-methods/auth-flow.js";
-import { authProfilesHandlers } from "./server-methods/auth-profiles.js";
 import { browserHandlers } from "./server-methods/browser.js";
 import { channelsHandlers } from "./server-methods/channels.js";
 import { chatHandlers } from "./server-methods/chat.js";
 import { configHandlers } from "./server-methods/config.js";
 import { connectHandlers } from "./server-methods/connect.js";
 import { cronHandlers } from "./server-methods/cron.js";
-import { dataHandlers } from "./server-methods/data.js";
 import { deviceHandlers } from "./server-methods/devices.js";
-import { doctorHandlers } from "./server-methods/doctor.js";
 import { execApprovalsHandlers } from "./server-methods/exec-approvals.js";
 import { healthHandlers } from "./server-methods/health.js";
 import { logsHandlers } from "./server-methods/logs.js";
@@ -29,7 +25,6 @@ import { usageHandlers } from "./server-methods/usage.js";
 import { voicewakeHandlers } from "./server-methods/voicewake.js";
 import { webHandlers } from "./server-methods/web.js";
 import { wizardHandlers } from "./server-methods/wizard.js";
-import { workspaceHandlers } from "./server-methods/workspace.js";
 
 const ADMIN_SCOPE = "operator.admin";
 const READ_SCOPE = "operator.read";
@@ -39,12 +34,8 @@ const PAIRING_SCOPE = "operator.pairing";
 
 const APPROVAL_METHODS = new Set([
   "exec.approval.request",
+  "exec.approval.waitDecision",
   "exec.approval.resolve",
-  "workflow.approvals.list",
-  "workflow.approval.create",
-  "workflow.approval.request",
-  "workflow.approval.wait",
-  "workflow.approval.resolve",
 ]);
 const NODE_ROLE_METHODS = new Set(["node.invoke.result", "node.event", "skills.bins"]);
 const PAIRING_METHODS = new Set([
@@ -65,8 +56,6 @@ const READ_METHODS = new Set([
   "health",
   "logs.tail",
   "channels.status",
-  "channels.catalog",
-  "doctor.plan",
   "status",
   "usage.status",
   "usage.cost",
@@ -87,6 +76,8 @@ const READ_METHODS = new Set([
   "node.list",
   "node.describe",
   "chat.history",
+  "config.get",
+  "talk.config",
   "workspace.list",
   "workspace.read",
 ]);
@@ -106,8 +97,8 @@ const WRITE_METHODS = new Set([
   "chat.abort",
   "browser.request",
   "workspace.write",
-  "workspace.delete",
   "workspace.upload",
+  "workspace.delete",
 ]);
 
 function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["client"]) {
@@ -160,14 +151,9 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
   }
   if (
     method.startsWith("config.") ||
-    method.startsWith("data.") ||
     method.startsWith("wizard.") ||
     method.startsWith("update.") ||
-    method === "gateway.restart" ||
     method === "channels.logout" ||
-    method === "channels.enable" ||
-    method === "channels.install" ||
-    method === "channels.repair" ||
     method === "agents.create" ||
     method === "agents.update" ||
     method === "agents.delete" ||
@@ -192,8 +178,6 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...logsHandlers,
   ...voicewakeHandlers,
   ...healthHandlers,
-  ...authProfilesHandlers,
-  ...authFlowHandlers,
   ...channelsHandlers,
   ...chatHandlers,
   ...cronHandlers,
@@ -201,9 +185,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...execApprovalsHandlers,
   ...webHandlers,
   ...modelsHandlers,
-  ...doctorHandlers,
   ...configHandlers,
-  ...dataHandlers,
   ...wizardHandlers,
   ...talkHandlers,
   ...ttsHandlers,
@@ -217,7 +199,6 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...agentHandlers,
   ...agentsHandlers,
   ...browserHandlers,
-  ...workspaceHandlers,
 };
 
 export async function handleGatewayRequest(
